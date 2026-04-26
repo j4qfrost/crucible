@@ -30,7 +30,10 @@ end
 @testset "ArxivAdapter request shape (offline-tolerant)" begin
     # We don't hit the network in CI; just verify the adapter constructs
     # cleanly and ingest handles a network failure without throwing.
-    a = ArxivAdapter(api_url="http://localhost:1/should-fail", timeout_s=1)
+    # Force download_pdf=false so the adapter doesn't try to fetch when
+    # poppler is available locally.
+    a = ArxivAdapter(api_url="http://localhost:1/should-fail",
+                     timeout_s=1, download_pdf=false)
     p = ingest(a, "1234.56789")
     @test p.source_kind == :arxiv
     @test p.source_id == "1234.56789"

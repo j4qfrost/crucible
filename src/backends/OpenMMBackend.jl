@@ -218,6 +218,17 @@ function _emit_protocol(spec::MDSpec)
             print(io, "    ", log_period, ", step=True, time=True, potentialEnergy=True,\n")
             print(io, "    kineticEnergy=True, totalEnergy=True, temperature=True, volume=True))\n")
 
+            # Per-spec trajectory reporters — DCDReporter at the requested
+            # stride, written to <stage>_traj.dcd. Only attached for stages
+            # that include the trajectory observable.
+            for o in spec.observables
+                o.type == :trajectory || continue
+                stride_steps = max(1, ps_to_steps(o.stride_ps, stage.dt_fs))
+                print(io, "_sim.reporters.append(DCDReporter(\n")
+                print(io, "    os.path.join(OUTPUT_DIR, ", repr("$(stage_tag)_traj.dcd"), "),\n")
+                print(io, "    ", stride_steps, "))\n")
+            end
+
             # Restraints — harmonic positional restraints anchored at current_positions
             _has_restraints = stage.restraints.selection != :none && stage.restraints.k_kj_mol_nm2 > 0
             if _has_restraints
@@ -267,11 +278,54 @@ end
 
 function _emit_observables(spec::MDSpec)
     io = IOBuffer()
-    print(io, "# --- observables (v0: emitted as documentation; analysis lives in PlutoRenderer) ---\n")
-    for o in spec.observables
-        print(io, "# observable: type=", String(o.type), " selection=", repr(o.selection),
-                  " stride_ps=", o.stride_ps, "\n")
+    print(io, "# --- observables (post-run analysis via mdtraj when available) ---\n")
+
+    # Trajectory observables are wired in _emit_protocol as DCDReporters.
+    # Here we add post-run analysis for RMSD / RMSF / Rg.
+    needs_mdtraj = any(o -> o.type in (:rmsd, :rmsf, :rg), spec.observables)
+    if !needs_mdtraj
+        print(io, "# (no post-run mdtraj analysis requested)\n\n")
+        return String(take!(io))
     end
+
+    print(io, "try:\n")
+    print(io, "    import mdtraj as _mdt\n")
+    print(io, "    import csv as _csv\n")
+    print(io, "    import glob as _glob\n")
+    print(io, "    _traj_files = sorted(_glob.glob(os.path.join(OUTPUT_DIR, '*_traj.dcd')))\n")
+    print(io, "    if not _traj_files:\n")
+    print(io, "        print('observables: no trajectory files found; skipping mdtraj analysis')\n")
+    print(io, "    else:\n")
+    print(io, "        _t = _mdt.load(_traj_files, top=topology)\n")
+
+    for o in spec.observables
+        if o.type == :rmsd
+            print(io, "        _atoms = _t.topology.select(", repr(o.selection), ")\n")
+            print(io, "        _rmsd = _mdt.rmsd(_t, _t, frame=0, atom_indices=_atoms)\n")
+            print(io, "        with open(os.path.join(OUTPUT_DIR, 'rmsd.csv'), 'w', newline='') as _f:\n")
+            print(io, "            _w = _csv.writer(_f); _w.writerow(['frame','rmsd_nm'])\n")
+            print(io, "            for i, v in enumerate(_rmsd): _w.writerow([i, float(v)])\n")
+            print(io, "        print('observables: rmsd written to rmsd.csv (n=' + str(len(_rmsd)) + ')')\n")
+        elseif o.type == :rmsf
+            print(io, "        _atoms = _t.topology.select(", repr(o.selection), ")\n")
+            print(io, "        _t.superpose(_t, frame=0, atom_indices=_atoms)\n")
+            print(io, "        _rmsf = _mdt.rmsf(_t, _t, frame=0, atom_indices=_atoms)\n")
+            print(io, "        with open(os.path.join(OUTPUT_DIR, 'rmsf.csv'), 'w', newline='') as _f:\n")
+            print(io, "            _w = _csv.writer(_f); _w.writerow(['atom_index','rmsf_nm'])\n")
+            print(io, "            for i, v in zip(_atoms, _rmsf): _w.writerow([int(i), float(v)])\n")
+            print(io, "        print('observables: rmsf written to rmsf.csv (n=' + str(len(_rmsf)) + ')')\n")
+        elseif o.type == :rg
+            print(io, "        _rg = _mdt.compute_rg(_t)\n")
+            print(io, "        with open(os.path.join(OUTPUT_DIR, 'rg.csv'), 'w', newline='') as _f:\n")
+            print(io, "            _w = _csv.writer(_f); _w.writerow(['frame','rg_nm'])\n")
+            print(io, "            for i, v in enumerate(_rg): _w.writerow([i, float(v)])\n")
+            print(io, "        print('observables: rg written to rg.csv (n=' + str(len(_rg)) + ')')\n")
+        end
+    end
+    print(io, "except ImportError:\n")
+    print(io, "    print('observables: mdtraj not installed; skipping post-run analysis')\n")
+    print(io, "except Exception as _e:\n")
+    print(io, "    print('observables: post-run analysis failed:', repr(_e))\n")
     print(io, "\n")
     String(take!(io))
 end

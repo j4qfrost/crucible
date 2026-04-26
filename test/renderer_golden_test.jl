@@ -42,6 +42,14 @@ end
 
     # Preview gate hook: every dynamics step is wrapped in _cap()
     @test occursin("_preview_cap", script)
+
+    # Trajectory observable in fixture must emit DCDReporter
+    @test occursin("DCDReporter", script)
+    @test occursin("_traj.dcd", script)
+
+    # RMSD observable wires post-run mdtraj analysis
+    @test occursin("import mdtraj", script)
+    @test occursin("rmsd.csv", script)
 end
 
 @testset "MollyBackend renderer" begin
