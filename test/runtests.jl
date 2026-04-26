@@ -9,4 +9,5 @@ using Crucible
     include("advisor_test.jl")
     include("integration_test.jl")
     include("llm_test.jl")
+    include("adapters_test.jl")
 end
