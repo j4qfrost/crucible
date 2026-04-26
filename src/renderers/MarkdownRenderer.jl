@@ -88,6 +88,38 @@ function _stage_details(s::DynamicsStage)
     join(parts, "; ")
 end
 
+function render(::MarkdownRenderer, d::SpecDiff)::String
+    io = IOBuffer()
+    if isempty(d)
+        print(io, "## Spec diff\n\nNo differences.\n")
+        return String(take!(io))
+    end
+    print(io, "## Spec diff (", length(d), " differences)\n\n")
+    if !isempty(d.changed)
+        print(io, "### Changed\n\n")
+        print(io, "| field | before | after |\n|-------|--------|-------|\n")
+        for (k, va, vb) in d.changed
+            print(io, "| `", k, "` | `", _short(va), "` | `", _short(vb), "` |\n")
+        end
+        print(io, "\n")
+    end
+    if !isempty(d.only_in_a)
+        print(io, "### Only in A (removed)\n\n")
+        for (k, v) in d.only_in_a; print(io, "- `", k, "`: ", _short(v), "\n"); end
+        print(io, "\n")
+    end
+    if !isempty(d.only_in_b)
+        print(io, "### Only in B (added)\n\n")
+        for (k, v) in d.only_in_b; print(io, "- `", k, "`: ", _short(v), "\n"); end
+        print(io, "\n")
+    end
+    String(take!(io))
+end
+
+_short(x) = string(x)
+_short(x::Nothing) = "—"
+_short(x::AbstractString) = length(x) > 60 ? string(SubString(x, 1, 57), "…") : x
+
 function render(::MarkdownRenderer, r::ValidationReport)::String
     io = IOBuffer()
     print(io, "## Validation\n\n")

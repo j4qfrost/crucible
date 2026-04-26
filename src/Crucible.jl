@@ -11,6 +11,7 @@ using UUIDs
 
 include("spec/units.jl")
 include("spec/MDSpec.jl")
+include("spec/Diff.jl")
 
 include("backends/SimBackend.jl")
 include("backends/OpenMMBackend.jl")
@@ -40,6 +41,7 @@ include("renderers/WebRenderer.jl")
 include("cloud/Advisor.jl")
 
 export MDSpec, SystemSpec, ForceFieldSpec, Stage, Observable, Provenance,
+       SpecDiff, diff_specs,
        SimBackend, MollyBackend, OpenMMBackend, route_backend,
        validate_spec, ValidationReport,
        LLMProvider, AnthropicProvider, LocalProvider, RecordedProvider, transpile,

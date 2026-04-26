@@ -27,6 +27,7 @@ Usage:
   crucible render        <spec.json> --backend openmm|molly --out <script>
   crucible advise        <spec.json> [--budget-hours N] [--backend openmm|molly]
   crucible summarize     <spec.json>                # Markdown summary of MDSpec
+  crucible diff          <spec-a.json> <spec-b.json>   # Markdown diff
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -173,6 +174,15 @@ function cmd_advise(args::Vector{String})
     rec.requires_confirmation ? 3 : 0
 end
 
+function cmd_diff(args::Vector{String})
+    pos, _ = _parse_kw_args(args)
+    length(pos) < 2 && error("usage: diff <spec-a.json> <spec-b.json>")
+    a = spec_from_json(read(pos[1], String))
+    b = spec_from_json(read(pos[2], String))
+    print(render(MarkdownRenderer(), diff_specs(a, b)))
+    isempty(diff_specs(a, b)) ? 0 : 4
+end
+
 function cmd_summarize(args::Vector{String})
     pos, kw = _parse_kw_args(args)
     length(pos) < 1 && error("usage: summarize <spec.json>")
@@ -235,6 +245,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "render";      return cmd_render(rest)
         elseif cmd == "advise";      return cmd_advise(rest)
         elseif cmd == "summarize";   return cmd_summarize(rest)
+        elseif cmd == "diff";        return cmd_diff(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")
