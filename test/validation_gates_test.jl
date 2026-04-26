@@ -82,3 +82,33 @@ end
     r = Crucible.run_validation(json_str, spec, omm)
     @test r.ok
 end
+
+@testset "gate_preview rejects NaN log output" begin
+    # Construct a synthetic prepared job whose script prints NaN energies.
+    # gate_preview shells out to b.python; we point it at a fake python
+    # via the OpenMMBackend constructor so we can assert the failure path
+    # without needing a real OpenMM install in the test container.
+    workdir = mktempdir(prefix="crucible-gate4-test-")
+    script_path = joinpath(workdir, "fake_run.py")
+    write(script_path, "print('Energy: NaN')\n")
+    job = Crucible.PreparedJob(:openmm, workdir, script_path,
+                               Dict{String,Any}())
+    fake_omm = OpenMMBackend(python="python3")
+    rep = Crucible.gate_preview(fake_omm, job; n_steps=10)
+    @test !rep.ok
+    @test any(occursin("non-finite", e) for e in rep.errors)
+    rm(workdir; recursive=true, force=true)
+end
+
+@testset "gate_preview rejects script-exit failures" begin
+    # Script that exits non-zero — gate must catch this distinct from NaN
+    workdir = mktempdir(prefix="crucible-gate4-fail-test-")
+    script_path = joinpath(workdir, "fail.py")
+    write(script_path, "import sys; sys.exit(2)\n")
+    job = Crucible.PreparedJob(:openmm, workdir, script_path,
+                               Dict{String,Any}())
+    fake_omm = OpenMMBackend(python="python3")
+    rep = Crucible.gate_preview(fake_omm, job; n_steps=10)
+    @test !rep.ok
+    rm(workdir; recursive=true, force=true)
+end
