@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### v0.5 (2026-04-26)
+
+- **Crucible CLI** (`bin/crucible`): 7 subcommands — `transpile`, `validate`, `render`, `advise`, `summarize`, `diff`, `walkthrough`. Pipeline usable from a shell without Pluto.
+- **`MarkdownRenderer`**: GFM-rich rendering of `MDSpec`, `ValidationReport`, `SpecDiff` for CLI / PR descriptions / README.
+- **`diff_specs(a, b)` + `crucible diff`**: structured per-field diff between two specs. The training signal for the option-3 fine-tune (LLM-emitted vs. user-corrected pairs).
+- **`docs/IR.md`** auto-generated from `schema.json` via `tools/regenerate_docs.jl`.
+- **`examples/lifecycle.jl`**: full option-3 flywheel demo (transpile → log → user-edit → diff → log → JSONL).
+- **`tools/regenerate_fixtures.sh`**: drift check for the recorded LLM fixture against a live Anthropic call.
+- **`tools/check.sh`**: pre-commit gate runner — `Pkg.test()` + IR docs drift + fixture drift.
+- **NVE ensemble support** (VerletIntegrator) and **CHARMM36m** rendering coverage.
+- **Schema-version migration framework** (`src/spec/Migrations.jl`) so future schema bumps preserve historical transcripts.
+- **`KineticsSpec` + `KineticsBackend` stub**: proof the SimBackend abstraction extends past MD; v1+ wires Catalyst.jl in.
+- **`SECURITY.md`** with the project's secrets-handling policy.
+- **`docs/VERIFICATION_ROUTINE.md`** documenting what the 2-week verification routine should do.
+- **Schema tightening**: NPT/NVE invariants enforced at Gate 1 (was Gate 2-only).
+- **JSONL transcript export** for sharing the data flywheel across machines.
+- **CHANGELOG / README / AGENTS.md / LICENSE** all polished.
+
 ### v0.4 / v1 partial (2026-04-26)
 
 - **PDBFixer auto-build path** (v1 #1): `:pdb_fetch` source type now downloads a PDB by ID, fixes missing atoms/residues, adds hydrogens at pH 7, solvates with the requested water model, and saves the prepared system. Canonical-residue protein systems only — ligand systems still require BYO topology.
