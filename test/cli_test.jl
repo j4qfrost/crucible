@@ -103,3 +103,38 @@ end
     rc = CLI.main(String["unknownsubcommand"])
     @test rc == 2
 end
+
+@testset "CLI help text lists every dispatched subcommand" begin
+    # Each subcommand mentioned in HELP_TEXT must actually dispatch — i.e.
+    # NOT return rc=2 (the "unknown subcommand" code). We invoke each with
+    # nonsense args; we just want to confirm dispatch happens (any other
+    # rc, or an error message, is fine).
+    help = CLI.HELP_TEXT
+    # Extract subcommand tokens from "  crucible <name> ..." lines
+    subcmds = String[]
+    for line in eachline(IOBuffer(help))
+        m = match(r"^\s+crucible\s+(\w+)", line)
+        m === nothing && continue
+        push!(subcmds, String(m.captures[1]))
+    end
+    @test length(subcmds) >= 7
+
+    for cmd in subcmds
+        # Use a pipe to swallow any output noise
+        original_stdout = stdout
+        original_stderr = stderr
+        rd_out, wr_out = redirect_stdout()
+        rd_err, wr_err = redirect_stderr()
+        rc = -1
+        try
+            rc = CLI.main(String[cmd])
+        catch
+            rc = -2
+        finally
+            redirect_stdout(original_stdout)
+            redirect_stderr(original_stderr)
+            close(wr_out); close(wr_err)
+        end
+        @test rc != 2  # 2 = unknown subcommand
+    end
+end
