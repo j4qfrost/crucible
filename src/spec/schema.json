@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://crucible.dev/schema/mdspec-0.1.0.json",
+  "title": "MDSpec",
+  "description": "Molecular-dynamics simulation intermediate representation. Emitted by the LLM transpiler; consumed by Crucible backends.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "system", "force_field", "protocol", "observables", "provenance", "warnings", "notes"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "0.1.0"},
+    "system": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "n_atoms_estimate", "has_ligand", "solvent"],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type":        {"enum": ["user_supplied", "pdb_id", "pdb_fetch"]},
+            "topology":    {"type": ["string", "null"]},
+            "coordinates": {"type": ["string", "null"]},
+            "pdb_id":      {"type": ["string", "null"]}
+          }
+        },
+        "n_atoms_estimate": {"type": "integer", "minimum": 1, "maximum": 10000000},
+        "has_ligand": {"type": "boolean"},
+        "solvent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "ions_NaCl_mM"],
+          "properties": {
+            "model":        {"enum": ["TIP3P", "TIP4P_EW", "SPC_E", "implicit_GBSA", "vacuum"]},
+            "ions_NaCl_mM": {"type": "number", "minimum": 0, "maximum": 5000}
+          }
+        }
+      }
+    },
+    "force_field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protein", "water", "ligand"],
+      "properties": {
+        "protein": {"enum": ["amber14sb", "amber99sb_ildn", "amber03", "charmm36m", "opls_aam"]},
+        "water":   {"enum": ["TIP3P", "TIP4P_EW", "SPC_E", "implicit_GBSA", "vacuum"]},
+        "ligand":  {"enum": ["user_supplied", "gaff2", "openff_sage_2_2_0"]}
+      }
+    },
+    "protocol": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "max_iterations", "tolerance_kj_mol_nm"],
+            "properties": {
+              "kind": {"const": "minimize"},
+              "max_iterations":      {"type": "integer", "minimum": 1, "maximum": 1000000},
+              "tolerance_kj_mol_nm": {"type": "number", "minimum": 0, "maximum": 1e6}
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "role", "ensemble", "duration_ns", "dt_fs", "temperature_K", "pressure_bar", "thermostat", "barostat", "friction_ps", "constraints", "restraints"],
+            "properties": {
+              "kind":          {"const": "dynamics"},
+              "role":          {"enum": ["equilibrate", "production"]},
+              "ensemble":      {"enum": ["NVE", "NVT", "NPT"]},
+              "duration_ns":   {"type": "number", "exclusiveMinimum": 0, "maximum": 10000},
+              "dt_fs":         {"type": "number", "exclusiveMinimum": 0, "maximum": 5},
+              "temperature_K": {"type": "number", "minimum": 0, "maximum": 1000},
+              "pressure_bar":  {"type": ["number", "null"]},
+              "thermostat":    {"enum": ["langevin", "nose_hoover", "andersen", "berendsen"]},
+              "barostat":      {"oneOf": [{"enum": ["monte_carlo", "berendsen", "parrinello_rahman"]}, {"type": "null"}]},
+              "friction_ps":   {"type": "number", "minimum": 0, "maximum": 100},
+              "constraints":   {"enum": ["none", "h_bonds", "all_bonds"]},
+              "restraints": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["selection", "kind", "k_kj_mol_nm2"],
+                "properties": {
+                  "selection":    {"enum": ["heavy_atoms", "backbone", "ca", "none"]},
+                  "kind":         {"enum": ["harmonic", "flat_bottom"]},
+                  "k_kj_mol_nm2": {"type": "number", "minimum": 0, "maximum": 1e6}
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "observables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "selection", "stride_ps"],
+        "properties": {
+          "type":      {"enum": ["rmsd", "rmsf", "energy", "trajectory", "rg"]},
+          "selection": {"type": "string"},
+          "stride_ps": {"type": "number", "exclusiveMinimum": 0}
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "cite", "confidence"],
+        "properties": {
+          "source":     {"enum": ["paper", "paper_default", "assumed", "user", "runtime_default"]},
+          "cite":       {"type": ["string", "null"]},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      }
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "notes":    {"type": "string"}
+  }
+}

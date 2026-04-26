@@ -1,0 +1,48 @@
+module Crucible
+
+using JSON3
+using JSONSchema
+using Mustache
+using Unitful
+using Printf
+using SHA
+using TOML
+using UUIDs
+
+include("spec/units.jl")
+include("spec/MDSpec.jl")
+
+include("backends/SimBackend.jl")
+include("backends/OpenMMBackend.jl")
+include("backends/MollyBackend.jl")
+include("backends/Router.jl")
+
+include("validation/Gates.jl")
+
+include("llm/Provider.jl")
+include("llm/AnthropicProvider.jl")
+include("llm/LocalProvider.jl")
+
+include("adapters/InputAdapter.jl")
+include("adapters/PDFAdapter.jl")
+include("adapters/ArxivAdapter.jl")
+include("adapters/BioRxivAdapter.jl")
+include("adapters/NotesAdapter.jl")
+
+include("renderers/Renderer.jl")
+include("renderers/PlutoRenderer.jl")
+include("renderers/NotebookRenderer.jl")
+include("renderers/WebRenderer.jl")
+
+include("cloud/Advisor.jl")
+
+export MDSpec, SystemSpec, ForceFieldSpec, Stage, Observable, Provenance,
+       SimBackend, MollyBackend, OpenMMBackend, route_backend,
+       validate_spec, ValidationReport,
+       LLMProvider, AnthropicProvider, LocalProvider, transpile,
+       InputAdapter, PDFAdapter, ArxivAdapter, BioRxivAdapter, NotesAdapter,
+       PaperRepr, ingest,
+       Renderer, PlutoRenderer, NotebookRenderer, render,
+       advise
+
+end # module Crucible

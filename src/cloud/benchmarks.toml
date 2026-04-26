@@ -1,0 +1,58 @@
+# GPU MD throughput, scaled per backend.
+#
+# Numbers are seeded from published OpenMM benchmarks for ~25-50k atom
+# solvated proteins with AMBER + TIP3P + PME at 2 fs timestep. Real-world
+# performance varies by ±2x for any given system.
+#
+# Format:
+#   ns_per_day_baseline = throughput on the baseline 30k-atom system
+#   The advisor scales linearly with atom count (1/N) up to a saturation
+#   floor where launch overhead dominates.
+#
+# Backend multipliers reflect the relative throughput of each backend on
+# the same workload. Molly = ~0.3x of OpenMM in v0.
+
+backend_multipliers.openmm = 1.0
+backend_multipliers.molly  = 0.3
+
+baseline_atoms = 30000
+
+[gpu.T4]
+ns_per_day_baseline = 40
+gcp_instance        = "n1-standard-4 + 1x T4"
+gcp_command         = "gcloud compute instances create crucible-md --machine-type=n1-standard-4 --accelerator=type=nvidia-tesla-t4,count=1 --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
+aws_instance        = "g4dn.xlarge"
+aws_command         = "aws ec2 run-instances --instance-type g4dn.xlarge --image-id ami-deeplearning --count 1"
+on_demand_usd_per_hour = 0.55
+
+[gpu.L4]
+ns_per_day_baseline = 110
+gcp_instance        = "g2-standard-4"
+gcp_command         = "gcloud compute instances create crucible-md --machine-type=g2-standard-4 --accelerator=type=nvidia-l4,count=1 --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
+aws_instance        = "g6.xlarge"
+aws_command         = "aws ec2 run-instances --instance-type g6.xlarge --image-id ami-deeplearning --count 1"
+on_demand_usd_per_hour = 0.78
+
+[gpu.A10G]
+ns_per_day_baseline = 140
+gcp_instance        = "(not directly available — closest is L4 g2 or A100 a2)"
+gcp_command         = "(skip — use L4 or A100 on GCP)"
+aws_instance        = "g5.xlarge"
+aws_command         = "aws ec2 run-instances --instance-type g5.xlarge --image-id ami-deeplearning --count 1"
+on_demand_usd_per_hour = 1.05
+
+[gpu.A100_40GB]
+ns_per_day_baseline = 350
+gcp_instance        = "a2-highgpu-1g"
+gcp_command         = "gcloud compute instances create crucible-md --machine-type=a2-highgpu-1g --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
+aws_instance        = "(closest single-GPU: p4d.24xlarge — oversized for 1 replica)"
+aws_command         = "(prefer GCP for single A100)"
+on_demand_usd_per_hour = 3.75
+
+[gpu.H100]
+ns_per_day_baseline = 550
+gcp_instance        = "a3-highgpu-1g (when available; often only 8g)"
+gcp_command         = "gcloud compute instances create crucible-md --machine-type=a3-highgpu-1g --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
+aws_instance        = "p5.48xlarge (oversized for 1 replica)"
+aws_command         = "(usually overkill for a single 10 ns run)"
+on_demand_usd_per_hour = 10.00

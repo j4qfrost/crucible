@@ -1,0 +1,14 @@
+/Manifest.toml
+/.CondaPkg/
+/test/Manifest.toml
+/runs/
+*.dcd
+*.xtc
+*.trr
+*.chk
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+.env
+.env.local

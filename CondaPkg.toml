@@ -1,0 +1,17 @@
+channels = ["conda-forge"]
+
+[deps]
+python = ">=3.11,<3.13"
+openmm = ">=8.1,<9"
+pdbfixer = ">=1.9"
+"openff-toolkit" = ">=0.16"
+"openff-interchange" = ">=0.4"
+mdtraj = ">=1.10"
+numpy = ">=1.26,<3"
+
+# Notes:
+#   - openmm 8.x is the workhorse engine the OpenMMBackend templates against
+#   - pdbfixer is the v0.5 system-prep path (standard residues only)
+#   - openff-toolkit + interchange is the v1 SMILES->params path; pinned now to
+#     keep the env reproducible, not because v0 calls it
+#   - mdtraj is for trajectory analysis at preview / observable time

@@ -1,0 +1,34 @@
+name = "Crucible"
+uuid = "c9c1b1c1-1c11-4c11-9c11-1c11c11c11c1"
+authors = ["j4qfrost <j4qfrost@gmail.com>"]
+version = "0.1.0-dev"
+
+[deps]
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+JSONSchema = "7d188eb4-7ad8-530c-ae41-71a32a6d4692"
+Mustache = "ffc61752-8dc7-55ee-8c37-f3e9cdd09e70"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
+
+# Backend deps are optional / weakdep-friendly; documented in README.
+# Molly and PythonCall are not added by default to keep the package lightweight
+# for users who only want the IR + LLM layer. Add them with:
+#   ] add Molly PythonCall CondaPkg
+
+[compat]
+HTTP = "1"
+JSON3 = "1"
+JSONSchema = "1"
+Mustache = "1"
+Unitful = "1"
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
