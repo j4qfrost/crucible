@@ -19,15 +19,17 @@ include("backends/Router.jl")
 
 include("validation/Gates.jl")
 
-include("llm/Provider.jl")
-include("llm/AnthropicProvider.jl")
-include("llm/LocalProvider.jl")
-
 include("adapters/InputAdapter.jl")
 include("adapters/PDFAdapter.jl")
 include("adapters/ArxivAdapter.jl")
 include("adapters/BioRxivAdapter.jl")
 include("adapters/NotesAdapter.jl")
+
+include("llm/Provider.jl")
+include("llm/AnthropicProvider.jl")
+include("llm/LocalProvider.jl")
+include("llm/RecordedProvider.jl")
+include("llm/Transcripts.jl")
 
 include("renderers/Renderer.jl")
 include("renderers/PlutoRenderer.jl")
@@ -39,7 +41,8 @@ include("cloud/Advisor.jl")
 export MDSpec, SystemSpec, ForceFieldSpec, Stage, Observable, Provenance,
        SimBackend, MollyBackend, OpenMMBackend, route_backend,
        validate_spec, ValidationReport,
-       LLMProvider, AnthropicProvider, LocalProvider, transpile,
+       LLMProvider, AnthropicProvider, LocalProvider, RecordedProvider, transpile,
+       TranscriptStore, open_transcript_store, close_transcript_store, log_transcript, transcript_count,
        InputAdapter, PDFAdapter, ArxivAdapter, BioRxivAdapter, NotesAdapter,
        PaperRepr, ingest,
        Renderer, PlutoRenderer, NotebookRenderer, render,

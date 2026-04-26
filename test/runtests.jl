@@ -8,4 +8,5 @@ using Crucible
     include("router_test.jl")
     include("advisor_test.jl")
     include("integration_test.jl")
+    include("llm_test.jl")
 end
