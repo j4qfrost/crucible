@@ -134,3 +134,53 @@ function transcript_count(store::TranscriptStore)::Int
     res = DBInterface.execute(store.con, "SELECT COUNT(*) AS n FROM transcripts")
     first(res).n
 end
+
+"""
+    export_transcripts_jsonl(store, out_path; limit=nothing)
+
+Dump the transcripts table to JSON Lines at `out_path`. Each line is a
+self-contained JSON object suitable for `cat` / `jq` / streaming into
+training pipelines. Returns the number of rows written.
+
+This is the share-and-merge format for the option-3 data flywheel —
+DuckDB is the local store, JSONL is the wire format.
+"""
+function export_transcripts_jsonl(store::TranscriptStore, out_path::AbstractString;
+                                  limit::Union{Nothing,Int}=nothing)::Int
+    sql = """
+        SELECT id, ts, provider, model, paper_kind, paper_id, paper_title,
+               paper_text, spec_json, raw_response, cost_usd,
+               validation_ok, errors, warnings
+        FROM transcripts
+        ORDER BY ts ASC
+        """
+    if limit !== nothing
+        sql *= " LIMIT $(limit)"
+    end
+    res = DBInterface.execute(store.con, sql)
+    n = 0
+    open(out_path, "w") do io
+        for row in res
+            obj = Dict{String,Any}(
+                "id"            => string(row.id),
+                "ts"            => string(row.ts),
+                "provider"      => row.provider,
+                "model"         => row.model,
+                "paper_kind"    => row.paper_kind,
+                "paper_id"      => row.paper_id,
+                "paper_title"   => row.paper_title,
+                "paper_text"    => row.paper_text,
+                "spec_json"     => row.spec_json,
+                "raw_response"  => row.raw_response,
+                "cost_usd"      => row.cost_usd,
+                "validation_ok" => row.validation_ok,
+                "errors"        => JSON3.read(row.errors),
+                "warnings"      => JSON3.read(row.warnings),
+            )
+            JSON3.write(io, obj)
+            print(io, "\n")
+            n += 1
+        end
+    end
+    n
+end

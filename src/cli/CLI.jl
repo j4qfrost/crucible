@@ -119,16 +119,22 @@ end
 
 function cmd_validate(args::Vector{String})
     pos, kw = _parse_kw_args(args)
-    length(pos) < 1 && error("usage: validate <spec.json> [--backend openmm|molly]")
+    length(pos) < 1 && error("usage: validate <spec.json> [--backend openmm|molly] [--format text|markdown]")
     spec_json = read(pos[1], String)
     spec = spec_from_json(spec_json)
     backend = haskey(kw, "backend") ? _backend(kw["backend"]) :
               route_backend(spec; available=[OpenMMBackend(), MollyBackend()]).backend
     report = Crucible.run_validation(spec_json, spec, backend)
-    println("backend: ", Crucible.backend_name(backend))
-    println("ok:      ", report.ok)
-    for w in report.warnings; println("warn:    ", w); end
-    for e in report.errors;   println("error:   ", e); end
+    fmt = get(kw, "format", "text")
+    if fmt == "markdown"
+        print(render(MarkdownRenderer(), spec))
+        print(render(MarkdownRenderer(), report))
+    else
+        println("backend: ", Crucible.backend_name(backend))
+        println("ok:      ", report.ok)
+        for w in report.warnings; println("warn:    ", w); end
+        for e in report.errors;   println("error:   ", e); end
+    end
     report.ok ? 0 : 2
 end
 

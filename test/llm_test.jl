@@ -81,6 +81,23 @@ end
     log_transcript(store, paper, result; validation=report)
     @test transcript_count(store) == 2
 
+    # JSONL export
+    jsonl_path = tempname() * ".jsonl"
+    n_exported = export_transcripts_jsonl(store, jsonl_path)
+    @test n_exported == 2
+    @test isfile(jsonl_path)
+    lines = readlines(jsonl_path)
+    @test length(lines) == 2
+    # Each line must parse as JSON
+    import JSON3
+    for line in lines
+        obj = JSON3.read(line)
+        @test haskey(obj, :paper_text)
+        @test haskey(obj, :spec_json)
+        @test haskey(obj, :validation_ok)
+    end
+    rm(jsonl_path; force=true)
+
     close_transcript_store(store)
     @test isfile(db_path)
     rm(db_path; force=true)

@@ -34,6 +34,7 @@ include("llm/Transcripts.jl")
 include("renderers/Renderer.jl")
 include("renderers/PlutoRenderer.jl")
 include("renderers/NotebookRenderer.jl")
+include("renderers/MarkdownRenderer.jl")
 include("renderers/WebRenderer.jl")
 
 include("cloud/Advisor.jl")
@@ -42,10 +43,10 @@ export MDSpec, SystemSpec, ForceFieldSpec, Stage, Observable, Provenance,
        SimBackend, MollyBackend, OpenMMBackend, route_backend,
        validate_spec, ValidationReport,
        LLMProvider, AnthropicProvider, LocalProvider, RecordedProvider, transpile,
-       TranscriptStore, open_transcript_store, close_transcript_store, log_transcript, transcript_count,
+       TranscriptStore, open_transcript_store, close_transcript_store, log_transcript, transcript_count, export_transcripts_jsonl,
        InputAdapter, PDFAdapter, ArxivAdapter, BioRxivAdapter, NotesAdapter,
        PaperRepr, ingest,
-       Renderer, PlutoRenderer, NotebookRenderer, render,
+       Renderer, PlutoRenderer, NotebookRenderer, MarkdownRenderer, render,
        advise
 
 end # module Crucible
