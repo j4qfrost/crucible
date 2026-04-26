@@ -78,16 +78,18 @@ function _emit_system_load(spec::MDSpec)
     io = IOBuffer()
     print(io, "# --- system load ---\n")
     if src.type == :user_supplied
-        if src.topology === nothing || src.coordinates === nothing
-            error("OpenMM renderer: user_supplied source requires topology + coordinates paths")
+        if src.coordinates === nothing
+            error("OpenMM renderer: user_supplied source requires coordinates path")
         end
-        if endswith(lowercase(src.topology), ".prmtop")
+        if src.topology !== nothing && endswith(lowercase(src.topology), ".prmtop")
+            # AMBER prmtop+inpcrd path
             print(io, "prmtop = AmberPrmtopFile(", repr(src.topology), ")\n")
             print(io, "inpcrd = AmberInpcrdFile(", repr(src.coordinates), ")\n")
             print(io, "topology = prmtop.topology\n")
             print(io, "positions = inpcrd.positions\n")
             print(io, "_use_amber = True\n")
         else
+            # PDB-only path — topology comes from the PDB itself
             print(io, "pdb = PDBFile(", repr(src.coordinates), ")\n")
             print(io, "topology = pdb.topology\n")
             print(io, "positions = pdb.positions\n")
