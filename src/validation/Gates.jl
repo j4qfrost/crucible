@@ -65,6 +65,9 @@ function gate_semantic(spec::MDSpec)::ValidationReport
         _rule_ligand_topology_required,
         _rule_temperature_sane,
         _rule_npt_pressure_required,
+        _rule_vacuum_no_ions,
+        _rule_langevin_friction_nonzero,
+        _rule_nve_timestep,
     )
         r = rule(spec, r)
     end
@@ -154,6 +157,36 @@ function _rule_npt_pressure_required(spec::MDSpec, r::ValidationReport)
         s isa DynamicsStage || continue
         if s.ensemble == :NPT && s.pressure_bar === nothing
             r = record_error!(r, "stage $i: NPT ensemble requires pressure_bar to be set")
+        end
+    end
+    r
+end
+
+function _rule_vacuum_no_ions(spec::MDSpec, r::ValidationReport)
+    if spec.system.solvent.model == :vacuum && spec.system.solvent.ions_NaCl_mM > 0
+        r = record_error!(r,
+            "system.solvent: ions_NaCl_mM=$(spec.system.solvent.ions_NaCl_mM) is incoherent with model=:vacuum (no medium for ion concentration)")
+    end
+    r
+end
+
+function _rule_langevin_friction_nonzero(spec::MDSpec, r::ValidationReport)
+    for (i, s) in enumerate(spec.protocol)
+        s isa DynamicsStage || continue
+        if s.thermostat == :langevin && s.friction_ps == 0
+            r = record_warning!(r,
+                "stage $i: langevin thermostat with friction_ps=0 is degenerate (no coupling); consider 1.0 ps^-1")
+        end
+    end
+    r
+end
+
+function _rule_nve_timestep(spec::MDSpec, r::ValidationReport)
+    for (i, s) in enumerate(spec.protocol)
+        s isa DynamicsStage || continue
+        if s.ensemble == :NVE && s.dt_fs > 1.0
+            r = record_warning!(r,
+                "stage $i: dt=$(s.dt_fs) fs in NVE ensemble risks energy drift; production NVE typically uses 0.5-1.0 fs")
         end
     end
     r

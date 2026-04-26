@@ -23,6 +23,8 @@ gcp_instance        = "n1-standard-4 + 1x T4"
 gcp_command         = "gcloud compute instances create crucible-md --machine-type=n1-standard-4 --accelerator=type=nvidia-tesla-t4,count=1 --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
 aws_instance        = "g4dn.xlarge"
 aws_command         = "aws ec2 run-instances --instance-type g4dn.xlarge --image-id ami-deeplearning --count 1"
+azure_instance      = "Standard_NC4as_T4_v3"
+azure_command       = "az vm create --name crucible-md --resource-group crucible --image microsoft-dsvm:ubuntu-hpc:2204:latest --size Standard_NC4as_T4_v3 --location eastus"
 on_demand_usd_per_hour = 0.55
 
 [gpu.L4]
@@ -31,6 +33,8 @@ gcp_instance        = "g2-standard-4"
 gcp_command         = "gcloud compute instances create crucible-md --machine-type=g2-standard-4 --accelerator=type=nvidia-l4,count=1 --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
 aws_instance        = "g6.xlarge"
 aws_command         = "aws ec2 run-instances --instance-type g6.xlarge --image-id ami-deeplearning --count 1"
+azure_instance      = "(no direct L4 equivalent on Azure — use NC*_T4 or NC A100)"
+azure_command       = "(skip on Azure; closest is T4 NC4as_T4_v3)"
 on_demand_usd_per_hour = 0.78
 
 [gpu.A10G]
@@ -39,6 +43,8 @@ gcp_instance        = "(not directly available — closest is L4 g2 or A100 a2)"
 gcp_command         = "(skip — use L4 or A100 on GCP)"
 aws_instance        = "g5.xlarge"
 aws_command         = "aws ec2 run-instances --instance-type g5.xlarge --image-id ami-deeplearning --count 1"
+azure_instance      = "(A10 not first-class on Azure — use NV ad A10 v5 if available)"
+azure_command       = "(skip on Azure)"
 on_demand_usd_per_hour = 1.05
 
 [gpu.A100_40GB]
@@ -47,6 +53,8 @@ gcp_instance        = "a2-highgpu-1g"
 gcp_command         = "gcloud compute instances create crucible-md --machine-type=a2-highgpu-1g --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
 aws_instance        = "(closest single-GPU: p4d.24xlarge — oversized for 1 replica)"
 aws_command         = "(prefer GCP for single A100)"
+azure_instance      = "Standard_NC24ads_A100_v4"
+azure_command       = "az vm create --name crucible-md --resource-group crucible --image microsoft-dsvm:ubuntu-hpc:2204:latest --size Standard_NC24ads_A100_v4 --location eastus"
 on_demand_usd_per_hour = 3.75
 
 [gpu.H100]
@@ -55,4 +63,20 @@ gcp_instance        = "a3-highgpu-1g (when available; often only 8g)"
 gcp_command         = "gcloud compute instances create crucible-md --machine-type=a3-highgpu-1g --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
 aws_instance        = "p5.48xlarge (oversized for 1 replica)"
 aws_command         = "(usually overkill for a single 10 ns run)"
+azure_instance      = "Standard_ND96isr_H100_v5 (8x H100; oversized for 1 replica)"
+azure_command       = "(prefer A100 single-GPU instances on Azure for one replica)"
 on_demand_usd_per_hour = 10.00
+
+# -- Azure-only entries below; pricing approximations as of late 2025.
+# These exist so the advisor has 3-cloud coverage even when GCP / AWS
+# don't have a clean equivalent for a given GPU class.
+
+[gpu.V100_Azure]
+ns_per_day_baseline = 200
+gcp_instance        = "(use A100 instead on GCP)"
+gcp_command         = "(skip)"
+aws_instance        = "p3.2xlarge"
+aws_command         = "aws ec2 run-instances --instance-type p3.2xlarge --image-id ami-deeplearning --count 1"
+azure_instance      = "Standard_NC6s_v3"
+azure_command       = "az vm create --name crucible-md --resource-group crucible --image microsoft-dsvm:ubuntu-hpc:2204:latest --size Standard_NC6s_v3 --location eastus"
+on_demand_usd_per_hour = 3.06

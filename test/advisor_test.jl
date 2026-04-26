@@ -31,3 +31,17 @@ end
     @test rec2.requires_confirmation
     @test any(occursin("50 ns", w) for w in rec2.warnings)
 end
+
+@testset "advisor candidates carry Azure entries" begin
+    spec = _good_spec()
+    rec = Crucible.advise(spec; budget_hours=24.0, backend_name=:openmm)
+    @test !isempty(rec.candidates)
+    # Every candidate should have an azure_instance string (some may be
+    # "no Azure entry" placeholders; we just want the field to exist)
+    for c in rec.candidates
+        @test isa(c.azure_instance, AbstractString)
+        @test isa(c.azure_command, AbstractString)
+    end
+    # At least one candidate has a real Azure VM SKU
+    @test any(occursin("Standard_NC", c.azure_instance) for c in rec.candidates)
+end

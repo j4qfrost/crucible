@@ -21,6 +21,8 @@ struct CloudCandidate
     gcp_command::String
     aws_instance::String
     aws_command::String
+    azure_instance::String
+    azure_command::String
 end
 
 struct AdvisorRecommendation
@@ -61,6 +63,8 @@ function advise(spec::MDSpec; budget_hours::Real=6.0, prefer_cloud::Symbol=:gcp,
             gpu, ns_per_day, runtime_hours, cost,
             String(t["gcp_instance"]), String(t["gcp_command"]),
             String(t["aws_instance"]), String(t["aws_command"]),
+            String(get(t, "azure_instance", "(no Azure entry)")),
+            String(get(t, "azure_command",  "(no Azure entry)")),
         ))
     end
 
@@ -110,6 +114,7 @@ function render(::PlutoRenderer, rec::AdvisorRecommendation)::String
                   Printf.@sprintf("%.2f", c.on_demand_usd), " on-demand. <em>", rec.chosen_reason, "</em></p>")
         write(io, "<details><summary>GCP command</summary><pre>", c.gcp_command, "</pre></details>")
         write(io, "<details><summary>AWS command</summary><pre>", c.aws_command, "</pre></details>")
+        write(io, "<details><summary>Azure command</summary><pre>", c.azure_command, "</pre></details>")
     end
     if !isempty(rec.warnings)
         write(io, "<h5 style=\"color:#b65;\">Warnings</h5><ul>")

@@ -56,6 +56,44 @@ end
     @test !isempty(r4.warnings)
 end
 
+@testset "vacuum + ions is incoherent" begin
+    bad_sys = Crucible.SystemSpec(
+        Crucible.SystemSource(type=:user_supplied, coordinates="x.pdb"),
+        100, false,
+        Crucible.SolventSpec(model=:vacuum, ions_NaCl_mM=150.0),
+    )
+    spec = MDSpec(system=bad_sys,
+        force_field=Crucible.ForceFieldSpec(protein=:amber14sb, water=:vacuum, ligand=:user_supplied),
+        protocol=Crucible.Stage[Crucible.MinimizeStage()],
+        observables=Crucible.Observable[],
+        provenance=Dict{String,Crucible.Provenance}(),
+        warnings=String[], notes="")
+    r = Crucible.gate_semantic(spec)
+    @test !r.ok
+    @test any(occursin("incoherent with model=:vacuum", e) for e in r.errors)
+end
+
+@testset "langevin friction=0 is degenerate (warning)" begin
+    spec = MDSpec(
+        system=Crucible.SystemSpec(
+            Crucible.SystemSource(type=:user_supplied, coordinates="x.pdb"),
+            100, false,
+            Crucible.SolventSpec(model=:vacuum, ions_NaCl_mM=0.0)),
+        force_field=Crucible.ForceFieldSpec(protein=:amber14sb, water=:vacuum, ligand=:user_supplied),
+        protocol=Crucible.Stage[
+            Crucible.DynamicsStage(role=:production, ensemble=:NVT,
+                duration_ns=0.001, dt_fs=2.0, temperature_K=300.0,
+                thermostat=:langevin, friction_ps=0.0, constraints=:h_bonds,
+                restraints=Crucible.RestraintSpec()),
+        ],
+        observables=Crucible.Observable[],
+        provenance=Dict{String,Crucible.Provenance}(),
+        warnings=String[], notes="")
+    r = Crucible.gate_semantic(spec)
+    @test r.ok    # warning, not error
+    @test any(occursin("degenerate", w) for w in r.warnings)
+end
+
 @testset "loadability gate (Gate 3)" begin
     spec = _good_spec()
     omm = OpenMMBackend()
