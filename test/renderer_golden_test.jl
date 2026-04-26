@@ -52,6 +52,52 @@ end
     @test occursin("rmsd.csv", script)
 end
 
+@testset "OpenMMBackend pdb_fetch path (PDBFixer)" begin
+    sys = Crucible.SystemSpec(
+        Crucible.SystemSource(type=:pdb_fetch, pdb_id="1ubq"),
+        2000, false,
+        Crucible.SolventSpec(model=:TIP3P, ions_NaCl_mM=150.0),
+    )
+    ff = Crucible.ForceFieldSpec(protein=:amber14sb, water=:TIP3P, ligand=:user_supplied)
+    proto = Crucible.Stage[
+        Crucible.MinimizeStage(),
+        Crucible.DynamicsStage(role=:production, ensemble=:NVT, duration_ns=0.001,
+            dt_fs=2.0, temperature_K=300.0, thermostat=:langevin,
+            friction_ps=1.0, constraints=:h_bonds,
+            restraints=Crucible.RestraintSpec()),
+    ]
+    spec = MDSpec(system=sys, force_field=ff, protocol=proto,
+        observables=Crucible.Observable[],
+        provenance=Dict{String,Crucible.Provenance}(),
+        warnings=String[], notes="")
+
+    omm = OpenMMBackend()
+    # Validation should pass (no ligand)
+    @test Crucible.validate_spec(omm, spec).ok
+
+    script = Crucible.render_script(omm, spec; output_dir="/tmp/run")
+    @test occursin("from pdbfixer import PDBFixer", script)
+    @test occursin("PDBFixer(pdbid=\"1ubq\")", script)
+    @test occursin("addMissingAtoms()", script)
+    @test occursin("addSolvent(padding=", script)
+    @test occursin("waterModel=\"tip3p\"", script)
+    # ionic strength 150 mM = 0.15 M
+    @test occursin("0.15*molar", script)
+
+    # Ligand + pdb_fetch should fail validation
+    sys_lig = Crucible.SystemSpec(
+        Crucible.SystemSource(type=:pdb_fetch, pdb_id="1abc"),
+        2000, true, Crucible.SolventSpec(model=:TIP3P, ions_NaCl_mM=150.0),
+    )
+    bad_spec = MDSpec(system=sys_lig, force_field=ff, protocol=proto,
+        observables=Crucible.Observable[],
+        provenance=Dict{String,Crucible.Provenance}(),
+        warnings=String[], notes="")
+    rep = Crucible.validate_spec(omm, bad_spec)
+    @test !rep.ok
+    @test any(occursin("pdb_fetch source with has_ligand=true", e) for e in rep.errors)
+end
+
 @testset "MollyBackend renderer" begin
     spec = _good_spec()
     molly = MollyBackend()

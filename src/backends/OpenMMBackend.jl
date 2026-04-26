@@ -21,15 +21,23 @@ end
 
 function validate_spec(b::OpenMMBackend, spec::MDSpec)::ValidationReport
     r = ValidationReport()
-    # All currently-modeled features are supported by OpenMM, so the only
-    # backend-specific check we need is the BYO-topology contract: if there's
-    # a ligand and the FF is :user_supplied, the user must have provided a
-    # topology file.
+    src = spec.system.source
+    # BYO-topology gate: ligand + user-supplied FF requires a topology path
     if spec.system.has_ligand && spec.force_field.ligand == :user_supplied
-        if spec.system.source.topology === nothing
+        if src.type == :user_supplied && src.topology === nothing
             r = record_error!(r,
                 "OpenMMBackend: ligand present + ligand_ff=user_supplied requires system.source.topology")
         end
+    end
+    # PDBFixer auto-build is canonical-residues only — block ligand systems
+    if (src.type == :pdb_id || src.type == :pdb_fetch) && spec.system.has_ligand
+        r = record_error!(r,
+            "OpenMMBackend: pdb_fetch source with has_ligand=true is unsupported in v0.4; " *
+            "supply a user-supplied topology with the parameterized ligand instead")
+    end
+    if (src.type == :pdb_id || src.type == :pdb_fetch) && (src.pdb_id === nothing || isempty(src.pdb_id))
+        r = record_error!(r,
+            "OpenMMBackend: pdb_fetch source requires non-empty system.source.pdb_id")
     end
     return r
 end
@@ -95,9 +103,40 @@ function _emit_system_load(spec::MDSpec)
             print(io, "positions = pdb.positions\n")
             print(io, "_use_amber = False\n")
         end
-    elseif src.type == :pdb_id
-        print(io, "from openmm.app.internal.pdbstructure import PdbStructure\n")
-        print(io, "raise NotImplementedError('pdb_id source path is v0.5; supply topology+coordinates for v0')\n")
+    elseif src.type == :pdb_id || src.type == :pdb_fetch
+        # PDBFixer auto-build path: only valid for canonical-residue
+        # protein systems with no ligand. The renderer is gated above; the
+        # script does the fetch + repair + (optional) solvate at runtime.
+        if spec.system.has_ligand
+            error("OpenMM renderer: pdb_fetch with has_ligand=true is unsupported in v0; supply prepared topology")
+        end
+        if src.pdb_id === nothing || isempty(src.pdb_id)
+            error("OpenMM renderer: pdb_fetch source requires non-empty pdb_id")
+        end
+        print(io, "from pdbfixer import PDBFixer\n")
+        print(io, "from openmm.unit import nanometer, molar\n")
+        print(io, "_fixer = PDBFixer(pdbid=", repr(src.pdb_id), ")\n")
+        print(io, "_fixer.findMissingResidues()\n")
+        print(io, "_fixer.findNonstandardResidues()\n")
+        print(io, "_fixer.replaceNonstandardResidues()\n")
+        print(io, "_fixer.findMissingAtoms()\n")
+        print(io, "_fixer.addMissingAtoms()\n")
+        print(io, "_fixer.addMissingHydrogens(7.0)\n")
+        if spec.system.solvent.model in (:TIP3P, :TIP4P_EW, :SPC_E)
+            water_model = spec.system.solvent.model == :TIP3P    ? "tip3p" :
+                          spec.system.solvent.model == :TIP4P_EW ? "tip4pew" : "spce"
+            ionic_M = spec.system.solvent.ions_NaCl_mM / 1000.0
+            print(io, "_fixer.addSolvent(padding=1.0*nanometer, ionicStrength=",
+                      ionic_M, "*molar, waterModel=", repr(water_model), ")\n")
+        end
+        print(io, "_prepared_path = os.path.join(OUTPUT_DIR, ", repr("$(src.pdb_id)_prepared.pdb"), ")\n")
+        print(io, "from openmm.app import PDBFile as _PDBFileForWrite\n")
+        print(io, "with open(_prepared_path, 'w') as _ofh:\n")
+        print(io, "    _PDBFileForWrite.writeFile(_fixer.topology, _fixer.positions, _ofh)\n")
+        print(io, "pdb = PDBFile(_prepared_path)\n")
+        print(io, "topology = pdb.topology\n")
+        print(io, "positions = pdb.positions\n")
+        print(io, "_use_amber = False\n")
     else
         error("Unsupported source type: $(src.type)")
     end
