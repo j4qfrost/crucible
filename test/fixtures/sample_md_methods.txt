@@ -1,14 +1,37 @@
-Methods (excerpt)
+Methods
 
-We performed all-atom molecular dynamics simulations of the apo and
-ligand-bound forms of the kinase using the AMBER ff14SB force field for the
-protein and the TIP3P model for water. The system was solvated in a cubic
-box with at least 10 Å between the protein and any box edge, then neutralised
-with 150 mM NaCl. After 5,000 steps of steepest-descent energy minimisation,
-the system was equilibrated for 100 ps in the NVT ensemble at 300 K with
-heavy-atom restraints (k = 1000 kJ mol⁻¹ nm⁻²) using a Langevin thermostat
-(γ = 1 ps⁻¹). A second equilibration of 500 ps in the NPT ensemble at 1 bar
-removed the restraints. Production simulations were run for 100 ns in the
-NPT ensemble with a 2 fs time step and bonds to hydrogen constrained
-(SHAKE). Coordinates were saved every 10 ps; energies and temperature every
-1 ps. RMSD of Cα atoms was used as the primary stability metric.
+Molecular dynamics simulations were performed on the apo and ligand-bound
+forms of the kinase using OpenMM 8.1 with the AMBER ff14SB force field for
+the protein. Ligand parameters were derived from the General Amber Force
+Field (GAFF2) with AM1-BCC partial charges, generated using AmberTools
+24. Each system was solvated in a cubic TIP3P water box with a minimum
+distance of 10 Å between the protein and any box edge, and neutralised by
+adding NaCl to a physiological concentration of 150 mM. The final solvated
+systems contained approximately 42,000 atoms.
+
+Energy minimisation was performed using a maximum of 5,000 steps of
+steepest descent until the maximum force fell below 10 kJ mol⁻¹ nm⁻¹.
+The system was then equilibrated for 100 ps in the NVT ensemble at 300 K
+using a Langevin thermostat with a friction coefficient of 1 ps⁻¹.
+Heavy-atom positional restraints with a force constant of 1000 kJ mol⁻¹
+nm⁻² were applied during NVT equilibration to prevent excessive rearrangement
+near the binding pocket. A second equilibration of 500 ps in the NPT
+ensemble at 1 bar was performed using a Monte Carlo barostat to release
+the restraints and equilibrate the system density.
+
+Production simulations were run for 100 ns in the NPT ensemble with a
+2 fs time step. Bonds involving hydrogen atoms were constrained using
+the SHAKE algorithm to permit the longer time step. Particle Mesh Ewald
+(PME) was used for long-range electrostatics with a 1.0 nm real-space
+cutoff and a Fourier spacing of 0.12 nm.
+
+Trajectories were saved every 10 ps for analysis and energies / temperature
+were logged every 1 ps. RMSD of the protein Cα atoms relative to the
+initial frame was computed using MDTraj 1.10. RMSF per residue was
+calculated after superposing each frame to the average structure of the
+last 50 ns. Three independent replicas were performed for each system to
+assess sampling adequacy; this fixture describes a single replica.
+
+Analysis: structural drift was assessed via Cα RMSD; ligand pose stability
+was tracked via heavy-atom RMSD restricted to the ligand atom selection.
+The radius of gyration was monitored to detect any unfolding events.
