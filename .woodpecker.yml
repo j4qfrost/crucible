@@ -48,7 +48,7 @@ steps:
     commands:
       - apt-get update -qq && apt-get install -y --no-install-recommends python3-pip python3-venv poppler-utils
       - python3 -m venv /opt/openmm-venv
-      - /opt/openmm-venv/bin/pip install --quiet --no-cache-dir openmm
+      - /opt/openmm-venv/bin/pip install --quiet --no-cache-dir openmm pdbfixer mdtraj
       - export PATH=/opt/openmm-venv/bin:$PATH
       - python -c 'import openmm; print("OpenMM", openmm.__version__)'
       - julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'

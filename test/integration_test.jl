@@ -66,3 +66,52 @@ end
     @test rep.ok
     @test isempty(rep.errors)
 end
+
+@testset "PDBFixer auto-build live smoke (opt-in, ubiquitin 1UBQ)" begin
+    if get(ENV, "CRUCIBLE_RUN_OPENMM", "0") != "1"
+        @info "skipping PDBFixer live smoke; set CRUCIBLE_RUN_OPENMM=1 to enable"
+        @test true
+        return
+    end
+
+    # Vacuum (no solvation) keeps the test under 30s on CPU. Ubiquitin is a
+    # small, well-behaved protein with no ligands or non-canonical residues.
+    sys = Crucible.SystemSpec(
+        Crucible.SystemSource(type=:pdb_fetch, pdb_id="1UBQ"),
+        1500, false,
+        Crucible.SolventSpec(model=:vacuum, ions_NaCl_mM=0.0),
+    )
+    ff = Crucible.ForceFieldSpec(protein=:amber14sb, water=:vacuum, ligand=:user_supplied)
+    proto = Crucible.Stage[
+        Crucible.MinimizeStage(max_iterations=500, tolerance_kj_mol_nm=10.0),
+        Crucible.DynamicsStage(
+            role=:production, ensemble=:NVT, duration_ns=0.001,
+            dt_fs=2.0, temperature_K=300.0, thermostat=:langevin,
+            friction_ps=1.0, constraints=:h_bonds,
+            restraints=Crucible.RestraintSpec(),
+        ),
+    ]
+    spec = MDSpec(
+        system=sys, force_field=ff, protocol=proto,
+        observables=Crucible.Observable[],
+        provenance=Dict{String,Crucible.Provenance}(),
+        warnings=String[], notes="PDBFixer auto-build smoke",
+    )
+
+    omm = OpenMMBackend()
+    @test Crucible.validate_spec(omm, spec).ok
+
+    workdir = mktempdir(prefix="crucible-pdbfix-live-")
+    job = Crucible.prepare(omm, spec, workdir)
+    @test isfile(job.script_path)
+
+    # Use Gate 4 to clamp at 50 steps — PDBFixer download + setup is the slow
+    # part; we just need a tiny preview to confirm everything wires together.
+    rep = Crucible.gate_preview(omm, job; n_steps=50)
+    @test rep.ok
+    @test isempty(rep.errors)
+
+    # Prepared PDB should land in the workdir
+    prepared = filter(f -> endswith(f, "_prepared.pdb"), readdir(job.workdir))
+    @test !isempty(prepared)
+end

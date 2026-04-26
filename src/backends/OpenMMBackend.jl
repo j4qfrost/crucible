@@ -122,6 +122,12 @@ function _emit_system_load(spec::MDSpec)
         print(io, "_fixer.findMissingAtoms()\n")
         print(io, "_fixer.addMissingAtoms()\n")
         print(io, "_fixer.addMissingHydrogens(7.0)\n")
+        # In vacuum or implicit-solvent mode, drop crystallographic waters and
+        # ions that ship in the PDB. They are not represented in the loaded
+        # force field XML and ForceField.createSystem will fail on them.
+        if spec.system.solvent.model in (:vacuum, :implicit_GBSA)
+            print(io, "_fixer.removeHeterogens(keepWater=False)\n")
+        end
         if spec.system.solvent.model in (:TIP3P, :TIP4P_EW, :SPC_E)
             water_model = spec.system.solvent.model == :TIP3P    ? "tip3p" :
                           spec.system.solvent.model == :TIP4P_EW ? "tip4pew" : "spce"
