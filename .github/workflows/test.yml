@@ -1,0 +1,39 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: julia ${{ matrix.julia-version }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        julia-version: ["1.10", "1.11"]
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.julia-version }}
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+
+  # Mirror to a self-hosted runner when available. The "self-hosted-hybrid-ci"
+  # tag is what the user's planned hybrid infra registers under. Skipped
+  # silently when no matching runner is online.
+  test-self-hosted:
+    name: julia / self-hosted
+    runs-on: [self-hosted, self-hosted-hybrid-ci]
+    if: ${{ contains(github.event.head_commit.message, '[run-self-hosted]') || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: julia --version
+      - run: julia --project -e 'using Pkg; Pkg.instantiate()'
+      - run: julia --project -e 'using Pkg; Pkg.test()'
