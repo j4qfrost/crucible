@@ -28,6 +28,7 @@ Usage:
   crucible advise        <spec.json> [--budget-hours N] [--backend openmm|molly]
   crucible summarize     <spec.json>                # Markdown summary of MDSpec
   crucible diff          <spec-a.json> <spec-b.json>   # Markdown diff
+  crucible info                                       # capability surface
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -174,6 +175,42 @@ function cmd_advise(args::Vector{String})
     rec.requires_confirmation ? 3 : 0
 end
 
+function cmd_info(::Vector{String})
+    println("crucible — capability surface")
+    println()
+    println("Schema version:   0.1.0")
+    println()
+    println("Backends:")
+    for (b, b_inst) in (("MollyBackend", MollyBackend()),
+                        ("OpenMMBackend", OpenMMBackend()),
+                        ("KineticsBackend (stub)", KineticsBackend()))
+        feats = sort(collect(Crucible.supported_features(b_inst)))
+        println("  ", b, ": ", join(feats, ", "))
+    end
+    println()
+    println("LLM providers:")
+    println("  AnthropicProvider — Claude tool-use; needs ANTHROPIC_API_KEY")
+    println("  RecordedProvider  — replays a fixture JSON (deterministic)")
+    println("  LocalProvider     — stub for vLLM / llama.cpp (option-3 roadmap)")
+    println()
+    println("Input adapters:")
+    println("  PDFAdapter      — local PDF via pdftotext")
+    println("  ArxivAdapter    — arXiv ID; fetches PDF when pdftotext available")
+    println("  BioRxivAdapter  — bioRxiv DOI; fetches PDF when pdftotext available")
+    println("  NotesAdapter    — raw text passthrough")
+    println()
+    println("Output renderers:")
+    println("  PlutoRenderer   — inline HTML for Pluto notebooks")
+    println("  MarkdownRenderer — GFM tables for CLI / PR / README")
+    println("  NotebookRenderer — exports a standalone Pluto .jl")
+    println("  WebRenderer     — stub (Genie.jl path)")
+    println()
+    println("Validation gates: 1) schema  2) semantic  3) loadability  4) preview  5) user-confirm")
+    println()
+    println("CLI subcommands: transpile validate render advise summarize diff walkthrough info")
+    0
+end
+
 function cmd_diff(args::Vector{String})
     pos, _ = _parse_kw_args(args)
     length(pos) < 2 && error("usage: diff <spec-a.json> <spec-b.json>")
@@ -246,6 +283,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "advise";      return cmd_advise(rest)
         elseif cmd == "summarize";   return cmd_summarize(rest)
         elseif cmd == "diff";        return cmd_diff(rest)
+        elseif cmd == "info";        return cmd_info(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")

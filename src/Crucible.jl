@@ -14,6 +14,7 @@ include("spec/MDSpec.jl")
 include("spec/KineticsSpec.jl")
 include("spec/Diff.jl")
 include("spec/Migrations.jl")
+include("spec/Observables.jl")
 
 include("backends/SimBackend.jl")
 include("backends/OpenMMBackend.jl")
@@ -45,6 +46,7 @@ include("cloud/Advisor.jl")
 
 export MDSpec, SystemSpec, ForceFieldSpec, Stage, Observable, Provenance,
        SpecDiff, diff_specs, migrate_spec_json, register_migration!,
+       read_observable_csv, summarize_observable,
        SimBackend, MollyBackend, OpenMMBackend, KineticsBackend, route_backend,
        KineticsSpec, Species, Reaction,
        validate_spec, ValidationReport,
