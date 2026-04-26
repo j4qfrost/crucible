@@ -106,7 +106,32 @@ step):
 # or just run the test suite with CRUCIBLE_RUN_OPENMM=1
 ```
 
-## Project layout
+## Documentation
 
-See `docs/PLAN.md` for the full architecture and the rationale behind the
-five-gate validation pipeline.
+- [`docs/PLAN.md`](docs/PLAN.md) — architecture, rationale, roadmap
+- [`docs/IR.md`](docs/IR.md) — auto-generated MDSpec field reference
+- [`AGENTS.md`](AGENTS.md) — contributor + Claude-Code guidance (hard rules,
+  dev pattern, testing conventions, how to add backends/providers/adapters)
+- [`CHANGELOG.md`](CHANGELOG.md) — versioned change log
+- [`examples/walkthrough.jl`](examples/walkthrough.jl) — end-to-end demo,
+  no API key required (uses RecordedProvider)
+- [`examples/lifecycle.jl`](examples/lifecycle.jl) — full option-3
+  fine-tune flywheel: transpile → log → user-edit → diff → log → JSONL
+- [`examples/from_methods.jl`](examples/from_methods.jl) — hand-built MDSpec
+
+## How the option-3 flywheel works
+
+Every transpile session can be appended to `~/.local/share/crucible/transcripts.duckdb`
+(see `TranscriptStore`). When the user edits the LLM-emitted MDSpec to fix
+hallucinated values, the second log entry plus `diff_specs(llm, user)` is the
+training-pair signal: input paper text, target spec (the user's correction).
+
+The IR-first design is what makes this tractable. We're not curating
+`(paper, runnable_code)` pairs — we're curating `(paper, MDSpec_json)` pairs,
+which validate against `schema.json` deterministically. When ~1k corrected
+sessions are collected, fine-tuning a small open-weights model
+(Qwen2.5-Coder, etc.) on JSON Schema-validated outputs is straightforward.
+
+`bin/crucible diff a.json b.json` and `tools/regenerate_fixtures.sh check`
+expose the diff at the CLI level; `examples/lifecycle.jl` exercises the
+whole loop in ~100 LOC.
