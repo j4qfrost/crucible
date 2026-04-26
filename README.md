@@ -61,13 +61,24 @@ on every numeric field. The renderer is the only thing that converts units.
 
 ```bash
 julia --project -e 'using Pkg; Pkg.instantiate()'
-# Optional: install OpenMM + tooling for the OpenMMBackend
-julia --project -e 'using Pkg; Pkg.add(["PythonCall", "CondaPkg"]); using CondaPkg'
-# Run the notebook
+
+# Run the Pluto notebook UI
 julia --project -e 'using Pluto; Pluto.run(notebook="src/ui/notebook.jl")'
+
+# Or use the CLI
+bin/crucible help
+bin/crucible walkthrough notes "AMBER ff14SB / TIP3P / 300K / 100 ns NPT"
+bin/crucible transpile pdf paper.pdf --out spec.json
+bin/crucible validate spec.json --backend openmm
+bin/crucible render   spec.json --backend openmm --out run.py
+bin/crucible advise   spec.json --budget-hours 6
 ```
 
-Set `ANTHROPIC_API_KEY` in the environment to enable the LLM extractor.
+Set `ANTHROPIC_API_KEY` in the environment to enable the live LLM extractor.
+Without it, the CLI/notebook works against `RecordedProvider` fixtures.
+
+To run the script that crucible emits, you'll need OpenMM (`pip install openmm`)
+or Molly (`Pkg.add("Molly")`) installed wherever the script runs.
 
 ## Project layout
 

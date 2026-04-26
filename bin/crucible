@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# crucible — shell entry point for the Julia CLI.
+
+set -euo pipefail
+THIS_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$THIS_DIR/.." && pwd)"
+
+exec env CRUCIBLE_PROJECT_ROOT="$PROJECT_ROOT" \
+  julia --project="$PROJECT_ROOT" --startup-file=no -e "
+    using Crucible
+    include(joinpath(ENV[\"CRUCIBLE_PROJECT_ROOT\"], \"src\", \"cli\", \"CLI.jl\"))
+    using .CLI
+    exit(CLI.main(ARGS))
+  " -- "$@"

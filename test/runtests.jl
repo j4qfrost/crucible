@@ -10,4 +10,5 @@ using Crucible
     include("integration_test.jl")
     include("llm_test.jl")
     include("adapters_test.jl")
+    include("cli_test.jl")
 end
