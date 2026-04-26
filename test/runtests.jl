@@ -14,4 +14,5 @@ using Crucible
     include("diff_test.jl")
     include("migrations_test.jl")
     include("observables_test.jl")
+    include("parameterizer_test.jl")
 end

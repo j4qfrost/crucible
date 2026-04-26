@@ -22,6 +22,8 @@ include("backends/MollyBackend.jl")
 include("backends/KineticsBackend.jl")
 include("backends/Router.jl")
 
+include("ligand/Parameterizer.jl")
+
 include("validation/Gates.jl")
 
 include("adapters/InputAdapter.jl")
@@ -49,6 +51,7 @@ export MDSpec, SystemSpec, ForceFieldSpec, Stage, Observable, Provenance,
        read_observable_csv, summarize_observable,
        SimBackend, MollyBackend, OpenMMBackend, KineticsBackend, route_backend,
        KineticsSpec, Species, Reaction,
+       LigandParameterizer, OpenFFParameterizer, ParameterizedLigand, parameterize,
        validate_spec, ValidationReport,
        LLMProvider, AnthropicProvider, LocalProvider, RecordedProvider, transpile,
        TranscriptStore, open_transcript_store, close_transcript_store, log_transcript, transcript_count, export_transcripts_jsonl,
