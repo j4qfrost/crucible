@@ -17,7 +17,9 @@ end
 md"""
 # crucible
 
-Drop in a paper, get a runnable molecular-dynamics simulation.
+Drop in a paper, get a runnable molecular-dynamics simulation. The pipeline
+is gated — production runs only fire after Gates 1–4 pass and you click the
+final button.
 """
 
 # ╔═╡ 33333333-3333-3333-3333-333333333333
@@ -47,14 +49,18 @@ paper = let
 end
 
 # ╔═╡ 77777777-7777-7777-7777-777777777777
-md"## 2. Transpile (Anthropic)"
+md"""## 2. Transpile (Anthropic)
+
+Click to send the paper to Claude. Without an `ANTHROPIC_API_KEY` the provider
+no-ops — use the recorded fixture path below for offline iteration.
+"""
 
 # ╔═╡ 88888888-8888-8888-8888-888888888888
-@bind transpile_button Button("transpile paper → MDSpec")
+@bind transpile_button CounterButton("transpile paper → MDSpec")
 
 # ╔═╡ 99999999-9999-9999-9999-999999999999
 result = let
-    transpile_button   # take a dependency on the button
+    transpile_button   # depend on the button so we don't auto-fire on every paper edit
     provider = AnthropicProvider()
     transpile(provider, paper.body_text)
 end
@@ -69,7 +75,7 @@ $(result.spec === nothing ? "_No spec was produced. " * result.raw_response * "_
 """
 
 # ╔═╡ bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
-md"## 3. Validate"
+md"## 3. Validate (Gates 1–3: schema, semantic, loadability)"
 
 # ╔═╡ cccccccc-cccc-cccc-cccc-cccccccccccc
 backends = [OpenMMBackend(), MollyBackend()]
@@ -105,14 +111,10 @@ recommendation = (result.spec === nothing || choice === nothing) ? nothing :
 HTML(recommendation === nothing ? "" : Crucible.render(PlutoRenderer(), recommendation))
 
 # ╔═╡ a7a7a7a7-a7a7-a7a7-a7a7-a7a7a7a7a7a7
-md"## 5. Render & run"
+md"## 5. Render the backend script"
 
 # ╔═╡ a8a8a8a8-a8a8-a8a8-a8a8-a8a8a8a8a8a8
-@bind render_button Button("render backend script")
-
-# ╔═╡ a9a9a9a9-a9a9-a9a9-a9a9-a9a9a9a9a9a9
 prepared = let
-    render_button   # depend on button
     if result.spec === nothing || choice === nothing || (report !== nothing && !report.ok)
         nothing
     else
@@ -121,15 +123,104 @@ prepared = let
     end
 end
 
-# ╔═╡ b1b1b1b1-b1b1-b1b1-b1b1-b1b1b1b1b1b1
+# ╔═╡ a9a9a9a9-a9a9-a9a9-a9a9-a9a9a9a9a9a9
 md"""
 **Prepared:** $(prepared === nothing ? "_(awaiting valid spec)_" : prepared.script_path)
-
-To run, gate 4 (preview) and gate 5 (you, here) come next. v0 emits the script for you to run manually:
-
-- OpenMM: `python <script>`
-- Molly: `julia --project <script>`
 """
+
+# ╔═╡ b1b1b1b1-b1b1-b1b1-b1b1-b1b1b1b1b1b1
+md"""## 6. Preview (Gate 4 — short integration smoke)
+
+Runs ~100 steps under `CRUCIBLE_PREVIEW_STEPS`; rejects if energies blow up,
+NaN, or the process exits non-zero. Free gate before any GPU spend.
+"""
+
+# ╔═╡ b2b2b2b2-b2b2-b2b2-b2b2-b2b2b2b2b2b2
+@bind preview_button CounterButton("run preview (Gate 4)")
+
+# ╔═╡ b3b3b3b3-b3b3-b3b3-b3b3-b3b3b3b3b3b3
+preview_report = let
+    preview_button
+    if prepared === nothing || choice === nothing
+        nothing
+    else
+        try
+            Crucible.gate_preview(choice.backend, prepared; n_steps = 100)
+        catch err
+            ValidationReport(false, ["preview failed: $(err)"], String[])
+        end
+    end
+end
+
+# ╔═╡ b4b4b4b4-b4b4-b4b4-b4b4-b4b4b4b4b4b4
+HTML(preview_report === nothing ? "" : Crucible.render(PlutoRenderer(), preview_report))
+
+# ╔═╡ b5b5b5b5-b5b5-b5b5-b5b5-b5b5b5b5b5b5
+md"""## 7. Production run (Gate 5 — explicit confirmation)
+
+The button below only fires a real run if **all** of the following hold:
+
+* validation passed (Gates 1–3)
+* preview passed (Gate 4)
+* cloud advisor isn't asking for cost confirmation, OR you have an
+  `ANTHROPIC_API_KEY`-style override set for cost
+"""
+
+# ╔═╡ b6b6b6b6-b6b6-b6b6-b6b6-b6b6b6b6b6b6
+gate5_ok = prepared !== nothing &&
+           report !== nothing && report.ok &&
+           preview_report !== nothing && preview_report.ok &&
+           (recommendation === nothing || !recommendation.requires_confirmation)
+
+# ╔═╡ b7b7b7b7-b7b7-b7b7-b7b7-b7b7b7b7b7b7
+@bind run_button CounterButton("run production")
+
+# ╔═╡ b8b8b8b8-b8b8-b8b8-b8b8-b8b8b8b8b8b8
+production = let
+    run_button   # depend ONLY on the button — never auto-fires
+    # Reactive guard: if any gate before us is unhealthy, return nothing.
+    # This is the Gate 5 contract: even with the button clicked, we still
+    # check the upstream state.
+    if !gate5_ok
+        nothing
+    else
+        Crucible.run!(choice.backend, prepared)
+    end
+end
+
+# ╔═╡ b9b9b9b9-b9b9-b9b9-b9b9-b9b9b9b9b9b9
+md"""
+**Production status:** $(production === nothing ? (gate5_ok ? "_click run when ready_" : "_blocked: upstream gate failed_") :
+production.success ? "✅ run completed; artifacts in `$(production.job.workdir)`" :
+"❌ run failed; see log")
+"""
+
+# ╔═╡ ba1a1a1a-a1a1-a1a1-a1a1-a1a1a1a1a1a1
+md"## 8. Transcript log (option-3 flywheel)"
+
+# ╔═╡ ba2a2a2a-a2a2-a2a2-a2a2-a2a2a2a2a2a2
+@bind log_button CounterButton("log this session to ~/.local/share/crucible/transcripts.duckdb")
+
+# ╔═╡ ba3a3a3a-a3a3-a3a3-a3a3-a3a3a3a3a3a3
+log_status = let
+    log_button
+    if result.spec === nothing
+        "no spec to log"
+    else
+        try
+            store = open_transcript_store()
+            id = log_transcript(store, paper, result; validation = report)
+            n = transcript_count(store)
+            close_transcript_store(store)
+            "logged $(id); store now contains $(n) transcripts"
+        catch err
+            "log failed: $(err)"
+        end
+    end
+end
+
+# ╔═╡ ba4a4a4a-a4a4-a4a4-a4a4-a4a4a4a4a4a4
+md"""**$(log_status)**"""
 
 # ╔═╡ Cell order:
 # ╠═11111111-1111-1111-1111-111111111111
@@ -155,5 +246,17 @@ To run, gate 4 (preview) and gate 5 (you, here) come next. v0 emits the script f
 # ╠═a6a6a6a6-a6a6-a6a6-a6a6-a6a6a6a6a6a6
 # ╟─a7a7a7a7-a7a7-a7a7-a7a7-a7a7a7a7a7a7
 # ╠═a8a8a8a8-a8a8-a8a8-a8a8-a8a8a8a8a8a8
-# ╠═a9a9a9a9-a9a9-a9a9-a9a9-a9a9a9a9a9a9
+# ╟─a9a9a9a9-a9a9-a9a9-a9a9-a9a9a9a9a9a9
 # ╟─b1b1b1b1-b1b1-b1b1-b1b1-b1b1b1b1b1b1
+# ╠═b2b2b2b2-b2b2-b2b2-b2b2-b2b2b2b2b2b2
+# ╠═b3b3b3b3-b3b3-b3b3-b3b3-b3b3b3b3b3b3
+# ╠═b4b4b4b4-b4b4-b4b4-b4b4-b4b4b4b4b4b4
+# ╟─b5b5b5b5-b5b5-b5b5-b5b5-b5b5b5b5b5b5
+# ╠═b6b6b6b6-b6b6-b6b6-b6b6-b6b6b6b6b6b6
+# ╠═b7b7b7b7-b7b7-b7b7-b7b7-b7b7b7b7b7b7
+# ╠═b8b8b8b8-b8b8-b8b8-b8b8-b8b8b8b8b8b8
+# ╟─b9b9b9b9-b9b9-b9b9-b9b9-b9b9b9b9b9b9
+# ╟─ba1a1a1a-a1a1-a1a1-a1a1-a1a1a1a1a1a1
+# ╠═ba2a2a2a-a2a2-a2a2-a2a2-a2a2a2a2a2a2
+# ╠═ba3a3a3a-a3a3-a3a3-a3a3-a3a3a3a3a3a3
+# ╟─ba4a4a4a-a4a4-a4a4-a4a4-a4a4a4a4a4a4
