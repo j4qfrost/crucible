@@ -125,7 +125,7 @@ function render(::PlutoRenderer, rec::AdvisorRecommendation)::String
     for c in rec.candidates
         write(io, "<tr><td>", c.gpu, "</td><td>",
                   Printf.@sprintf("%.0f", c.ns_per_day), "</td><td>",
-                  _fmt_hours(c.runtime_hours), "</td><td>$",
+                  _fmt_hours(c.runtime_hours), "</td><td>\$",
                   Printf.@sprintf("%.2f", c.on_demand_usd), "</td></tr>")
     end
     write(io, "</table></details>")
