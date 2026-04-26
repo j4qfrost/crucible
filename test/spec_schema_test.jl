@@ -53,4 +53,22 @@ end
     bad2 = JSON3.write(obj2)
     r3 = Crucible.gate_schema(bad2)
     @test !r3.ok
+
+    # Conditional rule: NPT requires a barostat
+    obj4 = JSON3.read(good, Dict)
+    npt_idx = findfirst(s -> get(s, "ensemble", nothing) == "NPT", obj4["protocol"])
+    if npt_idx !== nothing
+        obj4["protocol"][npt_idx]["barostat"] = nothing
+        bad4 = JSON3.write(obj4)
+        r4 = Crucible.gate_schema(bad4)
+        @test !r4.ok
+    end
+
+    # Conditional rule: NVE forbids a barostat
+    obj5 = JSON3.read(good, Dict)
+    obj5["protocol"][2]["ensemble"] = "NVE"
+    obj5["protocol"][2]["barostat"] = "monte_carlo"
+    bad5 = JSON3.write(obj5)
+    r5 = Crucible.gate_schema(bad5)
+    @test !r5.ok
 end

@@ -66,6 +66,25 @@
             "type": "object",
             "additionalProperties": false,
             "required": ["kind", "role", "ensemble", "duration_ns", "dt_fs", "temperature_K", "pressure_bar", "thermostat", "barostat", "friction_ps", "constraints", "restraints"],
+            "allOf": [
+              {
+                "if": {"properties": {"ensemble": {"const": "NPT"}}},
+                "then": {
+                  "properties": {
+                    "barostat":     {"enum": ["monte_carlo", "berendsen", "parrinello_rahman"]},
+                    "pressure_bar": {"type": "number", "minimum": 0}
+                  }
+                }
+              },
+              {
+                "if": {"properties": {"ensemble": {"const": "NVE"}}},
+                "then": {
+                  "properties": {
+                    "barostat": {"type": "null"}
+                  }
+                }
+              }
+            ],
             "properties": {
               "kind":          {"const": "dynamics"},
               "role":          {"enum": ["equilibrate", "production"]},
