@@ -155,6 +155,19 @@ end
     @test occursin("SteepestDescentMinimizer", script)
 end
 
+@testset "renderer is idempotent — same spec ⇒ same script" begin
+    spec = _good_spec()
+    omm = OpenMMBackend()
+    script_a = Crucible.render_script(omm, spec; output_dir="/tmp/run")
+    script_b = Crucible.render_script(omm, spec; output_dir="/tmp/run")
+    @test script_a == script_b
+
+    # And after a JSON round-trip
+    spec2 = Crucible.spec_from_json(Crucible.spec_to_json(spec))
+    script_c = Crucible.render_script(omm, spec2; output_dir="/tmp/run")
+    @test script_a == script_c
+end
+
 @testset "renderer scripts written to disk" begin
     spec = _good_spec()
     workdir = mktempdir(prefix="crucible-test-")

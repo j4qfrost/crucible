@@ -1,6 +1,13 @@
 using Test
 using Crucible
 
+@testset "fixture validates against schema" begin
+    fixture = joinpath(@__DIR__, "fixtures", "recorded_anthropic_spec.json")
+    json_str = read(fixture, String)
+    r = Crucible.gate_schema(json_str)
+    @test r.ok
+end
+
 @testset "RecordedProvider deterministic round-trip" begin
     fixture = joinpath(@__DIR__, "fixtures", "recorded_anthropic_spec.json")
     @assert isfile(fixture)
