@@ -16,7 +16,19 @@ The user shell is a Pluto.jl notebook.
 
 ## Status
 
-v0 (in development). See `docs/PLAN.md` for the full design and roadmap.
+v0.5 (active development). See `docs/PLAN.md` for the full design and roadmap.
+
+| Component        | Count | Items                                                |
+|------------------|-------|------------------------------------------------------|
+| Tests            | 153   | offline; +5 with `CRUCIBLE_RUN_OPENMM=1`             |
+| Backends         | 3+1   | `MollyBackend`, `OpenMMBackend`, `KineticsBackend` (stub) |
+| LLM providers    | 2+1   | `AnthropicProvider`, `RecordedProvider`, `LocalProvider` (stub) |
+| Input adapters   | 4     | PDF, arXiv, bioRxiv, raw notes (PDFs auto-extracted via `pdftotext`) |
+| Output renderers | 3+1   | `PlutoRenderer`, `MarkdownRenderer`, `NotebookRenderer`, `WebRenderer` (stub) |
+| CLI subcommands  | 7     | `transpile`, `validate`, `render`, `advise`, `summarize`, `diff`, `walkthrough` |
+| Validation gates | 5     | schema, semantic, loadability, preview, user-confirm |
+| Examples         | 5     | `walkthrough.jl`, `walkthrough_notebook.jl`, `lifecycle.jl`, `from_methods.jl`, `smoke_alanine_dipeptide.sh` |
+| Tools            | 3     | `check.sh`, `regenerate_docs.jl`, `regenerate_fixtures.sh` |
 
 ### What works (v0–v0.4)
 
