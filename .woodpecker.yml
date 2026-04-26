@@ -27,6 +27,28 @@ steps:
       - pdftotext -v 2>&1 | head -1 || echo "pdftotext not found — PDF tests will skip"
       - julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 
+  # Live Anthropic LLM smoke. Pulls ANTHROPIC_API_KEY from Woodpecker secrets
+  # (configure via `woodpecker-cli secret add` or the web UI). Skipped silently
+  # when the secret isn't set. Only on Julia 1.10 to keep token spend bounded.
+  anthropic-smoke:
+    image: julia:${JULIA_VERSION}
+    environment:
+      JULIA_DEPOT_PATH: /woodpecker/depot
+      JULIA_NUM_THREADS: "2"
+      CRUCIBLE_RUN_ANTHROPIC: "1"
+      ANTHROPIC_API_KEY:
+        from_secret: anthropic_api_key
+    commands:
+      - apt-get update -qq && apt-get install -y --no-install-recommends poppler-utils
+      - 'if [ -z "$ANTHROPIC_API_KEY" ]; then echo "ANTHROPIC_API_KEY secret not set; skipping live Anthropic smoke"; exit 0; fi'
+      - julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
+    depends_on:
+      - test
+    when:
+      matrix:
+        JULIA_VERSION: "1.10"
+    failure: ignore
+
   # Live OpenMM smoke. Installs OpenMM into a venv, exports CRUCIBLE_RUN_OPENMM,
   # re-runs Pkg.test() so the integration_test.jl live testset actually hits
   # OpenMM against the alanine-dipeptide fixture. Only on Julia 1.10 to keep

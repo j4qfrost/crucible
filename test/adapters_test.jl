@@ -27,6 +27,16 @@ end
     @test p.source_id == "<inline>"
 end
 
+@testset "BioRxivAdapter request shape (offline-tolerant)" begin
+    a = BioRxivAdapter(api_url="http://localhost:1/should-fail",
+                       pdf_url_template="http://localhost:1/should-fail/{doi}",
+                       timeout_s=1, download_pdf=false)
+    p = ingest(a, "10.1101/2024.01.01.123456")
+    @test p.source_kind == :biorxiv
+    @test p.source_id == "10.1101/2024.01.01.123456"
+    @test occursin("MCP server", p.metadata["note"])
+end
+
 @testset "ArxivAdapter request shape (offline-tolerant)" begin
     # We don't hit the network in CI; just verify the adapter constructs
     # cleanly and ingest handles a network failure without throwing.
