@@ -45,6 +45,24 @@ end
     @test rc == 0 || rc == 3   # 3 means cost-confirmation required (acceptable for the kinase spec)
 end
 
+@testset "CLI summarize emits Markdown" begin
+    fixture = joinpath(@__DIR__, "fixtures", "recorded_anthropic_spec.json")
+    # Capture stdout
+    original_stdout = stdout
+    rd, wr = redirect_stdout()
+    try
+        rc = CLI.main(String["summarize", fixture])
+        @test rc == 0
+    finally
+        redirect_stdout(original_stdout)
+        close(wr)
+    end
+    out = read(rd, String)
+    @test occursin("# MDSpec", out)
+    @test occursin("## Force field", out)
+    @test occursin("amber14sb", out)
+end
+
 @testset "CLI unknown subcommand" begin
     rc = CLI.main(String["unknownsubcommand"])
     @test rc == 2

@@ -26,6 +26,7 @@ Usage:
   crucible validate      <spec.json> [--backend openmm|molly]
   crucible render        <spec.json> --backend openmm|molly --out <script>
   crucible advise        <spec.json> [--budget-hours N] [--backend openmm|molly]
+  crucible summarize     <spec.json>                # Markdown summary of MDSpec
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -172,6 +173,14 @@ function cmd_advise(args::Vector{String})
     rec.requires_confirmation ? 3 : 0
 end
 
+function cmd_summarize(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: summarize <spec.json>")
+    spec = spec_from_json(read(pos[1], String))
+    print(render(MarkdownRenderer(), spec))
+    0
+end
+
 function cmd_walkthrough(args::Vector{String})
     pos, kw = _parse_kw_args(args)
     length(pos) < 2 && error("usage: walkthrough <source-kind> <source>")
@@ -225,6 +234,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "validate";    return cmd_validate(rest)
         elseif cmd == "render";      return cmd_render(rest)
         elseif cmd == "advise";      return cmd_advise(rest)
+        elseif cmd == "summarize";   return cmd_summarize(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")

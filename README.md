@@ -1,5 +1,9 @@
 # crucible
 
+[![CI](https://snowman.tailddc637.ts.net/api/badges/j4qfrost/crucible/status.svg)](https://snowman.tailddc637.ts.net/repos/j4qfrost/crucible)
+![Julia 1.10+ / 1.11](https://img.shields.io/badge/julia-1.10%20%7C%201.11-9558B2)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue)
+
 A Julia drug-discovery simulation app with an LLM paper-transpiler.
 
 Drop in a paper (PDF, arXiv ID, bioRxiv DOI, or pasted notes), and an LLM
@@ -79,6 +83,28 @@ Without it, the CLI/notebook works against `RecordedProvider` fixtures.
 
 To run the script that crucible emits, you'll need OpenMM (`pip install openmm`)
 or Molly (`Pkg.add("Molly")`) installed wherever the script runs.
+
+### Reproducible builds via Docker
+
+If you don't have Julia locally, the project runs cleanly in `julia:1.10`
+or `julia:1.11` containers. The pattern used in development:
+
+```bash
+docker run --rm \
+  -v "$PWD":/work -v /tmp/crucible-depot:/julia-depot \
+  -w /work -e JULIA_DEPOT_PATH=/julia-depot julia:1.10 \
+  bash -c 'julia --project -e "using Pkg; Pkg.test()"'
+```
+
+The cached depot at `/tmp/crucible-depot` makes subsequent runs ~10× faster.
+
+For the full live OpenMM + PDBFixer + mdtraj smoke (matches the CI pipeline
+step):
+
+```bash
+./examples/smoke_alanine_dipeptide.sh   # requires `pip install openmm pdbfixer`
+# or just run the test suite with CRUCIBLE_RUN_OPENMM=1
+```
 
 ## Project layout
 
