@@ -1,0 +1,15 @@
+when:
+  - event: pull_request
+  - event: push
+    branch: main
+
+# Julia 1.10+ drug-discovery sim. The OpenMM backend (PythonCall + CondaPkg)
+# is intentionally optional and isn't installed here — keeps CI lean and
+# matches the project's "native Julia path is MollyBackend" default.
+# `Pkg.test()` uses the package's own `test/` runner.
+
+steps:
+  test:
+    image: julia:1.10
+    commands:
+      - julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
