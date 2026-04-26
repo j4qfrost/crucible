@@ -234,13 +234,21 @@ function _emit_protocol(spec::MDSpec)
             n_steps = ns_to_steps(stage.duration_ns, stage.dt_fs)
             print(io, "# Stage ", i, ": ", String(stage.role), " (", String(stage.ensemble), ", ",
                       stage.duration_ns, " ns)\n")
-            if stage.thermostat != :langevin
-                print(io, "# WARNING: thermostat=", String(stage.thermostat),
-                          " requested but Crucible v0 only emits LangevinMiddleIntegrator.\n")
+            if stage.ensemble == :NVE
+                # Microcanonical: Verlet integrator, no thermostat, no barostat.
+                # NVE expects velocities to be set already (typically from a
+                # prior NVT equilibration or temperature draw at the first step).
+                print(io, "from openmm import VerletIntegrator\n")
+                print(io, "_integrator = VerletIntegrator(", stage.dt_fs, "*unit.femtoseconds)\n")
+            else
+                if stage.thermostat != :langevin
+                    print(io, "# WARNING: thermostat=", String(stage.thermostat),
+                              " requested but Crucible v0 only emits LangevinMiddleIntegrator.\n")
+                end
+                print(io, "_integrator = LangevinMiddleIntegrator(", stage.temperature_K,
+                          "*unit.kelvin, ", stage.friction_ps, "/unit.picosecond, ",
+                          stage.dt_fs, "*unit.femtoseconds)\n")
             end
-            print(io, "_integrator = LangevinMiddleIntegrator(", stage.temperature_K,
-                      "*unit.kelvin, ", stage.friction_ps, "/unit.picosecond, ",
-                      stage.dt_fs, "*unit.femtoseconds)\n")
             # NPT: add barostat as a force in the system, then create the simulation
             if stage.ensemble == :NPT
                 p = stage.pressure_bar === nothing ? 1.0 : stage.pressure_bar

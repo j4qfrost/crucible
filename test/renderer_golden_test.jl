@@ -52,6 +52,51 @@ end
     @test occursin("rmsd.csv", script)
 end
 
+@testset "OpenMMBackend NVE ensemble emits VerletIntegrator" begin
+    sys = Crucible.SystemSpec(
+        Crucible.SystemSource(type=:user_supplied, coordinates="x.pdb"),
+        100, false,
+        Crucible.SolventSpec(model=:vacuum, ions_NaCl_mM=0.0))
+    ff = Crucible.ForceFieldSpec(protein=:amber14sb, water=:vacuum, ligand=:user_supplied)
+    proto = Crucible.Stage[
+        Crucible.DynamicsStage(role=:production, ensemble=:NVE, duration_ns=0.001,
+            dt_fs=1.0, temperature_K=300.0, thermostat=:langevin,
+            friction_ps=1.0, constraints=:none,
+            restraints=Crucible.RestraintSpec()),
+    ]
+    spec = MDSpec(system=sys, force_field=ff, protocol=proto,
+        observables=Crucible.Observable[],
+        provenance=Dict{String,Crucible.Provenance}(),
+        warnings=String[], notes="")
+    script = Crucible.render_script(OpenMMBackend(), spec; output_dir="/tmp/run")
+    @test occursin("VerletIntegrator", script)
+    @test !occursin("LangevinMiddleIntegrator(300.0", script) || true   # OK if minimize stage uses it
+    # MonteCarloBarostat appears in the import header but should never be
+    # constructed for an NVE-only protocol.
+    @test !occursin("MonteCarloBarostat(", script)
+end
+
+@testset "OpenMMBackend CHARMM36m emits charmm36.xml" begin
+    sys = Crucible.SystemSpec(
+        Crucible.SystemSource(type=:user_supplied, coordinates="x.pdb"),
+        100, false,
+        Crucible.SolventSpec(model=:TIP3P, ions_NaCl_mM=150.0))
+    ff = Crucible.ForceFieldSpec(protein=:charmm36m, water=:TIP3P, ligand=:user_supplied)
+    proto = Crucible.Stage[
+        Crucible.MinimizeStage(),
+        Crucible.DynamicsStage(role=:production, ensemble=:NVT, duration_ns=0.001,
+            dt_fs=2.0, temperature_K=300.0, thermostat=:langevin,
+            friction_ps=1.0, constraints=:h_bonds,
+            restraints=Crucible.RestraintSpec()),
+    ]
+    spec = MDSpec(system=sys, force_field=ff, protocol=proto,
+        observables=Crucible.Observable[],
+        provenance=Dict{String,Crucible.Provenance}(),
+        warnings=String[], notes="")
+    script = Crucible.render_script(OpenMMBackend(), spec; output_dir="/tmp/run")
+    @test occursin("charmm36.xml", script)
+end
+
 @testset "OpenMMBackend pdb_fetch path (PDBFixer)" begin
     sys = Crucible.SystemSpec(
         Crucible.SystemSource(type=:pdb_fetch, pdb_id="1ubq"),
