@@ -167,6 +167,28 @@ function gate_loadability(b::SimBackend, spec::MDSpec)::ValidationReport
 end
 
 # -----------------------------------------------------------------------------
+# Gate 4 — Preview run
+#
+# Runs an abbreviated version of the script (CRUCIBLE_PREVIEW_STEPS clamps
+# every dynamics stage). Asserts: process exited cleanly, last log lines
+# contain finite energies. Reject before allocating GPU time.
+
+function gate_preview(b::SimBackend, job::PreparedJob; n_steps::Int=100)::ValidationReport
+    r = ValidationReport()
+    report = preview_run(b, job; n_steps=n_steps)
+    if !report.energies_finite
+        r = record_error!(r, "preview run produced non-finite energies (NaN or blowup)")
+    end
+    if !report.ok
+        r = record_error!(r, "preview run failed; messages: $(join(report.messages, "; "))")
+    end
+    for m in report.messages
+        r = record_warning!(r, m)
+    end
+    r
+end
+
+# -----------------------------------------------------------------------------
 # Composed pipeline
 
 """

@@ -22,16 +22,26 @@ end
     @test occursin("MonteCarloBarostat", script)
     @test occursin("StateDataReporter", script)
 
-    # 10 ns @ 2 fs = 5_000_000 steps
-    @test occursin("_sim.step(5000000)", script)
+    # 10 ns @ 2 fs = 5_000_000 steps (wrapped in preview cap)
+    @test occursin("_sim.step(_cap(5000000))", script)
     # 100 ps @ 2 fs = 50_000 steps for the first NVT stage
-    @test occursin("_sim.step(50000)", script)
+    @test occursin("_sim.step(_cap(50000))", script)
     # 500 ps @ 2 fs = 250_000 steps
-    @test occursin("_sim.step(250000)", script)
+    @test occursin("_sim.step(_cap(250000))", script)
 
     # Force field XML
     @test occursin("amber14-all.xml", script)
     @test occursin("amber14/tip3p.xml", script)
+
+    # NVT stage in the fixture has heavy-atom restraints — must be emitted as
+    # a real CustomExternalForce, not a comment.
+    @test occursin("CustomExternalForce", script)
+    @test occursin("addPerParticleParameter('x0')", script)
+    @test occursin("atom.element.symbol != 'H'", script)
+    @test occursin("system.removeForce(_restraint_index)", script)
+
+    # Preview gate hook: every dynamics step is wrapped in _cap()
+    @test occursin("_preview_cap", script)
 end
 
 @testset "MollyBackend renderer" begin

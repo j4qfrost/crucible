@@ -129,8 +129,25 @@ function preview_run(::MollyBackend, ::PreparedJob; n_steps::Int=100)::PreviewRe
 end
 
 function run!(b::MollyBackend, job::PreparedJob; on_progress=identity)::SimResult
-    SimResult(job, false, String[],
-        "MollyBackend.run! is a v0 stub. Run the script manually:\n  julia --project $(job.script_path)\nor wire direct Molly invocation once Molly is added to deps.")
+    isfile(job.script_path) ||
+        return SimResult(job, false, String[], "MollyBackend.run!: script not prepared")
+    log_path = joinpath(job.workdir, "stdout.log")
+    project = something(Base.active_project(), ".")
+    cmd = pipeline(`julia --project=$(project) $(job.script_path)`;
+                   stdout=log_path, stderr=log_path)
+    success = false
+    log_text = ""
+    try
+        proc = run(cmd; wait=true)
+        success = proc.exitcode == 0
+    catch err
+        log_text = "execution failed: $(err)\n"
+    end
+    if isfile(log_path)
+        log_text *= read(log_path, String)
+    end
+    artifacts = [joinpath(job.workdir, f) for f in readdir(job.workdir)]
+    SimResult(job, success, artifacts, log_text)
 end
 
 function collect_artifacts(::MollyBackend, result::SimResult)::Vector{SimArtifact}

@@ -165,6 +165,10 @@ function _emit_protocol(spec::MDSpec)
     io = IOBuffer()
     print(io, "# --- protocol ---\n")
     print(io, "platform = Platform.getPlatformByName(os.environ.get('CRUCIBLE_PLATFORM', 'CUDA'))\n")
+    # Preview gate: when CRUCIBLE_PREVIEW_STEPS is set, every dynamics stage
+    # caps n_steps at that value. Lets validation Gate 4 reuse this script.
+    print(io, "_preview_cap = int(os.environ['CRUCIBLE_PREVIEW_STEPS']) if 'CRUCIBLE_PREVIEW_STEPS' in os.environ else None\n")
+    print(io, "def _cap(n): return min(n, _preview_cap) if _preview_cap is not None else n\n")
     print(io, "current_positions = positions\n")
     print(io, "current_velocities = None\n\n")
 
@@ -212,19 +216,43 @@ function _emit_protocol(spec::MDSpec)
             print(io, "    ", log_period, ", step=True, time=True, potentialEnergy=True,\n")
             print(io, "    kineticEnergy=True, totalEnergy=True, temperature=True, volume=True))\n")
 
-            # Restraints
-            if stage.restraints.selection != :none && stage.restraints.k_kj_mol_nm2 > 0
-                print(io, "# WARNING: restraints requested (", String(stage.restraints.selection), ", k=",
-                          stage.restraints.k_kj_mol_nm2, " kJ/mol/nm^2)\n")
-                print(io, "# v0 emits a comment; restraint force injection lands in v0.5.\n")
+            # Restraints — harmonic positional restraints anchored at current_positions
+            _has_restraints = stage.restraints.selection != :none && stage.restraints.k_kj_mol_nm2 > 0
+            if _has_restraints
+                if stage.restraints.kind != :harmonic
+                    print(io, "# WARNING: restraint kind=", String(stage.restraints.kind),
+                              " requested; v0.1 emits harmonic only.\n")
+                end
+                _sel = stage.restraints.selection
+                _select_expr = _sel == :heavy_atoms ? "atom.element.symbol != 'H'" :
+                               _sel == :backbone   ? "atom.name in ('N','CA','C','O')" :
+                               _sel == :ca         ? "atom.name == 'CA'" :
+                               error("unknown restraint selection $(_sel)")
+                print(io, "from openmm import CustomExternalForce\n")
+                print(io, "_restraint = CustomExternalForce('0.5*k*((x-x0)*(x-x0)+(y-y0)*(y-y0)+(z-z0)*(z-z0))')\n")
+                print(io, "_restraint.addGlobalParameter('k', ", stage.restraints.k_kj_mol_nm2,
+                          "*unit.kilojoule_per_mole/unit.nanometer**2)\n")
+                print(io, "_restraint.addPerParticleParameter('x0')\n")
+                print(io, "_restraint.addPerParticleParameter('y0')\n")
+                print(io, "_restraint.addPerParticleParameter('z0')\n")
+                print(io, "for atom in topology.atoms():\n")
+                print(io, "    if ", _select_expr, ":\n")
+                print(io, "        _p = current_positions[atom.index].value_in_unit(unit.nanometer)\n")
+                print(io, "        _restraint.addParticle(atom.index, [_p[0], _p[1], _p[2]])\n")
+                print(io, "_restraint_index = system.addForce(_restraint)\n")
+                print(io, "_sim.context.reinitialize(preserveState=True)\n")
             end
 
             # Run
-            print(io, "_sim.step(", n_steps, ")\n")
+            print(io, "_sim.step(_cap(", n_steps, "))\n")
             print(io, "_state = _sim.context.getState(getPositions=True, getVelocities=True)\n")
             print(io, "current_positions = _state.getPositions(asNumpy=True)\n")
             print(io, "current_velocities = _state.getVelocities(asNumpy=True)\n")
 
+            # Tear down restraint for the next stage
+            if _has_restraints
+                print(io, "system.removeForce(_restraint_index)\n")
+            end
             # Tear down barostat for the next stage if the ensemble changes
             if stage.ensemble == :NPT
                 print(io, "system.removeForce(_baro_index)\n")
@@ -266,17 +294,53 @@ function prepare(b::OpenMMBackend, spec::MDSpec, workdir::AbstractString)::Prepa
         Dict{String,Any}("script_size_bytes" => filesize(script_path)))
 end
 
-function preview_run(::OpenMMBackend, ::PreparedJob; n_steps::Int=100)::PreviewReport
-    # v0: returns a not-yet-implemented preview. Wiring the actual
-    # PythonCall-driven preview is gated behind a CondaPkg-installed env.
-    PreviewReport(true, true, nothing, nothing,
-        ["preview_run is a v0 stub — wire PythonCall + CondaPkg env to enable",
-         "rendered script is saved at the prepared job's script_path; you can run it manually"])
+function preview_run(b::OpenMMBackend, job::PreparedJob; n_steps::Int=100)::PreviewReport
+    # Smoke gate. Runs the prepared script with CRUCIBLE_PREVIEW_STEPS set,
+    # which the renderer honors at execution time (shortens every dynamics
+    # stage to n_steps). Asserts: process exited cleanly + last energy line
+    # has no NaN/Inf.
+    isfile(job.script_path) || return PreviewReport(false, false, nothing, nothing,
+        ["preview_run: prepared script missing: $(job.script_path)"])
+    log_path = joinpath(job.workdir, "preview_stdout.log")
+    env = copy(ENV)
+    env["CRUCIBLE_PREVIEW_STEPS"] = string(n_steps)
+    cmd = pipeline(setenv(`$(b.python) $(job.script_path)`, env);
+                   stdout=log_path, stderr=log_path)
+    ok = false
+    log_text = ""
+    try
+        proc = run(cmd; wait=true)
+        ok = proc.exitcode == 0
+    catch err
+        log_text = "preview run failed: $(err)\n"
+    end
+    if isfile(log_path)
+        log_text *= read(log_path, String)
+    end
+    energies_finite = !occursin(r"NaN|Infinity|-?[0-9]+e\+30", log_text)
+    PreviewReport(ok && energies_finite, energies_finite, nothing, nothing,
+        ok ? ["preview run completed in $(n_steps) steps"] :
+             ["preview run failed; see $(log_path)"])
 end
 
 function run!(b::OpenMMBackend, job::PreparedJob; on_progress=identity)::SimResult
-    SimResult(job, false, String[],
-        "OpenMMBackend.run! is a v0 stub. Run the script manually:\n  python $(job.script_path)\nor wire PythonCall once CondaPkg env is installed.")
+    isfile(job.script_path) ||
+        return SimResult(job, false, String[], "OpenMMBackend.run!: script not prepared")
+    log_path = joinpath(job.workdir, "stdout.log")
+    cmd = pipeline(`$(b.python) $(job.script_path)`; stdout=log_path, stderr=log_path)
+    success = false
+    log_text = ""
+    try
+        proc = run(cmd; wait=true)
+        success = proc.exitcode == 0
+    catch err
+        log_text = "execution failed: $(err)\n"
+    end
+    if isfile(log_path)
+        log_text *= read(log_path, String)
+    end
+    artifacts = [joinpath(job.workdir, f) for f in readdir(job.workdir)]
+    SimResult(job, success, artifacts, log_text)
 end
 
 function collect_artifacts(::OpenMMBackend, result::SimResult)::Vector{SimArtifact}
