@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### v0.4 / v1 partial (2026-04-26)
+
+- **PDBFixer auto-build path** (v1 #1): `:pdb_fetch` source type now downloads a PDB by ID, fixes missing atoms/residues, adds hydrogens at pH 7, solvates with the requested water model, and saves the prepared system. Canonical-residue protein systems only — ligand systems still require BYO topology.
+- **Real trajectory output**: `DCDReporter` per stage at the requested observable stride (was emitting comments).
+- **Real observable computation**: post-run `mdtraj` block computes RMSD / RMSF / Rg from the trajectory and writes CSV files. Wrapped in `try/except` so the script still runs without `mdtraj` installed.
+- **ArxivAdapter PDF download**: when `pdftotext` is on PATH, the adapter downloads the PDF and extracts the full body text (was abstract-only).
+- **PDB column-alignment fix**: `test/fixtures/alanine_dipeptide.pdb` regenerated to strict PDB v3 column rules; OpenMM now loads it cleanly.
+- **OpenMMBackend renderer**: relaxed topology requirement — PDB-only systems no longer demand a separate `.prmtop`.
+
+### v0.3 (2026-04-26)
+
+- `.woodpecker.yml` matrix on Julia 1.10 + 1.11; consolidated to Woodpecker (GHA + Forgejo Actions removed)
+- Live OpenMM smoke in CI via a separate pipeline step that installs OpenMM in a venv and runs `Pkg.test()` with `CRUCIBLE_RUN_OPENMM=1`
+- `Manifest.toml` committed for reproducible builds
+- `poppler-utils` installed in CI, real `PDFAdapter` test
+- `examples/walkthrough.jl` end-to-end demo using `RecordedProvider` (no API key needed)
+
+### v0.2 (2026-04-26)
+
+- `TranscriptStore` (DuckDB-backed append-only log) — Phase A of the option-3 fine-tune flywheel
+- `RecordedProvider` for deterministic LLM tests without consuming API tokens
+- Live `AnthropicProvider` smoke gated on `CRUCIBLE_RUN_ANTHROPIC=1` + `ANTHROPIC_API_KEY`
+- Pluto Gate 5: `@bind run_button` gating prevents accidental production runs on spec edits
+- `PlutoUI`, `HypertextLiteral`, `DuckDB`, `DBInterface`, `Dates` added to `Project.toml`
+
 ### v0.1 (2026-04-26)
 
 - Renderer correctness: integers/floats are now text-formatted (was emitting raw bytes via `write(io, ::Number)`)

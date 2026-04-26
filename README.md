@@ -14,29 +14,42 @@ The user shell is a Pluto.jl notebook.
 
 v0 (in development). See `docs/PLAN.md` for the full design and roadmap.
 
-### What works in v0
+### What works (v0–v0.4)
 
 - `MDSpec` IR + JSON Schema (the LLM contract)
 - Two `SimBackend` implementations:
   - `MollyBackend` — native Julia, sweet spot is CG / implicit / small / autodiff
-  - `OpenMMBackend` — via PythonCall + OpenMM, the workhorse for solvated
-    protein–ligand systems
+  - `OpenMMBackend` — subprocess-driven OpenMM, the workhorse for solvated
+    protein–ligand systems. Supports user-supplied topology, PDB-only
+    systems, and `:pdb_fetch` (PDBFixer auto-build for canonical-residue
+    protein systems)
 - A `Router` that picks a backend based on spec features
-- Validation gates 1–2 (JSON Schema + semantic rules) — reject malformed or
-  physically incoherent specs without ever touching a GPU
-- Anthropic provider scaffolding (Claude tool-use → MDSpec); no-ops without
-  `ANTHROPIC_API_KEY` set
-- Input adapters for PDF, arXiv, bioRxiv DOI, and raw notes
-- Cloud sizing advisor (GCP + AWS) with ready-to-paste `gcloud` / `aws`
-  commands and hard caps on long runs
-- Pluto notebook UI
+- Five validation gates: schema, semantic rules, backend loadability,
+  preview run (`CRUCIBLE_PREVIEW_STEPS`), and Pluto user-confirmation
+- Anthropic provider with Claude tool-use binding the schema as
+  `input_schema`; no-ops without `ANTHROPIC_API_KEY` so CI without the key
+  stays green
+- `RecordedProvider` for deterministic offline tests
+- `TranscriptStore` (DuckDB) — every transpile session is logged for the
+  option-3 fine-tune flywheel
+- Input adapters for PDF, arXiv (with PDF download), bioRxiv DOI, and raw notes
+- Cloud sizing advisor (GCP + AWS) with ready-to-paste commands and hard
+  caps on long runs (50 ns / $20 confirmation thresholds)
+- Real observable output: `DCDReporter` for trajectories, `mdtraj` post-run
+  analysis writes RMSD / RMSF / Rg CSVs
+- Pluto notebook UI with the 5-gate pipeline rendered as numbered sections
+- CI on Woodpecker (Julia 1.10 + 1.11 matrix); live OpenMM smoke in a
+  separate pipeline step on Julia 1.10
+- `examples/walkthrough.jl` for a no-API-key end-to-end demo
 
-### What is explicitly *not* in v0
+### Explicitly deferred (v1+)
 
-- SMILES → ligand force-field parameters (you supply prepared topology)
+- SMILES → ligand force-field parameters (you supply prepared topology
+  for ligand systems; canonical-residue protein systems use `:pdb_fetch`)
 - Free-energy methods, enhanced sampling, QM/MM, membranes, plumed
 - Multi-GPU / multi-replica orchestration
-- Local / fine-tuned LLM providers (interface stubbed; see roadmap)
+- Local / fine-tuned LLM providers (interface stubbed; transcript flywheel
+  is collecting training data)
 - Actual cloud provisioning (advisor outputs commands; you run them)
 
 ## Hard rule
