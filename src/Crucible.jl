@@ -11,12 +11,14 @@ using UUIDs
 
 include("spec/units.jl")
 include("spec/MDSpec.jl")
+include("spec/KineticsSpec.jl")
 include("spec/Diff.jl")
 include("spec/Migrations.jl")
 
 include("backends/SimBackend.jl")
 include("backends/OpenMMBackend.jl")
 include("backends/MollyBackend.jl")
+include("backends/KineticsBackend.jl")
 include("backends/Router.jl")
 
 include("validation/Gates.jl")
@@ -43,7 +45,8 @@ include("cloud/Advisor.jl")
 
 export MDSpec, SystemSpec, ForceFieldSpec, Stage, Observable, Provenance,
        SpecDiff, diff_specs, migrate_spec_json, register_migration!,
-       SimBackend, MollyBackend, OpenMMBackend, route_backend,
+       SimBackend, MollyBackend, OpenMMBackend, KineticsBackend, route_backend,
+       KineticsSpec, Species, Reaction,
        validate_spec, ValidationReport,
        LLMProvider, AnthropicProvider, LocalProvider, RecordedProvider, transpile,
        TranscriptStore, open_transcript_store, close_transcript_store, log_transcript, transcript_count, export_transcripts_jsonl,

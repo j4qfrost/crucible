@@ -50,9 +50,9 @@ function diff_specs(a::MDSpec, b::MDSpec)::SpecDiff
         sa = i <= length(a.protocol) ? a.protocol[i] : nothing
         sb = i <= length(b.protocol) ? b.protocol[i] : nothing
         if sa === nothing
-            push!(d.only_in_b, ("protocol[$i]", _stage_summary(sb)))
+            push!(d.only_in_b, ("protocol[$i]", _diff_stage_summary(sb)))
         elseif sb === nothing
-            push!(d.only_in_a, ("protocol[$i]", _stage_summary(sa)))
+            push!(d.only_in_a, ("protocol[$i]", _diff_stage_summary(sa)))
         else
             _cmp_stage!(d, "protocol[$i]", sa, sb)
         end
@@ -101,5 +101,5 @@ function _cmp_stage!(d::SpecDiff, base::AbstractString, sa::Stage, sb::Stage)
     push!(d.changed, ("$base.kind", string(typeof(sa).name.name), string(typeof(sb).name.name)))
 end
 
-_stage_summary(::MinimizeStage) = "minimize"
-_stage_summary(s::DynamicsStage) = string(String(s.role), " ", String(s.ensemble), " ", s.duration_ns, "ns")
+_diff_stage_summary(::MinimizeStage) = "minimize"
+_diff_stage_summary(s::DynamicsStage) = string(String(s.role), " ", String(s.ensemble), " ", s.duration_ns, "ns")
