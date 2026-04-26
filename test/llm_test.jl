@@ -66,6 +66,15 @@ end
     @test any(s isa Crucible.DynamicsStage && s.dt_fs == 2.0 for s in spec.protocol)
 end
 
+@testset "LocalProvider unreachable endpoint returns soft failure" begin
+    p = LocalProvider(endpoint="http://localhost:1/should-fail",
+                      model="test-model", api_key="EMPTY", timeout_s=1)
+    result = transpile(p, "any paper text")
+    @test result.spec === nothing
+    @test result.provider_name == :local
+    @test occursin("failed", lowercase(result.raw_response))
+end
+
 @testset "TranscriptStore append + count" begin
     db_path = tempname() * ".duckdb"
     store = open_transcript_store(path=db_path)
