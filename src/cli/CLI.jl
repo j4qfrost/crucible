@@ -157,21 +157,49 @@ end
 
 function cmd_advise(args::Vector{String})
     pos, kw = _parse_kw_args(args)
-    length(pos) < 1 && error("usage: advise <spec.json> [--budget-hours N] [--backend openmm|molly]")
+    length(pos) < 1 && error("usage: advise <spec.json> [--budget-hours N] [--backend openmm|molly] [--format text|json]")
     spec = spec_from_json(read(pos[1], String))
     budget_hours = parse(Float64, get(kw, "budget-hours", "6"))
     backend_name = Symbol(get(kw, "backend", "openmm"))
     rec = Crucible.advise(spec; budget_hours=budget_hours, backend_name=backend_name)
-    if rec.chosen !== nothing
-        c = rec.chosen
-        println("chosen:  $(c.gpu)")
-        println("runtime: $(round(c.runtime_hours; digits=2)) h")
-        println("cost:    \$$(round(c.on_demand_usd; digits=2))")
-        println("reason:  $(rec.chosen_reason)")
-        println("gcp:     $(c.gcp_command)")
-        println("aws:     $(c.aws_command)")
+    fmt = get(kw, "format", "text")
+    if fmt == "json"
+        obj = Dict{String,Any}(
+            "chosen" => rec.chosen === nothing ? nothing : Dict{String,Any}(
+                "gpu" => rec.chosen.gpu,
+                "runtime_hours" => rec.chosen.runtime_hours,
+                "on_demand_usd" => rec.chosen.on_demand_usd,
+                "ns_per_day"    => rec.chosen.ns_per_day,
+                "gcp_instance"  => rec.chosen.gcp_instance,
+                "gcp_command"   => rec.chosen.gcp_command,
+                "aws_instance"  => rec.chosen.aws_instance,
+                "aws_command"   => rec.chosen.aws_command,
+                "azure_instance" => rec.chosen.azure_instance,
+                "azure_command"  => rec.chosen.azure_command,
+            ),
+            "chosen_reason" => rec.chosen_reason,
+            "warnings"      => rec.warnings,
+            "requires_confirmation" => rec.requires_confirmation,
+            "candidates" => [Dict{String,Any}(
+                "gpu" => c.gpu, "ns_per_day" => c.ns_per_day,
+                "runtime_hours" => c.runtime_hours,
+                "on_demand_usd" => c.on_demand_usd,
+            ) for c in rec.candidates],
+        )
+        println(JSON3.write(obj))
+    else
+        if rec.chosen !== nothing
+            c = rec.chosen
+            println("chosen:  $(c.gpu)")
+            println("runtime: $(round(c.runtime_hours; digits=2)) h")
+            println("cost:    \$$(round(c.on_demand_usd; digits=2))")
+            println("reason:  $(rec.chosen_reason)")
+            println("gcp:     $(c.gcp_command)")
+            println("aws:     $(c.aws_command)")
+            println("azure:   $(c.azure_command)")
+        end
+        for w in rec.warnings; println("warn:    ", w); end
     end
-    for w in rec.warnings; println("warn:    ", w); end
     rec.requires_confirmation ? 3 : 0
 end
 

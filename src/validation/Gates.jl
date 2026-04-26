@@ -41,12 +41,40 @@ function gate_schema(spec_json::AbstractString)::ValidationReport
         obj = JSON3.read(spec_json, Dict)
         result = JSONSchema.validate(_schema(), obj)
         if result !== nothing
-            r = record_error!(r, "schema validation failed: $(result)")
+            r = record_error!(r, _humanize_schema_error(result))
         end
     catch err
         r = record_error!(r, "could not parse spec JSON: $(err)")
     end
     r
+end
+
+# JSONSchema's raw error string is structurally precise but pretty cryptic
+# at first glance. This translator catches the common shapes (enum mismatch,
+# missing required, additionalProperties) and emits a one-sentence rewrite.
+# Falls back to the raw string for anything we don't recognize yet.
+function _humanize_schema_error(err)::String
+    s = string(err)
+    # JSONSchema.jl reports paths like "Object[\"field\"]" with quoted keys
+    if (m = match(r"value at path (\S+) is invalid: (.+)", s)) !== nothing
+        path = String(m.captures[1])
+        detail = String(m.captures[2])
+        # Common detail patterns
+        if (em = match(r"value (\S+) is not in enum (\[.+?\])", detail)) !== nothing
+            got = String(em.captures[1])
+            allowed = String(em.captures[2])
+            return "schema error at $(path): value $(got) is not one of $(allowed)"
+        end
+        if occursin("required", lowercase(detail))
+            return "schema error at $(path): required field is missing or null"
+        end
+        if occursin("additionalProperties", detail) ||
+           occursin("additional properties", lowercase(detail))
+            return "schema error at $(path): unknown field (additional properties not allowed at this level)"
+        end
+        return "schema error at $(path): $(detail)"
+    end
+    "schema validation failed: $(s)"
 end
 
 # -----------------------------------------------------------------------------

@@ -45,6 +45,25 @@ end
     @test rc == 0 || rc == 3   # 3 means cost-confirmation required (acceptable for the kinase spec)
 end
 
+@testset "CLI advise --format json" begin
+    fixture = joinpath(@__DIR__, "fixtures", "recorded_anthropic_spec.json")
+    original_stdout = stdout
+    rd, wr = redirect_stdout()
+    try
+        rc = CLI.main(String["advise", fixture, "--format", "json"])
+        @test rc == 0 || rc == 3
+    finally
+        redirect_stdout(original_stdout)
+        close(wr)
+    end
+    out = read(rd, String)
+    import JSON3
+    obj = JSON3.read(out)
+    @test haskey(obj, :chosen)
+    @test haskey(obj, :candidates)
+    @test haskey(obj, :requires_confirmation)
+end
+
 @testset "CLI summarize emits Markdown" begin
     fixture = joinpath(@__DIR__, "fixtures", "recorded_anthropic_spec.json")
     # Capture stdout
