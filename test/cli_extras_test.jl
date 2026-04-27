@@ -78,6 +78,51 @@ end
     end
 end
 
+@testset "cmd_upgrade migrates a v0.1.0 spec to v0.2.0" begin
+    # Build a v0.1.0-shape spec missing v1+ fields.
+    obj = Dict{String,Any}(
+        "schema_version" => "0.1.0",
+        "system" => Dict(
+            "source" => Dict("type" => "user_supplied", "topology" => "x.parm7",
+                             "coordinates" => "x.rst7", "pdb_id" => nothing),
+            "n_atoms_estimate" => 100, "has_ligand" => false,
+            "solvent" => Dict("model" => "vacuum", "ions_NaCl_mM" => 0.0),
+        ),
+        "force_field" => Dict("protein" => "amber14sb", "water" => "vacuum",
+                              "ligand" => "user_supplied"),
+        "protocol" => [Dict("kind" => "minimize", "max_iterations" => 100,
+                            "tolerance_kj_mol_nm" => 10.0)],
+        "observables" => Any[],
+        "provenance"  => Dict{String,Any}(),
+        "warnings"    => String[],
+        "notes"       => "",
+    )
+    import JSON3
+    src = tempname() * ".json"
+    write(src, JSON3.write(obj))
+    out = tempname() * ".json"
+    try
+        original_stderr = stderr
+        rd_e, wr_e = redirect_stderr()
+        rc = nothing
+        try
+            rc = CLI.main(String["upgrade", src, "--out", out])
+        finally
+            redirect_stderr(original_stderr)
+            close(wr_e)
+        end
+        @test rc == 0
+        body = read(out, String)
+        @test occursin("\"schema_version\":\"0.2.0\"", body)
+        @test occursin("\"ligand_smiles\"", body)
+        @test occursin("\"membrane\"", body)
+        @test occursin("\"lipid\"", body)
+    finally
+        rm(src; force=true)
+        rm(out; force=true)
+    end
+end
+
 @testset "cmd_trajstat returns rc=1 on a bad path" begin
     original_stderr = stderr
     rd_e, wr_e = redirect_stderr()

@@ -41,6 +41,7 @@ Usage:
   crucible restore       <archive.tar.gz> --out <dest-dir> [--no-verify]
   crucible fmt           <spec.json> [--in-place]                # pretty-print spec
   crucible trajstat      <workdir>                                # walk + classify artifacts
+  crucible upgrade       <spec.json> [--out path] [--target ver]  # forward-migrate schema
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -272,7 +273,7 @@ function cmd_info(::Vector{String})
     println()
     println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
     println("                 info parameterize verify serve doctor coverage lint templates")
-    println("                 snapshot restore fmt trajstat")
+    println("                 snapshot restore fmt trajstat upgrade")
     println()
     println("Ligand parameterizer:")
     avail = parameterizer_available()
@@ -506,6 +507,23 @@ function cmd_coverage(args::Vector{String})
         for p in rep.missing_paths
             println("  - $(p)")
         end
+    end
+    0
+end
+
+function cmd_upgrade(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: upgrade <spec.json> [--out path] [--target version]")
+    raw = read(pos[1], String)
+    target = get(kw, "target", "0.2.0")
+    upgraded = Crucible.migrate_spec_json(raw; target=target)
+    out = get(kw, "out", "")
+    if isempty(out)
+        # Re-pretty for human readability
+        println(_pretty_json(JSON3.read(upgraded, Dict)))
+    else
+        write(out, upgraded)
+        println(stderr, "wrote: $(out) ($(filesize(out)) bytes; target schema $(target))")
     end
     0
 end
@@ -823,6 +841,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "restore";      return cmd_restore(rest)
         elseif cmd == "fmt";          return cmd_fmt(rest)
         elseif cmd == "trajstat";     return cmd_trajstat(rest)
+        elseif cmd == "upgrade";      return cmd_upgrade(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")
