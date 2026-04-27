@@ -62,6 +62,31 @@ end
     @test occursin("amber14-all.xml", script)
 end
 
+@testset "every template renders to Markdown without error" begin
+    for name in list_templates()
+        spec = get_template(name)
+        md = render(MarkdownRenderer(), spec)
+        @test occursin("# MDSpec", md)
+        @test occursin("Protocol", md)
+    end
+end
+
+@testset "every template renders to Pluto without error" begin
+    for name in list_templates()
+        spec = get_template(name)
+        html = render(PlutoRenderer(), spec)
+        @test occursin("<div", html)
+    end
+end
+
+@testset "every template lints without throwing" begin
+    for name in list_templates()
+        spec = get_template(name)
+        rep = lint(spec)
+        @test rep isa LintReport
+    end
+end
+
 @testset "register_template! accepts external builders" begin
     register_template!(:_test_only, () -> get_template(:vanilla))
     try

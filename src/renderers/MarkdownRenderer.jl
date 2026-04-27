@@ -68,6 +68,9 @@ end
 
 _stage_label(::MinimizeStage) = "minimize"
 _stage_label(s::DynamicsStage) = string(String(s.role), " (", String(s.ensemble), ")")
+_stage_label(s::FEPStage) = string("FEP (", String(s.kind), ")")
+_stage_label(s::REMDStage) = string("REMD (", length(s.temperature_ladder_K), " replicas)")
+_stage_label(::MetadynamicsStage) = "metadynamics"
 
 _stage_details(s::MinimizeStage) =
     string("max_iter=", s.max_iterations, ", tol=", s.tolerance_kj_mol_nm, " kJ/mol/nm")
@@ -85,6 +88,39 @@ function _stage_details(s::DynamicsStage)
         push!(parts, string("restraints=", String(s.restraints.selection),
                             " k=", s.restraints.k_kj_mol_nm2, " kJ/mol/nm²"))
     end
+    join(parts, "; ")
+end
+
+function _stage_details(s::FEPStage)
+    parts = String[
+        string(length(s.lambda_windows), " λ windows × ", s.duration_per_window_ns, " ns"),
+        string("target=`", s.target_selection, "`"),
+        string(String(s.ensemble), ", T=", s.temperature_K, " K"),
+    ]
+    s.ensemble == :NPT && push!(parts, string("P=", s.pressure_bar, " bar"))
+    join(parts, "; ")
+end
+
+function _stage_details(s::REMDStage)
+    parts = String[
+        string(round(first(s.temperature_ladder_K); digits=1), "–",
+               round(last(s.temperature_ladder_K); digits=1), " K ladder"),
+        string(s.duration_per_replica_ns, " ns per replica"),
+        string("exchange every ", s.exchange_attempt_period_ps, " ps"),
+        string(String(s.ensemble), " @ ", s.dt_fs, " fs"),
+    ]
+    join(parts, "; ")
+end
+
+function _stage_details(s::MetadynamicsStage)
+    cv_names = join((cv.name * ":" * String(cv.kind) for cv in s.cvs), ", ")
+    parts = String[
+        string(length(s.cvs), " CV(s): ", cv_names),
+        string(s.duration_ns, " ns @ ", s.dt_fs, " fs"),
+        string("bias=", s.bias_height_kj_mol, " kJ/mol every ",
+               s.bias_deposit_period_ps, " ps"),
+    ]
+    s.well_tempered && push!(parts, string("well-tempered γ=", s.bias_factor))
     join(parts, "; ")
 end
 

@@ -84,6 +84,28 @@ function _stage_summary(s::DynamicsStage)
     s.ensemble == :NPT ? string(base, ", P=", s.pressure_bar, " bar (", String(something(s.barostat, :none)), ")") : base
 end
 
+function _stage_summary(s::FEPStage)
+    string("FEP (", String(s.kind), "): ",
+           length(s.lambda_windows), " λ × ",
+           s.duration_per_window_ns, " ns, target=", s.target_selection,
+           ", ", String(s.ensemble), " @ ", s.temperature_K, " K")
+end
+
+function _stage_summary(s::REMDStage)
+    string("REMD: ", length(s.temperature_ladder_K), " replicas (",
+           round(first(s.temperature_ladder_K); digits=1), "–",
+           round(last(s.temperature_ladder_K); digits=1), " K), ",
+           s.duration_per_replica_ns, " ns each, exchange every ",
+           s.exchange_attempt_period_ps, " ps")
+end
+
+function _stage_summary(s::MetadynamicsStage)
+    cv_summary = join((cv.name * ":" * String(cv.kind) for cv in s.cvs), ", ")
+    string("metadynamics: ", length(s.cvs), " CV(s) [", cv_summary, "], ",
+           s.duration_ns, " ns @ T=", s.temperature_K, " K",
+           s.well_tempered ? " (well-tempered γ=$(s.bias_factor))" : "")
+end
+
 # ValidationReport
 function render(::PlutoRenderer, r::ValidationReport)::String
     io = IOBuffer()
