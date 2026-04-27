@@ -44,7 +44,7 @@ docker run --rm \
 The cached `/tmp/crucible-depot` makes repeat runs ~10× faster. For the
 full live OpenMM + PDBFixer + mdtraj integration, set
 `CRUCIBLE_RUN_OPENMM=1` and ensure the container has `openmm`,
-`pdbfixer`, `mdtraj` installed (the `.woodpecker.yml` `openmm-smoke`
+`pdbfixer`, `mdtraj` installed (the `.github/workflows/ci.yml` `openmm-smoke`
 step shows the recipe).
 
 ## Testing conventions
@@ -123,12 +123,16 @@ step shows the recipe).
 
 ## CI
 
-- Woodpecker on snowman is the canonical CI. `.woodpecker.yml` matrix
-  on Julia 1.10 + 1.11. The `openmm-smoke` step installs
-  `openmm + pdbfixer + mdtraj` and runs the live integration tests.
-- Don't add steps that reference Woodpecker secrets via `from_secret`
-  unless the secret has been configured in the Woodpecker UI; the
-  YAML is rejected at parse time when a referenced secret is missing.
+- GitHub Actions is the canonical CI. `.github/workflows/ci.yml`
+  matrix on Julia 1.10 + 1.11. A second `openmm-smoke` job installs
+  `openmm + pdbfixer + mdtraj` into a venv and re-runs `Pkg.test()`
+  with `CRUCIBLE_RUN_OPENMM=1` so the live OpenMM testset actually
+  exercises the alanine-dipeptide fixture.
+- Don't add steps that reference repository secrets via `${{ secrets.X }}`
+  unless `X` has been configured in **Settings → Secrets and variables →
+  Actions**. The job will fail with an empty-value error otherwise.
+- `julia-actions/cache@v2` caches the Julia depot per-OS-per-version,
+  so repeat runs on the same matrix cell start in seconds.
 
 ## Commit style
 

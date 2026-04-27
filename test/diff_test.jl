@@ -1,20 +1,20 @@
 using Test
 using Crucible
 
-function _good_spec()
+function _diff_good_spec()
     fixture = joinpath(@__DIR__, "fixtures", "known_good_spec.json")
     Crucible.spec_from_json(read(fixture, String))
 end
 
 @testset "diff_specs identity" begin
-    spec = _good_spec()
+    spec = _diff_good_spec()
     d = diff_specs(spec, spec)
     @test isempty(d)
     @test length(d) == 0
 end
 
 @testset "diff_specs detects scalar change" begin
-    a = _good_spec()
+    a = _diff_good_spec()
     # Build a spec with one altered field (temperature in stage 2)
     new_proto = copy(a.protocol)
     s = a.protocol[2]
@@ -37,7 +37,7 @@ end
 end
 
 @testset "diff_specs detects added stage" begin
-    a = _good_spec()
+    a = _diff_good_spec()
     extra = Crucible.MinimizeStage(max_iterations=100, tolerance_kj_mol_nm=10.0)
     b = MDSpec(system=a.system, force_field=a.force_field,
                protocol=Crucible.Stage[a.protocol..., extra],
@@ -49,7 +49,7 @@ end
 end
 
 @testset "diff_specs Markdown render" begin
-    a = _good_spec()
+    a = _diff_good_spec()
     new_proto = copy(a.protocol)
     s = a.protocol[2]
     new_proto[2] = Crucible.DynamicsStage(
