@@ -135,3 +135,47 @@ end
     end
     @test rc == 1
 end
+
+@testset "cmd_cite emits provenance grouped by source" begin
+    fixture = joinpath(@__DIR__, "fixtures", "known_good_spec.json")
+    original_stdout = stdout
+    rd, wr = redirect_stdout()
+    rc = nothing
+    try
+        rc = CLI.main(String["cite", fixture])
+    finally
+        redirect_stdout(original_stdout)
+        close(wr)
+    end
+    @test rc == 0
+    out = read(rd, String)
+    # Should mention at least one bracketed source label
+    @test occursin(r"\[(paper|paper_default|user|assumed|runtime_default)\]", out) ||
+          occursin("(no provenance entries)", out)
+end
+
+@testset "cmd_explain produces a paragraph for every template" begin
+    for name in list_templates()
+        spec = get_template(name)
+        json = Crucible.spec_to_json(spec)
+        tmp = tempname() * ".json"
+        write(tmp, json)
+        try
+            original_stdout = stdout
+            rd, wr = redirect_stdout()
+            rc = nothing
+            try
+                rc = CLI.main(String["explain", tmp])
+            finally
+                redirect_stdout(original_stdout)
+                close(wr)
+            end
+            @test rc == 0
+            out = read(rd, String)
+            @test occursin("Force field:", out)
+            @test occursin("Protocol", out)
+        finally
+            rm(tmp; force=true)
+        end
+    end
+end

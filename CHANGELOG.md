@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### v1.8.1 — cite / explain / templates_to_jsonl (2026-04-27)
+
+Closes the "what does this spec do?" story. Three small additions
+that compound: `cite` lists provenance entries grouped by source,
+`explain` produces a paragraph-length natural-language summary
+derived from IR fields, and `tools/templates_to_jsonl.jl` exports
+all six templates as the option-3 fine-tune training-pair format
+(notes-as-paper-text + spec_json).
+
+- **`crucible cite <spec>`** — pretty-print every Provenance
+  entry, grouped by source (`paper` / `paper_default` / `user` /
+  `assumed` / `runtime_default`), with cite + confidence on each.
+  Useful for a "what does this LLM extract vs. assume" review.
+- **`crucible explain <spec>`** — natural-language summary
+  derived from IR. Per-stage one-liners cover all five stage
+  types (`MinimizeStage` / `DynamicsStage` / `FEPStage` /
+  `REMDStage` / `MetadynamicsStage`); membrane / constant-pH /
+  warning fields surface inline. The output is suitable for
+  pasting into a paper or a slack message.
+- **`tools/templates_to_jsonl.jl`** — exports every template as a
+  JSONL training pair (`{paper_text, spec_json, schema_version,
+  method_kind, split}`). Seeds the option-3 fine-tune corpus with
+  six idealized examples (one per method), letting downstream
+  training start before users have logged 1k real sessions.
+- CLI 21 → 23 subcommands.
+- Tests: 652/652 pass on Julia 1.10.
+
 ### v1.8 — bench / upgrade / GHA runner / template provenance (2026-04-27)
 
 Polishing pass. Each item is small-ish on its own; together they

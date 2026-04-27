@@ -43,6 +43,8 @@ Usage:
   crucible trajstat      <workdir>                                # walk + classify artifacts
   crucible upgrade       <spec.json> [--out path] [--target ver]  # forward-migrate schema
   crucible bench         [--format text|json] [--repeat N]         # renderer micro-bench
+  crucible cite          <spec.json>                                # list every provenance entry
+  crucible explain       <spec.json>                                # natural-language summary
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -274,7 +276,7 @@ function cmd_info(::Vector{String})
     println()
     println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
     println("                 info parameterize verify serve doctor coverage lint templates")
-    println("                 snapshot restore fmt trajstat upgrade bench")
+    println("                 snapshot restore fmt trajstat upgrade bench cite explain")
     println()
     println("Ligand parameterizer:")
     avail = parameterizer_available()
@@ -510,6 +512,124 @@ function cmd_coverage(args::Vector{String})
         end
     end
     0
+end
+
+function cmd_cite(args::Vector{String})
+    pos, _ = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: cite <spec.json>")
+    spec = spec_from_json(read(pos[1], String))
+    if isempty(spec.provenance)
+        println("(no provenance entries)")
+        return 0
+    end
+    by_source = Dict{Symbol,Vector{String}}()
+    for (path, p) in spec.provenance
+        push!(get!(by_source, p.source, String[]), path)
+    end
+    for src in (:paper, :paper_default, :user, :assumed, :runtime_default)
+        haskey(by_source, src) || continue
+        paths = sort(by_source[src])
+        println("[$(src)] ($(length(paths)) entries)")
+        for path in paths
+            p = spec.provenance[path]
+            cite_str = p.cite === nothing ? "—" : p.cite
+            println("  $(path)")
+            println("    cite: $(cite_str)")
+            println("    confidence: $(round(p.confidence; digits=2))")
+        end
+        println()
+    end
+    0
+end
+
+function cmd_explain(args::Vector{String})
+    pos, _ = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: explain <spec.json>")
+    spec = spec_from_json(read(pos[1], String))
+    println(_explain_spec(spec))
+    0
+end
+
+function _explain_spec(spec::MDSpec)::String
+    io = IOBuffer()
+    src = spec.system.source
+    print(io, "This MDSpec describes a ")
+    if src.type == :smiles
+        print(io, "pure-ligand simulation of `$(src.ligand_smiles)` ")
+    elseif src.type == :protein_ligand
+        print(io, "protein-ligand simulation of PDB `$(src.pdb_id)` with ligand `$(src.ligand_smiles)` ")
+    elseif src.type in (:pdb_id, :pdb_fetch)
+        print(io, "simulation of PDB `$(src.pdb_id)` (PDBFixer auto-built) ")
+    else
+        print(io, "simulation of a user-supplied system ")
+    end
+    sol = spec.system.solvent
+    if sol.membrane !== nothing
+        print(io, "embedded in a $(String(sol.membrane.composition)) bilayer ($(sol.membrane.n_lipids) lipids) ")
+    end
+    if sol.model == :vacuum
+        print(io, "in vacuum")
+    elseif sol.model == :implicit_GBSA
+        print(io, "in implicit GBSA solvent")
+    else
+        print(io, "in $(String(sol.model)) water with $(sol.ions_NaCl_mM) mM NaCl")
+    end
+    print(io, ".\n\n")
+    print(io, "Force field: $(String(spec.force_field.protein))")
+    spec.force_field.water != :vacuum && print(io, " + $(String(spec.force_field.water))")
+    spec.force_field.lipid !== nothing && print(io, " + $(String(spec.force_field.lipid))")
+    spec.force_field.ligand != :user_supplied && print(io, " + $(String(spec.force_field.ligand)) for the ligand")
+    print(io, ".\n\n")
+    print(io, "Protocol ($(length(spec.protocol)) stages):\n")
+    for (i, s) in enumerate(spec.protocol)
+        print(io, "  $(i). $(_stage_one_liner(s))\n")
+    end
+    if !isempty(spec.observables)
+        print(io, "\nObservables: ", join((String(o.type) for o in spec.observables), ", "), ".\n")
+    end
+    if spec.system.protonation !== nothing
+        print(io, "\nConstant-pH MD at pH $(spec.system.protonation.pH) ",
+              "(titrating: $(join(spec.system.protonation.titrating_residues, ", "))).\n")
+    end
+    if !isempty(spec.warnings)
+        print(io, "\n⚠ Warnings:\n")
+        for w in spec.warnings; print(io, "  - $(w)\n"); end
+    end
+    String(take!(io))
+end
+
+_stage_one_liner(s::MinimizeStage) =
+    "Minimize ($(s.max_iterations) iterations to tol=$(s.tolerance_kj_mol_nm) kJ/mol/nm)."
+
+function _stage_one_liner(s::DynamicsStage)
+    role = s.role == :production ? "Production" : "Equilibrate"
+    base = "$(role) $(String(s.ensemble)) for $(s.duration_ns) ns at $(s.temperature_K) K"
+    if s.ensemble == :NPT
+        base *= ", $(s.pressure_bar) bar"
+    end
+    if s.restraints.selection != :none
+        base *= " with $(String(s.restraints.selection)) restraints (k=$(s.restraints.k_kj_mol_nm2))"
+    end
+    base * "."
+end
+
+function _stage_one_liner(s::FEPStage)
+    "Alchemical $(String(s.kind)) FEP across $(length(s.lambda_windows)) λ windows " *
+    "× $(s.duration_per_window_ns) ns each, target=`$(s.target_selection)`."
+end
+
+function _stage_one_liner(s::REMDStage)
+    "Replica-exchange MD: $(length(s.temperature_ladder_K)) replicas " *
+    "$(round(first(s.temperature_ladder_K); digits=1))–" *
+    "$(round(last(s.temperature_ladder_K); digits=1)) K, " *
+    "$(s.duration_per_replica_ns) ns per replica, " *
+    "exchange every $(s.exchange_attempt_period_ps) ps."
+end
+
+function _stage_one_liner(s::MetadynamicsStage)
+    cv_summary = join((cv.name * " (" * String(cv.kind) * ")" for cv in s.cvs), ", ")
+    extra = s.well_tempered ? " (well-tempered, γ=$(s.bias_factor))" : ""
+    "Metadynamics for $(s.duration_ns) ns biasing $(cv_summary)$(extra)."
 end
 
 function cmd_bench(args::Vector{String})
@@ -891,6 +1011,8 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "trajstat";     return cmd_trajstat(rest)
         elseif cmd == "upgrade";      return cmd_upgrade(rest)
         elseif cmd == "bench";        return cmd_bench(rest)
+        elseif cmd == "cite";         return cmd_cite(rest)
+        elseif cmd == "explain";      return cmd_explain(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")
