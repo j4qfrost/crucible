@@ -29,6 +29,10 @@ Usage:
   crucible summarize     <spec.json>                # Markdown summary of MDSpec
   crucible diff          <spec-a.json> <spec-b.json>   # Markdown diff
   crucible info                                       # capability surface
+  crucible parameterize  <smiles> --out <dir> [--ff openff_sage_2_2_0]
+                                              [--python python] [--name LIG]
+  crucible verify        <spec.json> [--backend openmm|molly]   # gates 1-3 + render
+  crucible serve         [--host 0.0.0.0] [--port 8080]         # HTTP web frontend
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -235,7 +239,12 @@ function cmd_info(::Vector{String})
     println()
     println("Validation gates: 1) schema  2) semantic  3) loadability  4) preview  5) user-confirm")
     println()
-    println("CLI subcommands: transpile validate render advise summarize diff walkthrough info")
+    println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
+    println("                 info parameterize verify serve")
+    println()
+    println("Ligand parameterizer:")
+    avail = parameterizer_available()
+    println("  OpenFFParameterizer (openff-toolkit): ", avail ? "available" : "not installed")
     0
 end
 
@@ -253,6 +262,71 @@ function cmd_summarize(args::Vector{String})
     length(pos) < 1 && error("usage: summarize <spec.json>")
     spec = spec_from_json(read(pos[1], String))
     print(render(MarkdownRenderer(), spec))
+    0
+end
+
+function cmd_parameterize(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: parameterize <smiles> --out <dir> [--ff openff_sage_2_2_0] [--python python] [--name LIG]")
+    smiles = pos[1]
+    out_dir = get(kw, "out", "")
+    isempty(out_dir) && error("--out <dir> is required")
+    ff = get(kw, "ff", "openff_sage_2_2_0")
+    sage_version = startswith(ff, "openff_sage_") ?
+        replace(ff[length("openff_sage_")+1:end], "_" => ".") : "2.2.0"
+    p = OpenFFParameterizer(
+        sage_version=sage_version,
+        python=get(kw, "python", "python"),
+        ligand_name=get(kw, "name", "LIG"),
+    )
+    if !parameterizer_available(p)
+        println(stderr, "error: openff-toolkit not available via $(p.python). " *
+                        "Install with: pip install openff-toolkit openff-interchange rdkit")
+        return 5
+    end
+    result = parameterize(p, smiles, out_dir)
+    println("smiles:        $(result.smiles)")
+    println("topology:      $(result.topology_path)")
+    println("coordinates:   $(result.coordinates_path)")
+    println("forcefield:    $(result.forcefield_name)")
+    for (k, v) in result.metadata
+        println("$(rpad(k * ":", 14))$(v)")
+    end
+    0
+end
+
+function cmd_verify(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: verify <spec.json> [--backend openmm|molly]")
+    spec_json = read(pos[1], String)
+    spec = spec_from_json(spec_json)
+    backend = haskey(kw, "backend") ? _backend(kw["backend"]) :
+              route_backend(spec; available=[OpenMMBackend(), MollyBackend()]).backend
+    println("verify $(pos[1]) on backend=$(Crucible.backend_name(backend))")
+    report = Crucible.run_validation(spec_json, spec, backend)
+    println("  gates 1-3: ", report.ok ? "PASS" : "FAIL")
+    for w in report.warnings; println("    warn:  ", w); end
+    for e in report.errors;   println("    error: ", e); end
+    if !report.ok
+        return 2
+    end
+    workdir = mktempdir(prefix="crucible-verify-")
+    try
+        job = Crucible.prepare(backend, spec, workdir)
+        println("  render:    OK ($(filesize(job.script_path)) bytes -> $(job.script_path))")
+    catch err
+        println("  render:    FAIL: $(err)")
+        return 6
+    end
+    println("verify ok.")
+    0
+end
+
+function cmd_serve(args::Vector{String})
+    _, kw = _parse_kw_args(args)
+    host = get(kw, "host", "0.0.0.0")
+    port = parse(Int, get(kw, "port", "8080"))
+    Crucible.serve_http(; host=host, port=port)
     0
 end
 
@@ -312,6 +386,9 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "summarize";   return cmd_summarize(rest)
         elseif cmd == "diff";        return cmd_diff(rest)
         elseif cmd == "info";        return cmd_info(rest)
+        elseif cmd == "parameterize"; return cmd_parameterize(rest)
+        elseif cmd == "verify";       return cmd_verify(rest)
+        elseif cmd == "serve";        return cmd_serve(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")

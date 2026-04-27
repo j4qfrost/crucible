@@ -16,19 +16,21 @@ The user shell is a Pluto.jl notebook.
 
 ## Status
 
-v0.5 (active development). See `docs/PLAN.md` for the full design and roadmap.
+v1.0 (active development). See `docs/PLAN.md` for the full design and roadmap.
 
 | Component        | Count | Items                                                |
 |------------------|-------|------------------------------------------------------|
-| Tests            | 153   | offline; +5 with `CRUCIBLE_RUN_OPENMM=1`             |
+| Tests            | 240+  | offline; +5 with `CRUCIBLE_RUN_OPENMM=1`             |
 | Backends         | 3+1   | `MollyBackend`, `OpenMMBackend`, `KineticsBackend` (stub) |
-| LLM providers    | 2+1   | `AnthropicProvider`, `RecordedProvider`, `LocalProvider` (stub) |
+| LLM providers    | 3     | `AnthropicProvider`, `RecordedProvider`, `LocalProvider` (real, OpenAI-compat) |
 | Input adapters   | 4     | PDF, arXiv, bioRxiv, raw notes (PDFs auto-extracted via `pdftotext`) |
-| Output renderers | 3+1   | `PlutoRenderer`, `MarkdownRenderer`, `NotebookRenderer`, `WebRenderer` (stub) |
-| CLI subcommands  | 7     | `transpile`, `validate`, `render`, `advise`, `summarize`, `diff`, `walkthrough` |
+| Output renderers | 4     | `PlutoRenderer`, `MarkdownRenderer`, `NotebookRenderer`, `WebRenderer` (real HTTP) |
+| CLI subcommands  | 11    | `transpile`, `validate`, `render`, `advise`, `summarize`, `diff`, `walkthrough`, `info`, `parameterize`, `verify`, `serve` |
+| Source types     | 5     | `:user_supplied`, `:pdb_id`, `:pdb_fetch`, `:smiles`, `:protein_ligand` |
+| Stage types      | 3     | `MinimizeStage`, `DynamicsStage`, `FEPStage` (alchemical FEP) |
 | Validation gates | 5     | schema, semantic, loadability, preview, user-confirm |
-| Examples         | 5     | `walkthrough.jl`, `walkthrough_notebook.jl`, `lifecycle.jl`, `from_methods.jl`, `smoke_alanine_dipeptide.sh` |
-| Tools            | 3     | `check.sh`, `regenerate_docs.jl`, `regenerate_fixtures.sh` |
+| Examples         | 7     | `walkthrough.jl`, `walkthrough_notebook.jl`, `lifecycle.jl`, `from_methods.jl`, `from_smiles.jl`, `protein_ligand_fep.jl`, `smoke_alanine_dipeptide.sh` |
+| Tools            | 4     | `check.sh`, `regenerate_docs.jl`, `regenerate_fixtures.sh`, `sync_remotes.sh` |
 
 ### What works (v0–v0.4)
 
@@ -58,14 +60,22 @@ v0.5 (active development). See `docs/PLAN.md` for the full design and roadmap.
   separate pipeline step on Julia 1.10
 - `examples/walkthrough.jl` for a no-API-key end-to-end demo
 
-### Explicitly deferred (v1+)
+### What works (v1.0 — heavy lifts shipped)
 
-- SMILES → ligand force-field parameters (you supply prepared topology
-  for ligand systems; canonical-residue protein systems use `:pdb_fetch`)
-- Free-energy methods, enhanced sampling, QM/MM, membranes, plumed
+- **SMILES → AMBER topology** via `OpenFFParameterizer` (subprocess: openff-toolkit
+  + Interchange). Two new SystemSource types: `:smiles` (pure ligand) and
+  `:protein_ligand` (PDBFixer + OpenFF + SMIRNOFFTemplateGenerator at runtime)
+- **Alchemical free-energy stages** (`FEPStage`): renderer emits real
+  `openmmtools.alchemy` λ windowing with `u_kln.csv` output for MBAR
+- **HTTP web frontend** (`crucible serve`): single-page UI + JSON API for
+  transpile / validate / render / advise / parameterize. HTTP.jl, no Genie dep
+- **Real `LocalProvider`** (OpenAI-compatible: vLLM / Ollama / llama.cpp)
+
+### Explicitly deferred (v1.5+)
+
+- Enhanced sampling (REMD, metadynamics), QM/MM, membranes, plumed
 - Multi-GPU / multi-replica orchestration
-- Local / fine-tuned LLM providers (interface stubbed; transcript flywheel
-  is collecting training data)
+- Fine-tuned LLM provider against the Crucible-collected transcript corpus
 - Actual cloud provisioning (advisor outputs commands; you run them)
 
 ## Hard rule
@@ -130,6 +140,10 @@ step):
 - [`examples/lifecycle.jl`](examples/lifecycle.jl) — full option-3
   fine-tune flywheel: transpile → log → user-edit → diff → log → JSONL
 - [`examples/from_methods.jl`](examples/from_methods.jl) — hand-built MDSpec
+- [`examples/from_smiles.jl`](examples/from_smiles.jl) — `:smiles` SystemSource
+  + OpenFFParameterizer end-to-end (ethanol-in-vacuum)
+- [`examples/protein_ligand_fep.jl`](examples/protein_ligand_fep.jl) — `:protein_ligand`
+  source + `FEPStage` decoupling λ-windowing scaffolding
 
 ## How the option-3 flywheel works
 

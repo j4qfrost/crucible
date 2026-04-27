@@ -10,6 +10,17 @@ Greenfield Julia app: a researcher uploads a paper (PDF, arXiv ID, bioRxiv DOI, 
 
 **Naming:** working name `crucible` (alchemy + fire motif, fits user's brand). Final name TBD before first commit.
 
+## v1.0 update (2026-04-26) — heavy lifts shipped
+
+The v1+ items below were partly closed in v1.0:
+
+- **SMILES → ligand parameters**: `OpenFFParameterizer` is now a real subprocess implementation (openff-toolkit + Interchange). New SystemSource types `:smiles` (pure ligand) and `:protein_ligand` (PDBFixer + SMIRNOFFTemplateGenerator at script-runtime). The BYO-topology gate goes away for the common protein + small-molecule case.
+- **Alchemical free-energy methods**: `FEPStage` ships with `:decouple` / `:annihilate` modes, λ windowing, and an `openmmtools.alchemy`-based renderer that emits `u_kln.csv` for downstream MBAR analysis. REMD / metadynamics / QM/MM / membranes still deferred.
+- **Web frontend**: `WebRenderer` is no longer a stub — `crucible serve` boots an HTTP.jl-based single-page UI + JSON API for the full pipeline. Genie.jl deliberately NOT used (overweight for the endpoint surface).
+- **Local LLM provider**: `LocalProvider` is real (OpenAI-compatible: vLLM / Ollama / llama.cpp).
+
+Still deferred to v1.5+: enhanced sampling beyond FEP, QM/MM, membranes, plumed, multi-GPU orchestration, fine-tuned chem-LLM, actual cloud provisioning.
+
 ## Non-goals (deferred; do not build in v0)
 
 - SMILES → ligand force-field parameters (no LLM-invented LJ params, ever)

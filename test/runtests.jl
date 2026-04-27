@@ -15,4 +15,7 @@ using Crucible
     include("migrations_test.jl")
     include("observables_test.jl")
     include("parameterizer_test.jl")
+    include("smiles_test.jl")
+    include("fep_test.jl")
+    include("web_test.jl")
 end

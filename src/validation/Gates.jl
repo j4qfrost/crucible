@@ -96,6 +96,8 @@ function gate_semantic(spec::MDSpec)::ValidationReport
         _rule_vacuum_no_ions,
         _rule_langevin_friction_nonzero,
         _rule_nve_timestep,
+        _rule_smiles_source_coherence,
+        _rule_fep_lambda_monotonic,
     )
         r = rule(spec, r)
     end
@@ -159,11 +161,18 @@ function _rule_production_after_equilibration(spec::MDSpec, r::ValidationReport)
 end
 
 function _rule_ligand_topology_required(spec::MDSpec, r::ValidationReport)
+    src = spec.system.source
+    # SMILES-based sources generate the topology at prepare-time / runtime —
+    # no user-supplied topology required.
+    if src.type in (:smiles, :protein_ligand)
+        return r
+    end
     if spec.system.has_ligand && spec.force_field.ligand == :user_supplied &&
-       spec.system.source.topology === nothing
+       src.topology === nothing
         r = record_error!(r,
             "system has a ligand and ligand_ff=user_supplied, but system.source.topology is null. " *
-            "v0 requires user-supplied topology for ligand systems (BYO-topology gate).")
+            "Either supply a topology, or switch source.type to :smiles / :protein_ligand " *
+            "and force_field.ligand to :openff_sage_2_2_0.")
     end
     r
 end
@@ -205,6 +214,54 @@ function _rule_langevin_friction_nonzero(spec::MDSpec, r::ValidationReport)
             r = record_warning!(r,
                 "stage $i: langevin thermostat with friction_ps=0 is degenerate (no coupling); consider 1.0 ps^-1")
         end
+    end
+    r
+end
+
+function _rule_fep_lambda_monotonic(spec::MDSpec, r::ValidationReport)
+    for (i, s) in enumerate(spec.protocol)
+        s isa FEPStage || continue
+        λs = s.lambda_windows
+        if length(λs) < 2
+            r = record_error!(r, "stage $i: FEP requires ≥2 lambda windows (got $(length(λs)))")
+            continue
+        end
+        if first(λs) != 0.0 || last(λs) != 1.0
+            r = record_warning!(r,
+                "stage $i: FEP lambda windows should bracket [0.0, 1.0]; got [$(first(λs)), $(last(λs))]")
+        end
+        for k in 2:length(λs)
+            if λs[k] <= λs[k-1]
+                r = record_error!(r,
+                    "stage $i: FEP lambda windows must be strictly monotonic; window $(k-1)→$k drops or repeats")
+                break
+            end
+        end
+        if any(λ -> λ < 0.0 || λ > 1.0, λs)
+            r = record_error!(r, "stage $i: FEP lambda values must lie in [0, 1]")
+        end
+        if s.ensemble == :NPT && s.pressure_bar === nothing
+            r = record_error!(r, "stage $i: FEP NPT ensemble requires pressure_bar to be set")
+        end
+    end
+    r
+end
+
+function _rule_smiles_source_coherence(spec::MDSpec, r::ValidationReport)
+    src = spec.system.source
+    src.type in (:smiles, :protein_ligand) || return r
+    if src.ligand_smiles === nothing || isempty(src.ligand_smiles)
+        r = record_error!(r,
+            "system.source.type=$(src.type) requires a non-empty ligand_smiles")
+    end
+    if spec.force_field.ligand == :user_supplied
+        r = record_error!(r,
+            "system.source.type=$(src.type) requires force_field.ligand to be a real " *
+            "parameterizer (e.g. :openff_sage_2_2_0); :user_supplied is incoherent here")
+    end
+    if src.type == :protein_ligand && (src.pdb_id === nothing || length(src.pdb_id) < 4)
+        r = record_error!(r,
+            "system.source.type=:protein_ligand requires a 4-character pdb_id")
     end
     r
 end

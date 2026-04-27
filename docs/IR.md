@@ -41,7 +41,8 @@ Auto-generated from `src/spec/schema.json` by `tools/regenerate_docs.jl`. Do not
 |-------|------|----------|-------|
 | `coordinates` | string or null | — |  |
 | `topology` | string or null | — |  |
-| `type` | enum: `user_supplied`, `pdb_id`, `pdb_fetch` | ✓ |  |
+| `ligand_smiles` | string or null | — |  |
+| `type` | enum: `user_supplied`, `pdb_id`, `pdb_fetch`, `smiles`, `protein_ligand` | ✓ |  |
 | `pdb_id` | string or null | — |  |
 
 ## `force_field`
@@ -67,6 +68,25 @@ Each stage is one of two shapes (oneOf):
 | `kind` | `"minimize"` | ✓ |  |
 | `max_iterations` | `integer` | ✓ | min=1; max=1000000 |
 | `tolerance_kj_mol_nm` | `number` | ✓ | min=0; max=1000000 |
+
+### Stage kind: `free_energy`
+
+### fields
+
+| field | type | required | notes |
+|-------|------|----------|-------|
+| `target_selection` | `string` | ✓ |  |
+| `dt_fs` | `number` | ✓ | max=5; > 0 |
+| `constraints` | enum: `none`, `h_bonds`, `all_bonds` | ✓ |  |
+| `duration_per_window_ns` | `number` | ✓ | max=100; > 0 |
+| `kind` | `"free_energy"` | ✓ |  |
+| `ensemble` | enum: `NVT`, `NPT` | ✓ |  |
+| `temperature_K` | `number` | ✓ | min=0; max=1000 |
+| `thermostat` | enum: `langevin`, `nose_hoover`, `andersen`, `berendsen` | ✓ |  |
+| `friction_ps` | `number` | ✓ | min=0; max=100 |
+| `lambda_windows` | `array` | ✓ | minItems=2 |
+| `fep_kind` | enum: `decouple`, `annihilate` | ✓ |  |
+| `pressure_bar` | number or null | ✓ |  |
 
 ### Stage kind: `dynamics`
 

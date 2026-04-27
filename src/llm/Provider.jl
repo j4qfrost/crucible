@@ -38,15 +38,16 @@ CONTRACT, NON-NEGOTIABLE:
 4. Use the protein/water/ligand FF allowlists exactly as written. If a paper says "Amber99", map it to "amber99sb_ildn" and add a warning explaining the mapping.
 5. NEVER convert units. Emit values in the units named by the field (temperature_K, dt_fs, duration_ns, etc.). The downstream renderer is the only thing that converts.
 6. If the paper describes a system you cannot represent in v0 (membranes, free-energy, REMD, plumed), emit an MDSpec for the closest reduced sub-protocol (typically: minimize → NVT → NPT → production) and add a warning describing what you dropped.
-7. has_ligand=true requires the user to supply a topology — if you set has_ligand=true and the paper does not provide a topology path, emit system.source.topology=null and add a warning that the user must provide one before the spec can run.
+7. has_ligand=true with system.source.type=user_supplied requires the user to supply a topology — if the paper provides a SMILES string instead, prefer system.source.type=:smiles (pure ligand) or :protein_ligand (PDB + SMILES) so Crucible's OpenFFParameterizer can build the topology automatically. Never invent FF parameters yourself.
+8. Free-energy / alchemical protocols: if the paper describes FEP / TI / decoupling / annihilation, emit a free_energy stage with explicit lambda_windows + duration_per_window_ns. If the paper does not state lambdas, default to 11 evenly-spaced windows [0.0, 0.1, ..., 1.0] and add a warning.
 
 ENUM ALLOWLISTS (memorize these — emitting anything else fails Gate 1):
 * force_field.protein: amber14sb | amber99sb_ildn | amber03 | charmm36m | opls_aam
 * force_field.water:   TIP3P | TIP4P_EW | SPC_E | implicit_GBSA | vacuum
 * force_field.ligand:  user_supplied | gaff2 | openff_sage_2_2_0
 * system.solvent.model: same as force_field.water
-* system.source.type: user_supplied | pdb_id | pdb_fetch
-* protocol[].kind: minimize | dynamics
+* system.source.type: user_supplied | pdb_id | pdb_fetch | smiles | protein_ligand
+* protocol[].kind: minimize | dynamics | free_energy
 * protocol[].role: equilibrate | production
 * protocol[].ensemble: NVE | NVT | NPT
 * protocol[].thermostat: langevin | nose_hoover | andersen | berendsen
@@ -54,13 +55,17 @@ ENUM ALLOWLISTS (memorize these — emitting anything else fails Gate 1):
 * protocol[].constraints: none | h_bonds | all_bonds
 * protocol[].restraints.selection: heavy_atoms | backbone | ca | none
 * protocol[].restraints.kind: harmonic | flat_bottom
+* protocol[].fep_kind (free_energy stage only): decouple | annihilate
 * observables[].type: rmsd | rmsf | energy | trajectory | rg
 
 CROSS-FIELD INVARIANTS (also enforced by the schema):
 * ensemble=NPT requires barostat ∈ {monte_carlo, berendsen, parrinello_rahman} AND pressure_bar ≥ 0
 * ensemble=NVE forbids any barostat (must be null)
 * implicit_GBSA solvent forbids NPT
-* has_ligand=true with ligand_ff=user_supplied requires system.source.topology
+* has_ligand=true with ligand_ff=user_supplied AND source.type=user_supplied requires system.source.topology
+* source.type=smiles or protein_ligand requires non-empty ligand_smiles AND ligand_ff ≠ user_supplied
+* source.type=protein_ligand requires a 4-character pdb_id
+* free_energy stage: lambda_windows must be strictly increasing in [0,1], NPT requires pressure_bar
 * dt_fs > 4 is aggressive even with constraints; > 5 is rejected
 * production stage should follow at least one equilibration stage
 """

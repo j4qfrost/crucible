@@ -26,14 +26,16 @@ Provenance(source::Symbol; cite=nothing, confidence=1.0) =
 # System
 
 struct SystemSource
-    type::Symbol              # :user_supplied | :pdb_id | :pdb_fetch
+    type::Symbol              # :user_supplied | :pdb_id | :pdb_fetch | :smiles | :protein_ligand
     topology::Union{Nothing,String}
     coordinates::Union{Nothing,String}
     pdb_id::Union{Nothing,String}
+    ligand_smiles::Union{Nothing,String}
 end
 
-SystemSource(; type=:user_supplied, topology=nothing, coordinates=nothing, pdb_id=nothing) =
-    SystemSource(type, topology, coordinates, pdb_id)
+SystemSource(; type=:user_supplied, topology=nothing, coordinates=nothing,
+              pdb_id=nothing, ligand_smiles=nothing) =
+    SystemSource(type, topology, coordinates, pdb_id, ligand_smiles)
 
 struct SolventSpec
     model::Symbol             # :TIP3P | :TIP4P_EW | :SPC_E | :implicit_GBSA | :vacuum
@@ -94,6 +96,49 @@ end
 
 RestraintSpec(; selection=:none, kind=:harmonic, k_kj_mol_nm2=0.0) =
     RestraintSpec(selection, kind, k_kj_mol_nm2)
+
+"""
+    FEPStage <: Stage
+
+Alchemical free-energy stage. The stage runs `length(lambda_windows)` short
+MD windows, each at a different λ value scaling the alchemical interactions,
+and emits per-window samples for MBAR analysis. Requires `openmmtools` at
+script-runtime (the renderer is environment-agnostic).
+
+The renderer treats `target_selection` as the alchemical region (typically
+a ligand). `kind` distinguishes:
+  - `:decouple`  — turn off intermolecular interactions (binding free energy)
+  - `:annihilate` — turn off all interactions including intramolecular (solvation)
+"""
+struct FEPStage <: Stage
+    kind::Symbol                  # :decouple | :annihilate
+    target_selection::String      # OpenMM-style atom selection, e.g. "resname LIG"
+    lambda_windows::Vector{Float64}
+    duration_per_window_ns::Float64
+    ensemble::Symbol              # :NVT | :NPT
+    temperature_K::Float64
+    pressure_bar::Union{Nothing,Float64}
+    dt_fs::Float64
+    thermostat::Symbol
+    friction_ps::Float64
+    constraints::Symbol
+end
+
+FEPStage(;
+    kind=:decouple,
+    target_selection,
+    lambda_windows=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+    duration_per_window_ns=0.5,
+    ensemble=:NPT,
+    temperature_K=300.0,
+    pressure_bar=1.0,
+    dt_fs=2.0,
+    thermostat=:langevin,
+    friction_ps=1.0,
+    constraints=:h_bonds,
+) = FEPStage(kind, target_selection, lambda_windows, duration_per_window_ns,
+             ensemble, temperature_K, pressure_bar, dt_fs, thermostat,
+             friction_ps, constraints)
 
 struct DynamicsStage <: Stage
     role::Symbol                  # :equilibrate | :production
@@ -172,6 +217,11 @@ function required_features(spec::MDSpec)::Set{Symbol}
     spec.system.solvent.model in (:TIP3P, :TIP4P_EW, :SPC_E) && push!(feats, :explicit_solvent)
     spec.system.has_ligand && push!(feats, :ligand)
     for s in spec.protocol
+        if s isa FEPStage
+            push!(feats, :alchemy)
+            s.ensemble == :NPT && (push!(feats, :npt); push!(feats, :barostat))
+            continue
+        end
         s isa DynamicsStage || continue
         s.ensemble == :NPT && (push!(feats, :npt); push!(feats, :barostat))
         s.ensemble == :NVT && push!(feats, :thermostat)
@@ -203,10 +253,11 @@ function spec_to_json(spec::MDSpec)::String
         "schema_version" => spec.schema_version,
         "system" => Dict(
             "source" => Dict(
-                "type"        => String(spec.system.source.type),
-                "topology"    => spec.system.source.topology,
-                "coordinates" => spec.system.source.coordinates,
-                "pdb_id"      => spec.system.source.pdb_id,
+                "type"          => String(spec.system.source.type),
+                "topology"      => spec.system.source.topology,
+                "coordinates"   => spec.system.source.coordinates,
+                "pdb_id"        => spec.system.source.pdb_id,
+                "ligand_smiles" => spec.system.source.ligand_smiles,
             ),
             "n_atoms_estimate" => spec.system.n_atoms_estimate,
             "has_ligand"       => spec.system.has_ligand,
@@ -245,6 +296,23 @@ function stage_to_dict(s::MinimizeStage)
          "tolerance_kj_mol_nm" => s.tolerance_kj_mol_nm)
 end
 
+function stage_to_dict(s::FEPStage)
+    Dict(
+        "kind"                   => "free_energy",
+        "fep_kind"               => String(s.kind),
+        "target_selection"       => s.target_selection,
+        "lambda_windows"         => s.lambda_windows,
+        "duration_per_window_ns" => s.duration_per_window_ns,
+        "ensemble"               => String(s.ensemble),
+        "temperature_K"          => s.temperature_K,
+        "pressure_bar"           => s.pressure_bar,
+        "dt_fs"                  => s.dt_fs,
+        "thermostat"             => String(s.thermostat),
+        "friction_ps"            => s.friction_ps,
+        "constraints"            => String(s.constraints),
+    )
+end
+
 function stage_to_dict(s::DynamicsStage)
     Dict(
         "kind"          => "dynamics",
@@ -271,10 +339,11 @@ function spec_from_json(json_str::AbstractString)::MDSpec
     src = obj.system.source
     sys = SystemSpec(
         SystemSource(
-            type        = Symbol(src.type),
-            topology    = get(src, :topology, nothing),
-            coordinates = get(src, :coordinates, nothing),
-            pdb_id      = get(src, :pdb_id, nothing),
+            type          = Symbol(src.type),
+            topology      = get(src, :topology, nothing),
+            coordinates   = get(src, :coordinates, nothing),
+            pdb_id        = get(src, :pdb_id, nothing),
+            ligand_smiles = get(src, :ligand_smiles, nothing),
         ),
         obj.system.n_atoms_estimate,
         obj.system.has_ligand,
@@ -319,6 +388,20 @@ function stage_from_dict(s)
         MinimizeStage(
             max_iterations      = s.max_iterations,
             tolerance_kj_mol_nm = s.tolerance_kj_mol_nm,
+        )
+    elseif String(s.kind) == "free_energy"
+        FEPStage(
+            kind                   = Symbol(s.fep_kind),
+            target_selection       = String(s.target_selection),
+            lambda_windows         = Float64[Float64(x) for x in s.lambda_windows],
+            duration_per_window_ns = Float64(s.duration_per_window_ns),
+            ensemble               = Symbol(s.ensemble),
+            temperature_K          = Float64(s.temperature_K),
+            pressure_bar           = s.pressure_bar === nothing ? nothing : Float64(s.pressure_bar),
+            dt_fs                  = Float64(s.dt_fs),
+            thermostat             = Symbol(s.thermostat),
+            friction_ps            = Float64(s.friction_ps),
+            constraints            = Symbol(s.constraints),
         )
     elseif String(s.kind) == "dynamics"
         r = s.restraints

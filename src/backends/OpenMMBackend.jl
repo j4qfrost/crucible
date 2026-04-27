@@ -16,28 +16,52 @@ backend_name(b::OpenMMBackend) = b.name
 
 function supported_features(::OpenMMBackend)::Set{Symbol}
     Set([:pme, :npt, :nvt, :nve, :explicit_solvent, :implicit_solvent, :ligand,
-         :barostat, :thermostat, :constraints, :langevin, :monte_carlo, :gpu])
+         :barostat, :thermostat, :constraints, :langevin, :monte_carlo, :gpu,
+         :alchemy])
 end
 
 function validate_spec(b::OpenMMBackend, spec::MDSpec)::ValidationReport
     r = ValidationReport()
     src = spec.system.source
-    # BYO-topology gate: ligand + user-supplied FF requires a topology path
+    # BYO-topology gate: ligand + user-supplied FF + user_supplied source requires a topology path.
+    # SMILES paths bypass this — the parameterizer generates the topology at prepare() time.
     if spec.system.has_ligand && spec.force_field.ligand == :user_supplied
         if src.type == :user_supplied && src.topology === nothing
             r = record_error!(r,
-                "OpenMMBackend: ligand present + ligand_ff=user_supplied requires system.source.topology")
+                "OpenMMBackend: ligand present + ligand_ff=user_supplied requires system.source.topology " *
+                "(or switch source.type to :smiles / :protein_ligand for SMILES → OpenFF parameterization)")
         end
     end
     # PDBFixer auto-build is canonical-residues only — block ligand systems
+    # via the protein-only :pdb_id / :pdb_fetch paths.
     if (src.type == :pdb_id || src.type == :pdb_fetch) && spec.system.has_ligand
         r = record_error!(r,
-            "OpenMMBackend: pdb_fetch source with has_ligand=true is unsupported in v0.4; " *
-            "supply a user-supplied topology with the parameterized ligand instead")
+            "OpenMMBackend: pdb_fetch with has_ligand=true is unsupported; " *
+            "use source.type=:protein_ligand (PDBFixer + OpenFF) instead")
     end
     if (src.type == :pdb_id || src.type == :pdb_fetch) && (src.pdb_id === nothing || isempty(src.pdb_id))
         r = record_error!(r,
             "OpenMMBackend: pdb_fetch source requires non-empty system.source.pdb_id")
+    end
+    # SMILES paths require a non-:user_supplied ligand FF.
+    if src.type in (:smiles, :protein_ligand)
+        if src.ligand_smiles === nothing || isempty(src.ligand_smiles)
+            r = record_error!(r,
+                "OpenMMBackend: source.type=$(src.type) requires non-empty ligand_smiles")
+        end
+        if spec.force_field.ligand == :user_supplied
+            r = record_error!(r,
+                "OpenMMBackend: source.type=$(src.type) requires force_field.ligand to be a " *
+                "real parameterizer (e.g. :openff_sage_2_2_0); :user_supplied is incoherent here")
+        end
+        if !spec.system.has_ligand
+            r = record_warning!(r,
+                "OpenMMBackend: source.type=$(src.type) with has_ligand=false is unusual — did you mean true?")
+        end
+    end
+    if src.type == :protein_ligand && (src.pdb_id === nothing || length(src.pdb_id) < 4)
+        r = record_error!(r,
+            "OpenMMBackend: source.type=:protein_ligand requires a 4-character pdb_id")
     end
     return r
 end
@@ -103,12 +127,101 @@ function _emit_system_load(spec::MDSpec)
             print(io, "positions = pdb.positions\n")
             print(io, "_use_amber = False\n")
         end
+    elseif src.type == :smiles
+        # Pure-ligand path. The parameterizer ran at prepare() time and wrote
+        # ligand.parm7 / ligand.rst7 into the workdir; the script just loads
+        # them as AMBER files. No protein, no PDBFixer.
+        print(io, "prmtop = AmberPrmtopFile(os.path.join(OUTPUT_DIR, 'ligand.parm7'))\n")
+        print(io, "inpcrd = AmberInpcrdFile(os.path.join(OUTPUT_DIR, 'ligand.rst7'))\n")
+        print(io, "topology = prmtop.topology\n")
+        print(io, "positions = inpcrd.positions\n")
+        print(io, "_use_amber = True\n")
+    elseif src.type == :protein_ligand
+        # Protein + parameterized-ligand path. Runtime-only — no prepare-time
+        # parameterization. Requires openff-toolkit + openmm-forcefields at
+        # runtime (the renderer is environment-agnostic; the script imports
+        # what it needs and fails loudly if missing).
+        #
+        #   1. PDBFixer fetches + repairs the protein.
+        #   2. openff.toolkit loads the ligand from SMILES, generates a
+        #      conformer, assigns AM1-BCC charges.
+        #   3. SMIRNOFFTemplateGenerator (openmm-forcefields) registers the
+        #      ligand against ForceField so a single System covers both.
+        #   4. Modeller adds ligand to protein, optionally solvates.
+        if src.pdb_id === nothing || isempty(src.pdb_id)
+            error("OpenMM renderer: protein_ligand source requires non-empty pdb_id")
+        end
+        if src.ligand_smiles === nothing || isempty(src.ligand_smiles)
+            error("OpenMM renderer: protein_ligand source requires non-empty ligand_smiles")
+        end
+        ligand_ff_str = spec.force_field.ligand == :openff_sage_2_2_0 ? "openff-2.2.0" :
+                        spec.force_field.ligand == :gaff2             ? "gaff-2.11"   :
+                        error("OpenMM renderer: protein_ligand requires force_field.ligand in (:openff_sage_2_2_0, :gaff2)")
+        ligand_name = "LIG"
+        print(io, "from pdbfixer import PDBFixer\n")
+        print(io, "from openmm.unit import nanometer, molar\n")
+        print(io, "from openff.toolkit import Molecule\n")
+        print(io, "from openmmforcefields.generators import SMIRNOFFTemplateGenerator\n")
+        print(io, "# 1. fetch + repair protein\n")
+        print(io, "_fixer = PDBFixer(pdbid=", repr(src.pdb_id), ")\n")
+        print(io, "_fixer.findMissingResidues()\n")
+        print(io, "_fixer.findNonstandardResidues()\n")
+        print(io, "_fixer.replaceNonstandardResidues()\n")
+        print(io, "_fixer.removeHeterogens(keepWater=False)\n")
+        print(io, "_fixer.findMissingAtoms()\n")
+        print(io, "_fixer.addMissingAtoms()\n")
+        print(io, "_fixer.addMissingHydrogens(7.0)\n")
+        print(io, "# 2. parameterize ligand from SMILES\n")
+        print(io, "_lig = Molecule.from_smiles(", repr(src.ligand_smiles), ", allow_undefined_stereo=True)\n")
+        print(io, "_lig.name = ", repr(ligand_name), "\n")
+        print(io, "_lig.generate_conformers(n_conformers=1)\n")
+        print(io, "_lig.assign_partial_charges('am1bcc')\n")
+        # Force-field XMLs
+        ff_files = String[]
+        if spec.force_field.protein == :amber14sb
+            push!(ff_files, "amber14-all.xml")
+        elseif spec.force_field.protein == :amber99sb_ildn
+            push!(ff_files, "amber99sbildn.xml")
+        elseif spec.force_field.protein == :amber03
+            push!(ff_files, "amber03.xml")
+        elseif spec.force_field.protein == :charmm36m
+            push!(ff_files, "charmm36.xml")
+        end
+        if spec.system.solvent.model == :TIP3P
+            push!(ff_files, "amber14/tip3p.xml")
+        elseif spec.system.solvent.model == :TIP4P_EW
+            push!(ff_files, "amber14/tip4pew.xml")
+        elseif spec.system.solvent.model == :SPC_E
+            push!(ff_files, "amber14/spce.xml")
+        end
+        files_repr = "[" * join((repr(f) for f in ff_files), ", ") * "]"
+        print(io, "forcefield = ForceField(*", files_repr, ")\n")
+        print(io, "_smirnoff = SMIRNOFFTemplateGenerator(molecules=[_lig], forcefield=", repr(ligand_ff_str), ")\n")
+        print(io, "forcefield.registerTemplateGenerator(_smirnoff.generator)\n")
+        print(io, "# 3. merge protein + ligand topologies\n")
+        print(io, "_protein = Modeller(_fixer.topology, _fixer.positions)\n")
+        print(io, "_lig_topology = _lig.to_topology().to_openmm()\n")
+        print(io, "_lig_positions = _lig.conformers[0].to_openmm()\n")
+        print(io, "_protein.add(_lig_topology, _lig_positions)\n")
+        if spec.system.solvent.model in (:TIP3P, :TIP4P_EW, :SPC_E)
+            water_model = spec.system.solvent.model == :TIP3P    ? "tip3p" :
+                          spec.system.solvent.model == :TIP4P_EW ? "tip4pew" : "spce"
+            ionic_M = spec.system.solvent.ions_NaCl_mM / 1000.0
+            print(io, "_protein.addSolvent(forcefield, padding=1.0*nanometer, ionicStrength=",
+                      ionic_M, "*molar, model=", repr(water_model), ")\n")
+        end
+        print(io, "_prepared_path = os.path.join(OUTPUT_DIR, ", repr("$(src.pdb_id)_complex.pdb"), ")\n")
+        print(io, "with open(_prepared_path, 'w') as _ofh:\n")
+        print(io, "    PDBFile.writeFile(_protein.topology, _protein.positions, _ofh)\n")
+        print(io, "topology = _protein.topology\n")
+        print(io, "positions = _protein.positions\n")
+        print(io, "_use_amber = False\n")
     elseif src.type == :pdb_id || src.type == :pdb_fetch
         # PDBFixer auto-build path: only valid for canonical-residue
         # protein systems with no ligand. The renderer is gated above; the
         # script does the fetch + repair + (optional) solvate at runtime.
         if spec.system.has_ligand
-            error("OpenMM renderer: pdb_fetch with has_ligand=true is unsupported in v0; supply prepared topology")
+            error("OpenMM renderer: pdb_fetch with has_ligand=true is unsupported in v0; use :protein_ligand")
         end
         if src.pdb_id === nothing || isempty(src.pdb_id)
             error("OpenMM renderer: pdb_fetch source requires non-empty pdb_id")
@@ -220,6 +333,10 @@ function _emit_protocol(spec::MDSpec)
     print(io, "current_velocities = None\n\n")
 
     for (i, stage) in enumerate(spec.protocol)
+        if stage isa FEPStage
+            print(io, _emit_fep_stage(stage, i))
+            continue
+        end
         if stage isa MinimizeStage
             print(io, "# Stage ", i, ": minimize\n")
             print(io, "_min_integrator = LangevinMiddleIntegrator(300*unit.kelvin, 1.0/unit.picosecond, 0.001*unit.picoseconds)\n")
@@ -329,6 +446,85 @@ function _emit_protocol(spec::MDSpec)
     String(take!(io))
 end
 
+function _emit_fep_stage(stage::FEPStage, i::Int)
+    io = IOBuffer()
+    print(io, "# Stage ", i, ": free_energy (", String(stage.kind),
+              ", ", length(stage.lambda_windows), " λ windows, ",
+              stage.duration_per_window_ns, " ns each)\n")
+    print(io, "# Requires openmmtools at runtime — install via\n")
+    print(io, "#   pip install openmmtools pymbar\n")
+    print(io, "from openmmtools.alchemy import AlchemicalRegion, AbsoluteAlchemicalFactory, AlchemicalState\n")
+    print(io, "from openmmtools import cache as _omtc, mcmc as _omtm\n")
+    print(io, "import csv as _csv\n")
+    # Build the alchemical system once; the alchemical region is the user-
+    # supplied selection (typically the ligand).
+    print(io, "_alch_atoms = [a.index for a in topology.atoms() ")
+    sel = stage.target_selection
+    if startswith(sel, "resname ")
+        rname = strip(sel[length("resname ")+1:end])
+        print(io, "if a.residue.name == ", repr(String(rname)), "]\n")
+    else
+        # Fallback: pass the raw selection string through to mdtraj-style parser
+        # at runtime (mdtraj is the only python library that ships a robust
+        # selection mini-language; if not installed, the script fails loudly).
+        print(io, "]  # NOTE: free-form selections require mdtraj; using empty list as a placeholder\n")
+        print(io, "import mdtraj as _mdt_sel\n")
+        print(io, "_alch_atoms = list(_mdt_sel.Topology.from_openmm(topology).select(", repr(String(sel)), "))\n")
+    end
+    annihilate = stage.kind == :annihilate
+    print(io, "_region = AlchemicalRegion(alchemical_atoms=_alch_atoms, annihilate_electrostatics=", annihilate ? "True" : "False",
+              ", annihilate_sterics=", annihilate ? "True" : "False", ")\n")
+    print(io, "_factory = AbsoluteAlchemicalFactory()\n")
+    print(io, "_alch_system = _factory.create_alchemical_system(system, _region)\n")
+    if stage.ensemble == :NPT
+        p = stage.pressure_bar === nothing ? 1.0 : stage.pressure_bar
+        print(io, "_alch_baro = MonteCarloBarostat(", p, "*unit.bar, ",
+                  stage.temperature_K, "*unit.kelvin, 25)\n")
+        print(io, "_alch_system.addForce(_alch_baro)\n")
+    end
+    print(io, "_alch_state = AlchemicalState.from_system(_alch_system)\n")
+    n_per_window = ns_to_steps(stage.duration_per_window_ns, stage.dt_fs)
+    print(io, "_lambdas = ", repr_pylist(stage.lambda_windows), "\n")
+    print(io, "_u_kln = []  # MBAR input: each row is u_k(x) at every λ for samples drawn at λ_k\n")
+    print(io, "_fep_integrator = LangevinMiddleIntegrator(", stage.temperature_K,
+              "*unit.kelvin, ", stage.friction_ps, "/unit.picosecond, ",
+              stage.dt_fs, "*unit.femtoseconds)\n")
+    print(io, "_fep_sim = Simulation(topology, _alch_system, _fep_integrator, platform)\n")
+    print(io, "_fep_sim.context.setPositions(current_positions)\n")
+    print(io, "if current_velocities is not None:\n")
+    print(io, "    _fep_sim.context.setVelocities(current_velocities)\n")
+    print(io, "else:\n")
+    print(io, "    _fep_sim.context.setVelocitiesToTemperature(", stage.temperature_K, "*unit.kelvin)\n")
+    print(io, "for _k, _lam in enumerate(_lambdas):\n")
+    print(io, "    _alch_state.lambda_sterics = _lam\n")
+    print(io, "    _alch_state.lambda_electrostatics = _lam\n")
+    print(io, "    _alch_state.apply_to_context(_fep_sim.context)\n")
+    print(io, "    _fep_sim.step(_cap(", n_per_window, "))\n")
+    print(io, "    _row = []\n")
+    print(io, "    for _l_eval in _lambdas:\n")
+    print(io, "        _alch_state.lambda_sterics = _l_eval\n")
+    print(io, "        _alch_state.lambda_electrostatics = _l_eval\n")
+    print(io, "        _alch_state.apply_to_context(_fep_sim.context)\n")
+    print(io, "        _u = _fep_sim.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilojoule_per_mole)\n")
+    print(io, "        _row.append(_u)\n")
+    print(io, "    _u_kln.append(_row)\n")
+    print(io, "    _alch_state.lambda_sterics = _lam\n")
+    print(io, "    _alch_state.lambda_electrostatics = _lam\n")
+    print(io, "    _alch_state.apply_to_context(_fep_sim.context)\n")
+    print(io, "with open(os.path.join(OUTPUT_DIR, ", repr("fep_$(i)_u_kln.csv"), "), 'w', newline='') as _f:\n")
+    print(io, "    _w = _csv.writer(_f); _w.writerow(['lambda_k'] + [str(l) for l in _lambdas])\n")
+    print(io, "    for _k, _row in zip(_lambdas, _u_kln): _w.writerow([_k] + _row)\n")
+    print(io, "_state = _fep_sim.context.getState(getPositions=True, getVelocities=True)\n")
+    print(io, "current_positions = _state.getPositions(asNumpy=True)\n")
+    print(io, "current_velocities = _state.getVelocities(asNumpy=True)\n")
+    print(io, "del _fep_sim, _fep_integrator, _alch_system, _alch_state\n\n")
+    String(take!(io))
+end
+
+function repr_pylist(xs::AbstractVector)
+    "[" * join((string(x) for x in xs), ", ") * "]"
+end
+
 function _emit_observables(spec::MDSpec)
     io = IOBuffer()
     print(io, "# --- observables (post-run analysis via mdtraj when available) ---\n")
@@ -393,14 +589,32 @@ end
 # -----------------------------------------------------------------------------
 # Prepare / preview / run
 
-function prepare(b::OpenMMBackend, spec::MDSpec, workdir::AbstractString)::PreparedJob
+function prepare(b::OpenMMBackend, spec::MDSpec, workdir::AbstractString;
+                 parameterizer::Union{Nothing,LigandParameterizer}=nothing)::PreparedJob
     isdir(workdir) || mkpath(workdir)
+    metadata = Dict{String,Any}()
+
+    # SMILES path — generate ligand.parm7 / ligand.rst7 in the workdir.
+    # The renderer's _emit_system_load loads them as AMBER files. The
+    # parameterizer only runs for :smiles; :protein_ligand parameterizes at
+    # script-runtime via SMIRNOFFTemplateGenerator.
+    if spec.system.source.type == :smiles
+        p = parameterizer === nothing ? OpenFFParameterizer() : parameterizer
+        smiles = spec.system.source.ligand_smiles
+        smiles === nothing && error("OpenMMBackend.prepare: :smiles source requires ligand_smiles")
+        result = parameterize(p, smiles, workdir)
+        metadata["ligand_topology"]    = result.topology_path
+        metadata["ligand_coordinates"] = result.coordinates_path
+        metadata["ligand_forcefield"]  = String(result.forcefield_name)
+        metadata["ligand_metadata"]    = result.metadata
+    end
+
     script_path = joinpath(workdir, "run_openmm.py")
     open(script_path, "w") do io
         print(io, render_script(b, spec; output_dir=workdir))
     end
-    PreparedJob(:openmm, workdir, script_path,
-        Dict{String,Any}("script_size_bytes" => filesize(script_path)))
+    metadata["script_size_bytes"] = filesize(script_path)
+    PreparedJob(:openmm, workdir, script_path, metadata)
 end
 
 function preview_run(b::OpenMMBackend, job::PreparedJob; n_steps::Int=100)::PreviewReport

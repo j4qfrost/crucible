@@ -19,9 +19,13 @@ changes. Human contributors should also read it.
    units in field names (`temperature_K`, `dt_fs`, `duration_ns`). LLM
    prompts are forbidden from doing arithmetic on units; the renderer
    does it.
-4. **BYO-topology gate stays in v0.x.** Never let `has_ligand=true`
-   with `ligand_ff=user_supplied` proceed without a topology path.
-   Auto-parameterization (SMILES → params via OpenFF) is v1+.
+4. **BYO-topology gate is now scoped to `:user_supplied` source only.**
+   Never let `has_ligand=true` + `ligand_ff=user_supplied` +
+   `source.type=:user_supplied` proceed without a topology path.
+   SMILES paths (`:smiles`, `:protein_ligand`) bypass this — they
+   parameterize via `OpenFFParameterizer` (subprocess to openff-toolkit
+   + Interchange) at prepare-time or script-runtime. Hard rule #1 still
+   holds: parameterization is OpenFF-driven, never LLM-invented.
 5. **Validation gates are sequential.** Gate N+1 only runs if Gate N
    passes. Don't add backends or features that bypass this.
 
@@ -80,6 +84,32 @@ step shows the recipe).
    the single source of truth.
 4. Don't auto-log to the transcript store from inside `transpile` —
    logging is the caller's responsibility (see Pluto notebook + CLI).
+
+## Adding a new ligand parameterizer
+
+1. Subtype `LigandParameterizer` in `src/ligand/`.
+2. Implement `parameterize(p, smiles, output_dir) -> ParameterizedLigand`.
+   Return paths to AMBER `.parm7` / `.rst7` (or equivalent OpenMM-loadable
+   pair). Never invent FF parameters — fail loudly if the toolkit can't
+   type the molecule.
+3. Add a `parameterizer_available(p) -> Bool` probe so tests + CLI can
+   skip cleanly when the optional dep isn't installed.
+4. The OpenMMBackend's `prepare()` calls `parameterize()` only for
+   `source.type == :smiles`. For `:protein_ligand`, parameterization
+   happens at script-runtime via `SMIRNOFFTemplateGenerator` instead.
+
+## Adding a new stage type
+
+1. Subtype `Stage` in `src/spec/MDSpec.jl`.
+2. Add `stage_to_dict(::NewStage)` and a clause in `stage_from_dict` for
+   the new `kind` string.
+3. Add the schema entry under `protocol.items.oneOf` in `schema.json`.
+4. Add a semantic rule in `src/validation/Gates.jl` if there are
+   cross-field invariants the schema can't express.
+5. Add a renderer block in `src/backends/OpenMMBackend.jl`'s
+   `_emit_protocol` and (if applicable) `MollyBackend.jl`.
+6. Update `required_features(spec)` to declare any new feature your
+   stage needs (`:alchemy` for FEP, etc.) so the Router can dispatch.
 
 ## Adding a new input adapter
 

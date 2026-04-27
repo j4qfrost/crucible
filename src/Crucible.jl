@@ -17,12 +17,11 @@ include("spec/Migrations.jl")
 include("spec/Observables.jl")
 
 include("backends/SimBackend.jl")
+include("ligand/Parameterizer.jl")
 include("backends/OpenMMBackend.jl")
 include("backends/MollyBackend.jl")
 include("backends/KineticsBackend.jl")
 include("backends/Router.jl")
-
-include("ligand/Parameterizer.jl")
 
 include("validation/Gates.jl")
 
@@ -46,18 +45,23 @@ include("renderers/WebRenderer.jl")
 
 include("cloud/Advisor.jl")
 
-export MDSpec, SystemSpec, ForceFieldSpec, Stage, Observable, Provenance,
+export MDSpec, SystemSpec, SystemSource, SolventSpec, ForceFieldSpec,
+       Stage, MinimizeStage, DynamicsStage, FEPStage, RestraintSpec,
+       Observable, Provenance,
        SpecDiff, diff_specs, migrate_spec_json, register_migration!,
        read_observable_csv, summarize_observable,
        SimBackend, MollyBackend, OpenMMBackend, KineticsBackend, route_backend,
        KineticsSpec, Species, Reaction,
        LigandParameterizer, OpenFFParameterizer, ParameterizedLigand, parameterize,
+       parameterizer_available,
        validate_spec, ValidationReport,
        LLMProvider, AnthropicProvider, LocalProvider, RecordedProvider, transpile,
        TranscriptStore, open_transcript_store, close_transcript_store, log_transcript, transcript_count, export_transcripts_jsonl,
        InputAdapter, PDFAdapter, ArxivAdapter, BioRxivAdapter, NotesAdapter,
        PaperRepr, ingest,
-       Renderer, PlutoRenderer, NotebookRenderer, MarkdownRenderer, render,
-       advise
+       Renderer, PlutoRenderer, NotebookRenderer, MarkdownRenderer, WebRenderer, render,
+       serve_http,
+       advise,
+       run_validation
 
 end # module Crucible

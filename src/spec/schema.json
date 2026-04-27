@@ -18,11 +18,28 @@
           "additionalProperties": false,
           "required": ["type"],
           "properties": {
-            "type":        {"enum": ["user_supplied", "pdb_id", "pdb_fetch"]},
-            "topology":    {"type": ["string", "null"]},
-            "coordinates": {"type": ["string", "null"]},
-            "pdb_id":      {"type": ["string", "null"]}
-          }
+            "type":          {"enum": ["user_supplied", "pdb_id", "pdb_fetch", "smiles", "protein_ligand"]},
+            "topology":      {"type": ["string", "null"]},
+            "coordinates":   {"type": ["string", "null"]},
+            "pdb_id":        {"type": ["string", "null"]},
+            "ligand_smiles": {"type": ["string", "null"]}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"type": {"const": "smiles"}}},
+              "then": {"required": ["ligand_smiles"], "properties": {"ligand_smiles": {"type": "string", "minLength": 1}}}
+            },
+            {
+              "if": {"properties": {"type": {"const": "protein_ligand"}}},
+              "then": {
+                "required": ["pdb_id", "ligand_smiles"],
+                "properties": {
+                  "pdb_id":        {"type": "string", "minLength": 4},
+                  "ligand_smiles": {"type": "string", "minLength": 1}
+                }
+              }
+            }
+          ]
         },
         "n_atoms_estimate": {"type": "integer", "minimum": 1, "maximum": 10000000},
         "has_ligand": {"type": "boolean"},
@@ -60,6 +77,28 @@
               "kind": {"const": "minimize"},
               "max_iterations":      {"type": "integer", "minimum": 1, "maximum": 1000000},
               "tolerance_kj_mol_nm": {"type": "number", "minimum": 0, "maximum": 1e6}
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "fep_kind", "target_selection", "lambda_windows",
+                         "duration_per_window_ns", "ensemble", "temperature_K",
+                         "pressure_bar", "dt_fs", "thermostat", "friction_ps", "constraints"],
+            "properties": {
+              "kind":                   {"const": "free_energy"},
+              "fep_kind":               {"enum": ["decouple", "annihilate"]},
+              "target_selection":       {"type": "string", "minLength": 1},
+              "lambda_windows":         {"type": "array", "minItems": 2, "maxItems": 64,
+                                         "items": {"type": "number", "minimum": 0, "maximum": 1}},
+              "duration_per_window_ns": {"type": "number", "exclusiveMinimum": 0, "maximum": 100},
+              "ensemble":               {"enum": ["NVT", "NPT"]},
+              "temperature_K":          {"type": "number", "minimum": 0, "maximum": 1000},
+              "pressure_bar":           {"type": ["number", "null"]},
+              "dt_fs":                  {"type": "number", "exclusiveMinimum": 0, "maximum": 5},
+              "thermostat":             {"enum": ["langevin", "nose_hoover", "andersen", "berendsen"]},
+              "friction_ps":            {"type": "number", "minimum": 0, "maximum": 100},
+              "constraints":            {"enum": ["none", "h_bonds", "all_bonds"]}
             }
           },
           {

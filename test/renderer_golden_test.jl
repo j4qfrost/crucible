@@ -140,7 +140,7 @@ end
         warnings=String[], notes="")
     rep = Crucible.validate_spec(omm, bad_spec)
     @test !rep.ok
-    @test any(occursin("pdb_fetch source with has_ligand=true", e) for e in rep.errors)
+    @test any(occursin("has_ligand=true is unsupported", e) for e in rep.errors)
 end
 
 @testset "MollyBackend renderer" begin

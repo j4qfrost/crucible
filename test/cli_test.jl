@@ -119,7 +119,11 @@ end
     end
     @test length(subcmds) >= 7
 
+    # Skip subcommands that intentionally block (the only one is `serve`,
+    # which boots an HTTP server that never returns until interrupted).
+    blocking = Set(["serve"])
     for cmd in subcmds
+        cmd in blocking && continue
         # Use a pipe to swallow any output noise
         original_stdout = stdout
         original_stderr = stderr
