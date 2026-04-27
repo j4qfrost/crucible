@@ -7,6 +7,12 @@ project-internal feasibility note so we know where the IR + backends
 should be ready to receive a quantum target, and where the hype outruns
 the hardware.
 
+A jargon-free version of this document lives at
+[`musings/quantum_outlook_eli5.md`](../musings/quantum_outlook_eli5.md)
+— same conclusions, written for someone who hasn't followed the
+quantum-hardware story and just wants to know whether to take the
+"quantum will revolutionize drug discovery" headlines seriously.
+
 Last reviewed: 2026-04-27. Treat this as a snapshot — quantum hardware
 roadmaps move on a 12–24 month cycle, and the state of the art listed
 here will be partly obsolete by 2027.
