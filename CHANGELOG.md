@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### v1.5.2 — diagnostic + quality CLI (2026-04-27)
+
+UX-only polish: three new CLI subcommands and one new module that
+landlines the option-3 fine-tune flywheel's quality story.
+
+- **`crucible doctor`** — environment diagnostic. Probes python,
+  openmm, openff-toolkit, pdbfixer, mdtraj, openmmtools,
+  openmm-plumed, openmm-forcefields. Reports versions + remediation
+  hints. GPU detection via `nvidia-smi`. Surface-level verdict line
+  ("all green" / "good" / "partial" / "IR + LLM only") so the user
+  knows at a glance what's runnable.
+- **`crucible coverage <spec>`** — provenance-coverage report.
+  Per-source breakdown (`:paper`, `:paper_default`, `:assumed`,
+  `:user`, `:runtime_default`), quality score [0.0–1.0] weighted
+  toward `:paper`, and an explicit list of numeric fields missing
+  a provenance entry. The score directly feeds transcript-quality
+  ranking for the option-3 training corpus.
+- **`crucible lint <spec> [--format text|json]`** — advisory checks
+  beyond Gates 1-3. Rules: `:short_production`, `:no_equilibration`,
+  `:rmsd_no_trajectory`, `:trajectory_observable_no_stride`,
+  `:provenance_low`, `:assumed_dominates`, `:fep_few_windows`,
+  `:fep_short_window`, `:remd_few_replicas`, `:metad_no_well_tempered`.
+  Never blocks; returns a `LintReport` the caller decides what to
+  do with.
+- New module `src/spec/Coverage.jl` exporting `CoverageReport`,
+  `LintFinding`, `LintReport`, `provenance_coverage`,
+  `coverage_score`, `lint`.
+- `crucible info` updated for the new subcommands (now 14 total).
+- New test file `test/coverage_test.jl` (10 testsets).
+- Tests: 428/428 pass on Julia 1.10.
+
 ### v1.5.1 — schema bump + Molly gating + Pluto refresh (2026-04-27)
 
 Polish pass following v1.5.

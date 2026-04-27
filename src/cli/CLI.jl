@@ -33,6 +33,9 @@ Usage:
                                               [--python python] [--name LIG]
   crucible verify        <spec.json> [--backend openmm|molly]   # gates 1-3 + render
   crucible serve         [--host 0.0.0.0] [--port 8080]         # HTTP web frontend
+  crucible doctor                                                 # diagnose Python / OpenMM / OpenFF deps
+  crucible coverage      <spec.json>                              # provenance coverage report
+  crucible lint          <spec.json> [--format text|json]         # advisory checks
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -263,7 +266,7 @@ function cmd_info(::Vector{String})
     println("Validation gates: 1) schema  2) semantic  3) loadability  4) preview  5) user-confirm")
     println()
     println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
-    println("                 info parameterize verify serve")
+    println("                 info parameterize verify serve doctor coverage lint")
     println()
     println("Ligand parameterizer:")
     avail = parameterizer_available()
@@ -353,6 +356,193 @@ function cmd_serve(args::Vector{String})
     0
 end
 
+function cmd_doctor(::Vector{String})
+    println("crucible doctor — environment diagnostic")
+    println("=" ^ 60)
+
+    # Probe each optional dep. Each probe either returns the version
+    # string + ok status, or a remediation hint.
+    pythons = ["python", "python3"]
+    py = nothing
+    for cmd in pythons
+        if Sys.which(cmd) !== nothing
+            py = cmd
+            break
+        end
+    end
+
+    if py === nothing
+        println("  python:               not found on PATH")
+        println("    fix:                install python ≥3.10 and put it on PATH")
+        println()
+    else
+        ver = strip(_run_capture(`$py -c "import sys; print('.'.join(map(str, sys.version_info[:3])))"`))
+        println("  python:               $(py) ($(ver))")
+    end
+
+    function _probe_pkg(import_stmt::AbstractString, ver_expr::AbstractString,
+                        label::AbstractString, fix::AbstractString)
+        py === nothing && return nothing
+        ok = false
+        ver = ""
+        try
+            out = _run_capture(`$py -c "$import_stmt; print($ver_expr)"`)
+            ver = strip(out)
+            ok = !isempty(ver) && !occursin("Traceback", ver)
+        catch
+        end
+        if ok
+            println("  $(rpad(label, 22)) $(ver)")
+        else
+            println("  $(rpad(label, 22)) not installed")
+            println("    fix:                $(fix)")
+        end
+        ok
+    end
+
+    _probe_pkg("import openmm", "openmm.__version__", "openmm:",
+               "pip install openmm")
+    _probe_pkg("from openff.toolkit import __version__ as v", "v",
+               "openff-toolkit:",
+               "pip install openff-toolkit openff-interchange rdkit")
+    _probe_pkg("import pdbfixer", "pdbfixer.__version__", "pdbfixer:",
+               "pip install pdbfixer")
+    _probe_pkg("import mdtraj", "mdtraj.__version__", "mdtraj:",
+               "pip install mdtraj")
+    _probe_pkg("import openmmtools", "openmmtools.__version__",
+               "openmmtools:",
+               "pip install openmmtools  # required for FEP / REMD")
+    _probe_pkg("import openmmplumed", "'(installed)'", "openmm-plumed:",
+               "conda install -c conda-forge openmm-plumed plumed  # required for metadynamics")
+    _probe_pkg("import openmmforcefields", "openmmforcefields.__version__",
+               "openmm-forcefields:",
+               "pip install openmm-forcefields  # required for :protein_ligand source")
+
+    # GPU probe
+    println()
+    println("  GPU detection:")
+    if Sys.which("nvidia-smi") !== nothing
+        try
+            out = _run_capture(`nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader`)
+            for line in eachline(IOBuffer(out))
+                println("    ", strip(line))
+            end
+        catch err
+            println("    nvidia-smi present but query failed: $(err)")
+        end
+    else
+        println("    nvidia-smi not on PATH (no NVIDIA GPU detected)")
+    end
+
+    # Crucible's own optional bits
+    println()
+    println("  Crucible providers:")
+    println("    OpenFFParameterizer:  ", parameterizer_available() ? "available" : "not installed")
+    has_anthropic = haskey(ENV, "ANTHROPIC_API_KEY") && !isempty(ENV["ANTHROPIC_API_KEY"])
+    println("    ANTHROPIC_API_KEY:    ", has_anthropic ? "set" : "not set (AnthropicProvider will no-op)")
+    println("    CRUCIBLE_LOCAL_ENDPOINT: ", get(ENV, "CRUCIBLE_LOCAL_ENDPOINT", "(default: http://localhost:8000/v1)"))
+    println()
+    println("  Verdict: ", _doctor_verdict(py))
+    0
+end
+
+function _run_capture(cmd::Cmd)::String
+    io = IOBuffer()
+    try
+        run(pipeline(cmd; stdout=io, stderr=devnull); wait=true)
+        String(take!(io))
+    catch
+        ""
+    end
+end
+
+function _doctor_verdict(py)
+    py === nothing && return "broken — install python first."
+    ok_count = 0
+    for stmt in ("import openmm", "import openff.toolkit", "import pdbfixer",
+                 "import mdtraj", "import openmmtools")
+        try
+            run(pipeline(`$py -c $stmt`; stdout=devnull, stderr=devnull); wait=true)
+            ok_count += 1
+        catch
+        end
+    end
+    if ok_count == 5
+        "all green — full v1.5 surface available"
+    elseif ok_count >= 3
+        "good — most of v1.0 works; some v1.5 features (FEP/REMD/metad) need extra deps"
+    elseif ok_count >= 1
+        "partial — IR + render works, execution mostly blocked"
+    else
+        "IR + LLM only — no Python deps installed"
+    end
+end
+
+function cmd_coverage(args::Vector{String})
+    pos, _ = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: coverage <spec.json>")
+    spec = spec_from_json(read(pos[1], String))
+    rep = Crucible.provenance_coverage(spec)
+    score = Crucible.coverage_score(rep)
+    println("Provenance coverage: $(rep.fields_with_provenance) / $(rep.total_numeric_fields) " *
+            "($(round(100 * rep.fields_with_provenance / max(rep.total_numeric_fields, 1); digits=1))%)")
+    println("Quality score:       $(round(score; digits=3))  (1.0 = all paper-cited; 0.0 = nothing)")
+    println()
+    if !isempty(rep.by_source)
+        println("By source:")
+        for (src, n) in sort(collect(rep.by_source); by = x -> -x[2])
+            println("  $(rpad(string(src) * ":", 20))$(n)")
+        end
+    end
+    if !isempty(rep.missing_paths)
+        println()
+        println("Missing provenance ($(length(rep.missing_paths)) fields):")
+        for p in rep.missing_paths
+            println("  - $(p)")
+        end
+    end
+    0
+end
+
+function cmd_lint(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: lint <spec.json> [--format text|json]")
+    spec = spec_from_json(read(pos[1], String))
+    rep = Crucible.lint(spec)
+    fmt = get(kw, "format", "text")
+    if fmt == "json"
+        obj = Dict{String,Any}(
+            "findings" => [Dict("severity" => String(f.severity),
+                                "rule"     => String(f.rule),
+                                "path"     => f.path,
+                                "message"  => f.message)
+                           for f in rep.findings],
+            "coverage" => Dict("total_numeric_fields"   => rep.coverage.total_numeric_fields,
+                               "fields_with_provenance" => rep.coverage.fields_with_provenance,
+                               "score"                  => Crucible.coverage_score(rep.coverage)),
+        )
+        println(JSON3.write(obj))
+    else
+        if isempty(rep)
+            println("lint: clean — no advisories.")
+        else
+            println("lint: $(length(rep.findings)) finding(s)")
+            for f in rep.findings
+                tag = f.severity == :warn      ? "warn"   :
+                      f.severity == :advisory  ? "advise" : "info"
+                println("  [$(tag)] $(f.rule) @ $(f.path)")
+                println("          $(f.message)")
+            end
+        end
+        println()
+        cov = rep.coverage
+        score = Crucible.coverage_score(cov)
+        println("provenance: $(cov.fields_with_provenance)/$(cov.total_numeric_fields) " *
+                "(score $(round(score; digits=2)))")
+    end
+    isempty(rep) ? 0 : 0   # lint never fails the build
+end
+
 function cmd_walkthrough(args::Vector{String})
     pos, kw = _parse_kw_args(args)
     length(pos) < 2 && error("usage: walkthrough <source-kind> <source>")
@@ -412,6 +602,9 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "parameterize"; return cmd_parameterize(rest)
         elseif cmd == "verify";       return cmd_verify(rest)
         elseif cmd == "serve";        return cmd_serve(rest)
+        elseif cmd == "doctor";       return cmd_doctor(rest)
+        elseif cmd == "coverage";     return cmd_coverage(rest)
+        elseif cmd == "lint";         return cmd_lint(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")

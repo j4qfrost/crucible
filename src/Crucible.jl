@@ -15,6 +15,7 @@ include("spec/KineticsSpec.jl")
 include("spec/Diff.jl")
 include("spec/Migrations.jl")
 include("spec/Observables.jl")
+include("spec/Coverage.jl")
 
 include("backends/SimBackend.jl")
 include("ligand/Parameterizer.jl")
@@ -51,6 +52,8 @@ export MDSpec, SystemSpec, SystemSource, SolventSpec, LipidBilayer, ForceFieldSp
        Observable, Provenance,
        SpecDiff, diff_specs, migrate_spec_json, register_migration!,
        read_observable_csv, summarize_observable,
+       CoverageReport, LintFinding, LintReport,
+       provenance_coverage, coverage_score, lint,
        SimBackend, MollyBackend, OpenMMBackend, KineticsBackend, route_backend,
        KineticsSpec, Species, Reaction,
        LigandParameterizer, OpenFFParameterizer, ParameterizedLigand, parameterize,
