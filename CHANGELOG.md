@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### v1.10.1 — multi-GPU REMD + precision control (2026-04-27)
+
+Closes the remaining substantive GPU gaps on top of v1.10's AMD work.
+
+- **Multi-GPU REMD sharding (MPI-aware)**. The REMD renderer now
+  emits a try-import for `mpi4py`; under `mpirun -np K`, each rank
+  pins itself to a unique `CUDA_VISIBLE_DEVICES` (and
+  `HIP_VISIBLE_DEVICES`) and openmmtools auto-distributes replicas
+  across ranks via `mpiplus`. Single-process invocation still
+  works — the script falls through cleanly when mpi4py is absent.
+  Trade-off: the rendered script is environment-aware (the same
+  file works mpi-launched OR standalone) rather than emitting two
+  variants. Override per-node GPU count via
+  `CRUCIBLE_GPUS_PER_NODE`.
+- **Precision control via `CRUCIBLE_PRECISION`** env (`single` /
+  `mixed` / `double`, default `mixed`). Applied at platform level
+  on CUDA / HIP / OpenCL — CPU + Reference ignore it. Trade-off:
+  precision is not in the IR (papers don't state it; it's a
+  runtime tradeoff, not a paper fact). The renderer plumbs the
+  env through, the script logs the effective value at startup.
+- `crucible doctor` reports the active `CRUCIBLE_PLATFORM` and
+  `CRUCIBLE_PRECISION` env vars.
+- Tests: 700/700 pass on Julia 1.10.
+
 ### v1.10 — AMD/ROCm support (2026-04-27)
 
 Closes the "renderer assumes CUDA" gap. Trade-off documented in

@@ -151,6 +151,11 @@ end
     @test occursin("_crucible_pick_platform", script)
     @test occursin("'CUDA', 'HIP', 'OpenCL', 'CPU'", script)
     @test occursin("crucible: platform =", script)
+    # Precision control: CRUCIBLE_PRECISION env var, default mixed,
+    # applied only on accelerator platforms.
+    @test occursin("CRUCIBLE_PRECISION", script)
+    @test occursin("setPropertyDefaultValue('Precision'", script)
+    @test occursin("'single', 'mixed', 'double'", script)
 end
 
 @testset "MollyBackend renderer" begin

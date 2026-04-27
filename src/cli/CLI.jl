@@ -491,6 +491,8 @@ function cmd_doctor(::Vector{String})
     has_anthropic = haskey(ENV, "ANTHROPIC_API_KEY") && !isempty(ENV["ANTHROPIC_API_KEY"])
     println("    ANTHROPIC_API_KEY:    ", has_anthropic ? "set" : "not set (AnthropicProvider will no-op)")
     println("    CRUCIBLE_LOCAL_ENDPOINT: ", get(ENV, "CRUCIBLE_LOCAL_ENDPOINT", "(default: http://localhost:8000/v1)"))
+    println("    CRUCIBLE_PLATFORM:    ", get(ENV, "CRUCIBLE_PLATFORM", "(default: auto = CUDA→HIP→OpenCL→CPU)"))
+    println("    CRUCIBLE_PRECISION:   ", get(ENV, "CRUCIBLE_PRECISION", "(default: mixed)"))
     println()
     println("  Verdict: ", _doctor_verdict(py))
     0

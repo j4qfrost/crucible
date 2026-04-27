@@ -91,3 +91,12 @@ end
     @test occursin("LangevinSplittingDynamicsMove", script)
     @test occursin("remd_2.nc", script)
 end
+
+@testset "REMD script includes MPI-aware multi-GPU sharding" begin
+    script = Crucible.render_script(OpenMMBackend(), _remd_spec();
+                                     output_dir="/tmp/remd-mpi-test")
+    @test occursin("from mpi4py import MPI", script)
+    @test occursin("CUDA_VISIBLE_DEVICES", script)
+    @test occursin("HIP_VISIBLE_DEVICES", script)
+    @test occursin("mpirun -np K", script)
+end
