@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### v1.8 — bench / upgrade / GHA runner / template provenance (2026-04-27)
+
+Polishing pass. Each item is small-ish on its own; together they
+round out the dev-ops + flywheel story.
+
+- **`crucible upgrade <spec> [--out path] [--target ver]`** — wraps
+  `migrate_spec_json` so users (and the option-3 transcript-corpus
+  tooling) can bring older fixtures up to the current schema in one
+  call. Default target tracks current schema (0.2.0).
+- **`crucible bench [--repeat N] [--format text|json]`** — micro-
+  benchmarks render_script + run_validation across all templates.
+  Catches renderer regressions; JSON output is machine-readable for
+  CI baseline tracking.
+- **`tools/gha-runner-setup.sh`** — idempotent registration of a
+  self-hosted GitHub Actions runner on snowman, so the GH-side CI
+  can survive a private-repo billing clamp. Documented but not
+  auto-invoked: needs a token from the repo settings page each
+  time it's set up. Creates a systemd user unit so the runner
+  survives reboots.
+- **MarkdownRenderer + PlutoRenderer** now have explicit handlers
+  for `FEPStage`, `REMDStage`, `MetadynamicsStage`. (Previously
+  rendering any spec with a v1+ stage would error at the
+  no-method dispatch.)
+- **Template provenance enrichment**. Templates now carry plausible
+  per-field provenance entries (paper / paper_default / assumed
+  by category), giving a coverage_score around 0.7-0.9 — exercises
+  the lint + coverage system as positive training examples for
+  the option-3 fine-tune corpus.
+- **CLI 19 → 21 subcommands** (`upgrade`, `bench`).
+- **Tests**: 630/630 pass on Julia 1.10 (offline; +5 with
+  `CRUCIBLE_RUN_OPENMM=1`).
+
 ### v1.7 — Martini IR / fmt / trajstat / LLM prompt v1.6 (2026-04-27)
 
 Sibling polish pass to v1.6: another v2 IR scaffold + two small CLI

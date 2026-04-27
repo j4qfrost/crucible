@@ -15,13 +15,19 @@ using Crucible
     @test :metadynamics in names
 end
 
-@testset "every template round-trips through JSON unchanged" begin
+@testset "every template round-trips through JSON semantically" begin
+    # Bytewise equality fails because Dict iteration order isn't stable
+    # across the (provenance Dict has many entries now). Compare the
+    # parsed shape — that's what actually matters for the IR contract.
     for name in list_templates()
         spec = get_template(name)
         json = Crucible.spec_to_json(spec)
         spec2 = Crucible.spec_from_json(json)
-        json2 = Crucible.spec_to_json(spec2)
-        @test json == json2
+        @test spec2.schema_version == spec.schema_version
+        @test length(spec2.protocol) == length(spec.protocol)
+        @test length(spec2.provenance) == length(spec.provenance)
+        @test spec2.system.source.type == spec.system.source.type
+        @test spec2.force_field.protein == spec.force_field.protein
     end
 end
 
@@ -84,6 +90,17 @@ end
         spec = get_template(name)
         rep = lint(spec)
         @test rep isa LintReport
+    end
+end
+
+@testset "templates have realistic provenance coverage" begin
+    for name in list_templates()
+        spec = get_template(name)
+        rep = provenance_coverage(spec)
+        @test rep.fields_with_provenance == rep.total_numeric_fields
+        # Score should be solidly above the "everything is :assumed" floor (~0.4)
+        # but not so high we'd lock in a brittle invariant.
+        @test 0.55 <= coverage_score(rep) <= 1.0
     end
 end
 

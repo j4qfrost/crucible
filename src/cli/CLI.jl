@@ -42,6 +42,7 @@ Usage:
   crucible fmt           <spec.json> [--in-place]                # pretty-print spec
   crucible trajstat      <workdir>                                # walk + classify artifacts
   crucible upgrade       <spec.json> [--out path] [--target ver]  # forward-migrate schema
+  crucible bench         [--format text|json] [--repeat N]         # renderer micro-bench
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -273,7 +274,7 @@ function cmd_info(::Vector{String})
     println()
     println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
     println("                 info parameterize verify serve doctor coverage lint templates")
-    println("                 snapshot restore fmt trajstat upgrade")
+    println("                 snapshot restore fmt trajstat upgrade bench")
     println()
     println("Ligand parameterizer:")
     avail = parameterizer_available()
@@ -506,6 +507,53 @@ function cmd_coverage(args::Vector{String})
         println("Missing provenance ($(length(rep.missing_paths)) fields):")
         for p in rep.missing_paths
             println("  - $(p)")
+        end
+    end
+    0
+end
+
+function cmd_bench(args::Vector{String})
+    _, kw = _parse_kw_args(args)
+    n_repeat = parse(Int, get(kw, "repeat", "10"))
+    fmt = get(kw, "format", "text")
+    backend = OpenMMBackend()
+    results = NamedTuple[]
+    workdir = "/tmp/crucible-bench"
+    for name in list_templates()
+        spec = get_template(name)
+        json = spec_to_json(spec)
+        # Warm-up
+        _ = Crucible.render_script(backend, spec; output_dir=workdir)
+        _ = Crucible.gate_schema(json)
+        # Time render_script
+        t_render = @elapsed for _ in 1:n_repeat
+            _ = Crucible.render_script(backend, spec; output_dir=workdir)
+        end
+        t_validate = @elapsed for _ in 1:n_repeat
+            _ = Crucible.run_validation(json, spec, backend)
+        end
+        bytes = length(Crucible.render_script(backend, spec; output_dir=workdir))
+        push!(results, (name = String(name),
+                        render_us_per = (t_render / n_repeat) * 1e6,
+                        validate_us_per = (t_validate / n_repeat) * 1e6,
+                        script_bytes = bytes))
+    end
+    if fmt == "json"
+        println(JSON3.write([Dict("name" => r.name,
+                                  "render_us_per_call"   => r.render_us_per,
+                                  "validate_us_per_call" => r.validate_us_per,
+                                  "script_bytes"         => r.script_bytes)
+                             for r in results]))
+    else
+        println("crucible bench (n=$(n_repeat) per template, OpenMM backend)")
+        println()
+        println(rpad("template", 24), rpad("render µs", 14), rpad("validate µs", 14), "bytes")
+        println(repeat("-", 60))
+        for r in results
+            println(rpad(r.name, 24),
+                    rpad(string(round(r.render_us_per; digits=1)), 14),
+                    rpad(string(round(r.validate_us_per; digits=1)), 14),
+                    r.script_bytes)
         end
     end
     0
@@ -842,6 +890,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "fmt";          return cmd_fmt(rest)
         elseif cmd == "trajstat";     return cmd_trajstat(rest)
         elseif cmd == "upgrade";      return cmd_upgrade(rest)
+        elseif cmd == "bench";        return cmd_bench(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")
