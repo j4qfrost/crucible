@@ -378,6 +378,28 @@ function _emit_protocol(spec::MDSpec)
     print(io, "if platform.getName() in ('CUDA', 'HIP', 'OpenCL'):\n")
     print(io, "    platform.setPropertyDefaultValue('Precision', _precision)\n")
     print(io, "print('crucible: platform =', platform.getName(), 'precision =', _precision)\n")
+    # Deterministic seeding. CRUCIBLE_SEED ∈ int (any) or absent. When set,
+    # we fix the LangevinIntegrator seed + the initial velocity seed so a
+    # fresh run is byte-reproducible (modulo nondeterministic CUDA reductions
+    # — set CRUCIBLE_DETERMINISTIC_FORCES=1 to clamp those too at a perf
+    # cost). Critical for debugging + paper-replication.
+    print(io, "_seed = os.environ.get('CRUCIBLE_SEED')\n")
+    print(io, "_seed_int = int(_seed) if _seed is not None else None\n")
+    print(io, "if _seed_int is not None:\n")
+    print(io, "    print(f'crucible: deterministic seed = {_seed_int}')\n")
+    print(io, "if os.environ.get('CRUCIBLE_DETERMINISTIC_FORCES') == '1' and platform.getName() in ('CUDA','HIP'):\n")
+    print(io, "    platform.setPropertyDefaultValue('DeterministicForces', 'true')\n")
+    print(io, "    print('crucible: DeterministicForces = true (perf cost)')\n")
+    # Helper used by every stage's velocity init so seed plumbing is one
+    # decision in one place. Returns nothing; mutates the context.
+    print(io, "def _crucible_init_velocities(sim, T_kelvin):\n")
+    print(io, "    if _seed_int is not None:\n")
+    print(io, "        sim.context.setVelocitiesToTemperature(T_kelvin, _seed_int)\n")
+    print(io, "    else:\n")
+    print(io, "        sim.context.setVelocitiesToTemperature(T_kelvin)\n")
+    print(io, "def _crucible_seed_integrator(integrator):\n")
+    print(io, "    if _seed_int is not None and hasattr(integrator, 'setRandomNumberSeed'):\n")
+    print(io, "        integrator.setRandomNumberSeed(_seed_int)\n")
     # Preview gate: when CRUCIBLE_PREVIEW_STEPS is set, every dynamics stage
     # caps n_steps at that value. Lets validation Gate 4 reuse this script.
     print(io, "_preview_cap = int(os.environ['CRUCIBLE_PREVIEW_STEPS']) if 'CRUCIBLE_PREVIEW_STEPS' in os.environ else None\n")
@@ -401,6 +423,7 @@ function _emit_protocol(spec::MDSpec)
         if stage isa MinimizeStage
             print(io, "# Stage ", i, ": minimize\n")
             print(io, "_min_integrator = LangevinMiddleIntegrator(300*unit.kelvin, 1.0/unit.picosecond, 0.001*unit.picoseconds)\n")
+            print(io, "_crucible_seed_integrator(_min_integrator)\n")
             print(io, "_sim = Simulation(topology, system, _min_integrator, platform)\n")
             print(io, "_sim.context.setPositions(current_positions)\n")
             print(io, "_sim.minimizeEnergy(tolerance=", stage.tolerance_kj_mol_nm,
@@ -426,6 +449,7 @@ function _emit_protocol(spec::MDSpec)
                 print(io, "_integrator = LangevinMiddleIntegrator(", stage.temperature_K,
                           "*unit.kelvin, ", stage.friction_ps, "/unit.picosecond, ",
                           stage.dt_fs, "*unit.femtoseconds)\n")
+                print(io, "_crucible_seed_integrator(_integrator)\n")
             end
             # NPT: add barostat as a force in the system, then create the simulation.
             # Membrane systems use MonteCarloMembraneBarostat for semi-isotropic
@@ -450,7 +474,7 @@ function _emit_protocol(spec::MDSpec)
             print(io, "if current_velocities is not None:\n")
             print(io, "    _sim.context.setVelocities(current_velocities)\n")
             print(io, "else:\n")
-            print(io, "    _sim.context.setVelocitiesToTemperature(", stage.temperature_K, "*unit.kelvin)\n")
+            print(io, "    _crucible_init_velocities(_sim, ", stage.temperature_K, "*unit.kelvin)\n")
 
             # Reporters scoped to this stage
             stage_tag = string(String(stage.role), "_", i)
@@ -657,6 +681,7 @@ function _emit_metadynamics_stage(stage::MetadynamicsStage, i::Int)
     print(io, "_meta_integrator = LangevinMiddleIntegrator(", stage.temperature_K,
               "*unit.kelvin, ", stage.friction_ps, "/unit.picosecond, ",
               stage.dt_fs, "*unit.femtoseconds)\n")
+    print(io, "_crucible_seed_integrator(_meta_integrator)\n")
     if stage.ensemble == :NPT
         p = stage.pressure_bar === nothing ? 1.0 : stage.pressure_bar
         print(io, "_meta_baro = MonteCarloBarostat(", p, "*unit.bar, ",
@@ -668,7 +693,7 @@ function _emit_metadynamics_stage(stage::MetadynamicsStage, i::Int)
     print(io, "if current_velocities is not None:\n")
     print(io, "    _meta_sim.context.setVelocities(current_velocities)\n")
     print(io, "else:\n")
-    print(io, "    _meta_sim.context.setVelocitiesToTemperature(", stage.temperature_K, "*unit.kelvin)\n")
+    print(io, "    _crucible_init_velocities(_meta_sim, ", stage.temperature_K, "*unit.kelvin)\n")
     n_steps = ns_to_steps(stage.duration_ns, stage.dt_fs)
     print(io, "_meta_sim.step(_cap(", n_steps, "))\n")
     print(io, "_state = _meta_sim.context.getState(getPositions=True, getVelocities=True)\n")
@@ -725,12 +750,13 @@ function _emit_fep_stage(stage::FEPStage, i::Int)
     print(io, "_fep_integrator = LangevinMiddleIntegrator(", stage.temperature_K,
               "*unit.kelvin, ", stage.friction_ps, "/unit.picosecond, ",
               stage.dt_fs, "*unit.femtoseconds)\n")
+    print(io, "_crucible_seed_integrator(_fep_integrator)\n")
     print(io, "_fep_sim = Simulation(topology, _alch_system, _fep_integrator, platform)\n")
     print(io, "_fep_sim.context.setPositions(current_positions)\n")
     print(io, "if current_velocities is not None:\n")
     print(io, "    _fep_sim.context.setVelocities(current_velocities)\n")
     print(io, "else:\n")
-    print(io, "    _fep_sim.context.setVelocitiesToTemperature(", stage.temperature_K, "*unit.kelvin)\n")
+    print(io, "    _crucible_init_velocities(_fep_sim, ", stage.temperature_K, "*unit.kelvin)\n")
     print(io, "for _k, _lam in enumerate(_lambdas):\n")
     print(io, "    _alch_state.lambda_sterics = _lam\n")
     print(io, "    _alch_state.lambda_electrostatics = _lam\n")

@@ -32,6 +32,8 @@ Usage:
   crucible parameterize  <smiles> --out <dir> [--ff openff_sage_2_2_0]
                                               [--python python] [--name LIG]
   crucible verify        <spec.json> [--backend openmm|molly]   # gates 1-3 + render
+  crucible run           <spec.json> [--workdir path] [--platform X] [--precision P]
+                                     [--seed N] [--backend openmm]   # render + execute
   crucible serve         [--host 0.0.0.0] [--port 8080]         # HTTP web frontend
   crucible doctor                                                 # diagnose Python / OpenMM / OpenFF deps
   crucible coverage      <spec.json>                              # provenance coverage report
@@ -287,7 +289,7 @@ function cmd_info(::Vector{String})
     println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
     println("                 info parameterize verify serve doctor coverage lint templates")
     println("                 snapshot restore fmt trajstat analyze upgrade bench cite explain")
-    println("                 export-jsonschema audit-transcripts import-jsonl")
+    println("                 export-jsonschema audit-transcripts import-jsonl run")
     println()
     println("Ligand parameterizer:")
     avail = parameterizer_available()
@@ -340,6 +342,70 @@ function cmd_parameterize(args::Vector{String})
         println("$(rpad(k * ":", 14))$(v)")
     end
     0
+end
+
+function cmd_run(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: run <spec.json> [--workdir path] [--platform X] [--precision P] [--seed N] [--backend openmm]")
+    spec_json = read(pos[1], String)
+    spec = spec_from_json(spec_json)
+    backend_name = get(kw, "backend", "openmm")
+    backend_name == "openmm" || error("crucible run currently supports --backend openmm only")
+    backend = OpenMMBackend()
+
+    # Validate first — don't bother launching if gates 1-3 fail.
+    report = Crucible.run_validation(spec_json, spec, backend)
+    if !report.ok
+        println(stderr, "validation failed; refusing to run")
+        for e in report.errors; println(stderr, "  error: ", e); end
+        return 2
+    end
+
+    workdir = if haskey(kw, "workdir")
+        kw["workdir"]
+    else
+        mktempdir(prefix="crucible-run-")
+    end
+    isdir(workdir) || mkpath(workdir)
+
+    # Persist the spec next to the rendered script for reproducibility.
+    write(joinpath(workdir, "spec.json"), spec_json)
+    job = Crucible.prepare(backend, spec, workdir)
+    println("workdir:        $(workdir)")
+    println("script:         $(job.script_path) ($(filesize(job.script_path)) bytes)")
+
+    # Find a python.
+    py = haskey(kw, "python") ? kw["python"] :
+         Sys.which("python") !== nothing ? "python" :
+         Sys.which("python3") !== nothing ? "python3" :
+         error("crucible run: no python on PATH; install one or pass --python /path/to/python")
+
+    # Build the env. Don't clobber the user's existing values; --flags
+    # take priority over inherited env (they're explicit).
+    env = copy(ENV)
+    haskey(kw, "platform")  && (env["CRUCIBLE_PLATFORM"]  = kw["platform"])
+    haskey(kw, "precision") && (env["CRUCIBLE_PRECISION"] = kw["precision"])
+    haskey(kw, "seed")      && (env["CRUCIBLE_SEED"]      = kw["seed"])
+
+    println("python:         $(py)")
+    println("env overrides:  ",
+            join((string(k, "=", v) for (k, v) in env if startswith(k, "CRUCIBLE_") && haskey(kw, lowercase(replace(k, "CRUCIBLE_" => "")))),
+                 ", "))
+    println("---- script stdout ----")
+    cmd = setenv(`$py $(job.script_path)`, env)
+    rc = try
+        run(cmd; wait=true)
+        0
+    catch err
+        if err isa ProcessFailedException
+            err.procs[1].exitcode
+        else
+            println(stderr, "crucible run: process error: $(err)")
+            127
+        end
+    end
+    println("---- exit $(rc) ----")
+    rc
 end
 
 function cmd_verify(args::Vector{String})
@@ -1283,6 +1349,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "info";        return cmd_info(rest)
         elseif cmd == "parameterize"; return cmd_parameterize(rest)
         elseif cmd == "verify";       return cmd_verify(rest)
+        elseif cmd == "run";          return cmd_run(rest)
         elseif cmd == "serve";        return cmd_serve(rest)
         elseif cmd == "doctor";       return cmd_doctor(rest)
         elseif cmd == "coverage";     return cmd_coverage(rest)

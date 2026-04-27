@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### v1.11 — `crucible run` + deterministic seeding (2026-04-27)
+
+Closes the spec→results loop and adds reproducibility plumbing.
+
+- **`crucible run <spec> [--workdir path] [--platform X]
+  [--precision P] [--seed N] [--python /path/to/py]`** — renders,
+  invokes python, streams stdout, returns the python rc. Validates
+  first; refuses to run if gates 1-3 fail (rc=2). The flags
+  override the matching `CRUCIBLE_*` env vars for the launched
+  subprocess, so each invocation is self-contained. Trade-off:
+  Crucible doesn't manage the python venv — `--python` lets the
+  user point at their own openmm install (and `crucible doctor`
+  already verifies it).
+- **Deterministic seeding** via `CRUCIBLE_SEED`. The renderer
+  emits `_crucible_seed_integrator()` and `_crucible_init_velocities()`
+  helpers; every LangevinIntegrator + setVelocitiesToTemperature
+  call goes through them. When the env is set, a fresh run is
+  byte-reproducible up to the integrator's deterministic-forces
+  knob. `CRUCIBLE_DETERMINISTIC_FORCES=1` clamps the remaining
+  CUDA/HIP nondeterminism (perf cost; off by default).
+- CLI 27 → 28 subcommands.
+- Tests: 707/707 pass on Julia 1.10.
+
 ### v1.10.1 — multi-GPU REMD + precision control (2026-04-27)
 
 Closes the remaining substantive GPU gaps on top of v1.10's AMD work.

@@ -245,6 +245,79 @@ end
     end
 end
 
+@testset "cmd_run validates first, refuses to run when gates fail" begin
+    # Spec that fails Gate 2 (NPT without barostat).
+    bad_spec = MDSpec(
+        system = SystemSpec(SystemSource(type=:user_supplied, coordinates="x.pdb"),
+                            500, false, SolventSpec(model=:vacuum, ions_NaCl_mM=0.0)),
+        force_field = ForceFieldSpec(protein=:amber14sb, water=:vacuum,
+                                     ligand=:user_supplied),
+        protocol = Stage[
+            DynamicsStage(role=:production, ensemble=:NPT, duration_ns=0.001,
+                          dt_fs=2.0, temperature_K=300.0, pressure_bar=nothing,
+                          thermostat=:langevin, barostat=nothing,
+                          friction_ps=1.0, constraints=:h_bonds,
+                          restraints=RestraintSpec()),
+        ],
+        observables=Observable[], provenance=Dict{String,Provenance}(),
+        warnings=String[], notes="")
+    tmp = tempname() * ".json"
+    write(tmp, Crucible.spec_to_json(bad_spec))
+    try
+        original_stderr = stderr
+        rd_e, wr_e = redirect_stderr()
+        rc = nothing
+        try
+            rc = CLI.main(String["run", tmp])
+        finally
+            redirect_stderr(original_stderr)
+            close(wr_e)
+        end
+        @test rc == 2   # validation failure
+    finally
+        rm(tmp; force=true)
+    end
+end
+
+@testset "cmd_run shells through to python when present (skip otherwise)" begin
+    if Sys.which("python") === nothing && Sys.which("python3") === nothing
+        @info "no python on PATH; skipping run smoke"
+        @test true
+        return
+    end
+    # A spec whose script will fail at runtime (no openmm), but
+    # validation passes — we check that we got past validation and
+    # actually invoked python.
+    spec = get_template(:vanilla)
+    tmp_spec = tempname() * ".json"
+    write(tmp_spec, Crucible.spec_to_json(spec))
+    workdir = mktempdir(prefix="crucible-run-test-")
+    try
+        original_stdout = stdout
+        original_stderr = stderr
+        rd_o, wr_o = redirect_stdout()
+        rd_e, wr_e = redirect_stderr()
+        rc = nothing
+        try
+            rc = CLI.main(String["run", tmp_spec, "--workdir", workdir,
+                                 "--platform", "Reference"])
+        finally
+            redirect_stdout(original_stdout)
+            redirect_stderr(original_stderr)
+            close(wr_o); close(wr_e)
+        end
+        # rc != 2 (we got past validation). Likely rc=1 (python ImportError
+        # without openmm installed) or rc=0 if openmm is somehow present.
+        @test rc != 2
+        out = read(rd_o, String)
+        @test occursin("workdir:", out)
+        @test occursin("python:", out)
+    finally
+        rm(tmp_spec; force=true)
+        rm(workdir; recursive=true, force=true)
+    end
+end
+
 @testset "cmd_export_jsonschema prints the schema" begin
     original_stdout = stdout
     rd, wr = redirect_stdout()

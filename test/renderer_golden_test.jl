@@ -156,6 +156,12 @@ end
     @test occursin("CRUCIBLE_PRECISION", script)
     @test occursin("setPropertyDefaultValue('Precision'", script)
     @test occursin("'single', 'mixed', 'double'", script)
+    # Deterministic seeding: CRUCIBLE_SEED env var threads through the
+    # integrator + initial-velocity helper.
+    @test occursin("CRUCIBLE_SEED", script)
+    @test occursin("_crucible_seed_integrator", script)
+    @test occursin("_crucible_init_velocities", script)
+    @test occursin("CRUCIBLE_DETERMINISTIC_FORCES", script)
 end
 
 @testset "MollyBackend renderer" begin
