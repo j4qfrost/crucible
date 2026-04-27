@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### v1.9.3 — Pluto + info catch-up + starter_session.sh (2026-04-27)
+
+Closing-out polish for the autonomous session. Brings the Pluto
+notebook + `crucible info` output up to schema 0.3.0, and adds a
+"first 5 minutes" UX demo script.
+
+- **Pluto notebook banner**: now reads "Schema: v0.3.0 (5 stage
+  types … 8 observable types incl. SASA / distance / hbonds)".
+- **`crucible info`**: header reads "schema v0.3.0" (was "v1.5"),
+  "Schema version" line tracks the current schema (was hard-coded
+  "0.1.0"), new "Observable types" line lists all 8.
+- **`examples/starter_session.sh`**: shell-script walkthrough that
+  runs `crucible doctor → templates list → templates init →
+  fmt → lint → coverage → validate → render → advise → explain →
+  cite → trajstat` against a fresh workdir. The "first 5 minutes"
+  demo for a no-LLM, no-Python user. Self-documenting.
+- Tests: 680/680 pass on Julia 1.10.
+
 ### v1.9.2 — crucible analyze (2026-04-27)
 
 - **`crucible analyze <workdir> [--format text|markdown|json]`** —

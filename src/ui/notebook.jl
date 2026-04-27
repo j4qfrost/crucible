@@ -21,7 +21,7 @@ Drop in a paper, get a runnable molecular-dynamics simulation. The pipeline
 is gated — production runs only fire after Gates 1–4 pass and you click the
 final button.
 
-**Schema:** v0.2.0 (5 stage types: minimize / dynamics / FEP / REMD / metadynamics)
+**Schema:** v0.3.0 (5 stage types: minimize / dynamics / FEP / REMD / metadynamics; 8 observable types incl. SASA / distance / hbonds)
 
 **Sources supported:** `:user_supplied`, `:pdb_id`, `:pdb_fetch`,
 `:smiles` (pure ligand → OpenFFParameterizer), `:protein_ligand` (PDBFixer + SMIRNOFF).

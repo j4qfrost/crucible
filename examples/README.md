@@ -8,6 +8,7 @@ Each example is self-contained and runnable with `julia --project examples/<name
 |---|---|---|
 | **Vanilla MD** | [`from_methods.jl`](from_methods.jl) | Hand-built MDSpec from a Methods-section paragraph; no LLM round-trip |
 | **Vanilla MD** | [`smoke_alanine_dipeptide.sh`](smoke_alanine_dipeptide.sh) | Shell smoke test: alanine-dipeptide in vacuum, single Pkg.test() pass |
+| **Starter UX** | [`starter_session.sh`](starter_session.sh) | Full no-LLM walkthrough: doctor → template → fmt → lint → coverage → validate → render → advise → explain → cite. The "first 5 minutes" demo. |
 | **SMILES → MD** | [`from_smiles.jl`](from_smiles.jl) | `:smiles` SystemSource + `OpenFFParameterizer` (ethanol-in-vacuum, end-to-end) |
 | **Alchemical FEP** | [`protein_ligand_fep.jl`](protein_ligand_fep.jl) | `:protein_ligand` source + `FEPStage` decoupling λ-windowing (1ubq + p-cresol) |
 | **Replica exchange (REMD)** | [`remd_protein_folding.jl`](remd_protein_folding.jl) | 8-replica T-REMD via `openmmtools.multistate.ParallelTemperingSampler` |
