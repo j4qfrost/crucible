@@ -37,12 +37,26 @@ SystemSource(; type=:user_supplied, topology=nothing, coordinates=nothing,
               pdb_id=nothing, ligand_smiles=nothing) =
     SystemSource(type, topology, coordinates, pdb_id, ligand_smiles)
 
+struct LipidBilayer
+    composition::Symbol            # :POPC | :POPE | :DPPC | :mixed_POPC_chol
+    n_lipids::Int                  # total lipid count (both leaflets)
+    chol_mol_fraction::Float64     # 0.0–0.5
+end
+
+LipidBilayer(; composition=:POPC, n_lipids=128, chol_mol_fraction=0.0) =
+    LipidBilayer(composition, n_lipids, chol_mol_fraction)
+
+const LIPID_FF_ALLOWLIST = (:charmm36_lipid, :lipid21, :slipids)
+const LIPID_COMPOSITION_ALLOWLIST = (:POPC, :POPE, :DPPC, :mixed_POPC_chol)
+
 struct SolventSpec
     model::Symbol             # :TIP3P | :TIP4P_EW | :SPC_E | :implicit_GBSA | :vacuum
     ions_NaCl_mM::Float64     # 0.0 = none
+    membrane::Union{Nothing,LipidBilayer}    # nothing for non-membrane systems
 end
 
-SolventSpec(; model=:TIP3P, ions_NaCl_mM=0.0) = SolventSpec(model, ions_NaCl_mM)
+SolventSpec(; model=:TIP3P, ions_NaCl_mM=0.0, membrane=nothing) =
+    SolventSpec(model, ions_NaCl_mM, membrane)
 
 struct SystemSpec
     source::SystemSource
@@ -70,10 +84,12 @@ struct ForceFieldSpec
     protein::Symbol
     water::Symbol
     ligand::Symbol
+    lipid::Union{Nothing,Symbol}     # nothing for non-membrane systems
 end
 
-ForceFieldSpec(; protein=:amber14sb, water=:TIP3P, ligand=:user_supplied) =
-    ForceFieldSpec(protein, water, ligand)
+ForceFieldSpec(; protein=:amber14sb, water=:TIP3P, ligand=:user_supplied,
+                lipid=nothing) =
+    ForceFieldSpec(protein, water, ligand, lipid)
 
 # -----------------------------------------------------------------------------
 # Protocol stages
@@ -96,6 +112,104 @@ end
 
 RestraintSpec(; selection=:none, kind=:harmonic, k_kj_mol_nm2=0.0) =
     RestraintSpec(selection, kind, k_kj_mol_nm2)
+
+"""
+    REMDStage <: Stage
+
+Replica-exchange molecular dynamics. Spawns `length(temperature_ladder_K)`
+replicas, each at a different temperature, and attempts swaps between
+adjacent replicas every `exchange_attempt_period_ps` picoseconds. Requires
+`openmmtools.multistate` at script-runtime.
+
+The temperature ladder should be exponentially spaced over the range of
+interest (e.g. 300, 320, 342, 365, ... K) so adjacent-replica energy
+overlap stays usable. The validation gate enforces strict monotonicity.
+"""
+struct REMDStage <: Stage
+    temperature_ladder_K::Vector{Float64}
+    duration_per_replica_ns::Float64
+    exchange_attempt_period_ps::Float64
+    ensemble::Symbol              # :NVT | :NPT
+    pressure_bar::Union{Nothing,Float64}
+    dt_fs::Float64
+    thermostat::Symbol
+    friction_ps::Float64
+    constraints::Symbol
+end
+
+REMDStage(;
+    temperature_ladder_K,
+    duration_per_replica_ns=0.5,
+    exchange_attempt_period_ps=1.0,
+    ensemble=:NVT,
+    pressure_bar=nothing,
+    dt_fs=2.0,
+    thermostat=:langevin,
+    friction_ps=1.0,
+    constraints=:h_bonds,
+) = REMDStage(temperature_ladder_K, duration_per_replica_ns,
+              exchange_attempt_period_ps, ensemble, pressure_bar, dt_fs,
+              thermostat, friction_ps, constraints)
+
+"""
+    MetadynamicsStage <: Stage
+
+Metadynamics with one or more collective variables (CVs). Bias deposits
+gaussians on the CV-space potential at `bias_deposit_period_ps` cadence.
+Requires `openmm-plumed` at script-runtime; the renderer emits a PLUMED
+script block which `openmm-plumed` evaluates as an OpenMM Force.
+
+CV kinds (`Crucible.CollectiveVariable`):
+  - `:distance`   selects two atom groups (or atoms); unit nm
+  - `:angle`      selects three atom groups; unit rad
+  - `:dihedral`   selects four atom groups; unit rad
+  - `:rmsd`       reference structure path + selection; unit nm
+"""
+struct CollectiveVariable
+    kind::Symbol                  # :distance | :angle | :dihedral | :rmsd
+    name::String                  # PLUMED label, e.g. "d1"
+    selection::String             # OpenMM-style atom selection
+    reference::Union{Nothing,String} # path to reference PDB for :rmsd
+    sigma::Float64                # gaussian width in CV units
+end
+
+CollectiveVariable(; kind, name, selection, reference=nothing, sigma=0.1) =
+    CollectiveVariable(kind, name, selection, reference, sigma)
+
+struct MetadynamicsStage <: Stage
+    cvs::Vector{CollectiveVariable}
+    bias_height_kj_mol::Float64
+    bias_deposit_period_ps::Float64
+    duration_ns::Float64
+    well_tempered::Bool
+    bias_factor::Float64          # well-tempered γ (1.0 = standard MD)
+    ensemble::Symbol
+    temperature_K::Float64
+    pressure_bar::Union{Nothing,Float64}
+    dt_fs::Float64
+    thermostat::Symbol
+    friction_ps::Float64
+    constraints::Symbol
+end
+
+MetadynamicsStage(;
+    cvs,
+    bias_height_kj_mol=1.0,
+    bias_deposit_period_ps=1.0,
+    duration_ns=10.0,
+    well_tempered=true,
+    bias_factor=10.0,
+    ensemble=:NVT,
+    temperature_K=300.0,
+    pressure_bar=nothing,
+    dt_fs=2.0,
+    thermostat=:langevin,
+    friction_ps=1.0,
+    constraints=:h_bonds,
+) = MetadynamicsStage(cvs, bias_height_kj_mol, bias_deposit_period_ps,
+                     duration_ns, well_tempered, bias_factor, ensemble,
+                     temperature_K, pressure_bar, dt_fs, thermostat,
+                     friction_ps, constraints)
 
 """
     FEPStage <: Stage
@@ -215,10 +329,22 @@ function required_features(spec::MDSpec)::Set{Symbol}
     feats = Set{Symbol}()
     spec.system.solvent.model == :implicit_GBSA && push!(feats, :implicit_solvent)
     spec.system.solvent.model in (:TIP3P, :TIP4P_EW, :SPC_E) && push!(feats, :explicit_solvent)
+    spec.system.solvent.membrane !== nothing && push!(feats, :membrane, :anisotropic_barostat)
     spec.system.has_ligand && push!(feats, :ligand)
     for s in spec.protocol
         if s isa FEPStage
             push!(feats, :alchemy)
+            s.ensemble == :NPT && (push!(feats, :npt); push!(feats, :barostat))
+            continue
+        end
+        if s isa REMDStage
+            push!(feats, :remd, :multi_replica)
+            length(s.temperature_ladder_K) >= 4 && push!(feats, :multi_gpu_eligible)
+            s.ensemble == :NPT && (push!(feats, :npt); push!(feats, :barostat))
+            continue
+        end
+        if s isa MetadynamicsStage
+            push!(feats, :metadynamics, :biased_sampling, :plumed)
             s.ensemble == :NPT && (push!(feats, :npt); push!(feats, :barostat))
             continue
         end
@@ -264,12 +390,21 @@ function spec_to_json(spec::MDSpec)::String
             "solvent" => Dict(
                 "model"        => String(spec.system.solvent.model),
                 "ions_NaCl_mM" => spec.system.solvent.ions_NaCl_mM,
+                "membrane"     => spec.system.solvent.membrane === nothing ?
+                                  nothing :
+                                  Dict(
+                                      "composition"        => String(spec.system.solvent.membrane.composition),
+                                      "n_lipids"           => spec.system.solvent.membrane.n_lipids,
+                                      "chol_mol_fraction"  => spec.system.solvent.membrane.chol_mol_fraction,
+                                  ),
             ),
         ),
         "force_field" => Dict(
             "protein" => String(spec.force_field.protein),
             "water"   => String(spec.force_field.water),
             "ligand"  => String(spec.force_field.ligand),
+            "lipid"   => spec.force_field.lipid === nothing ? nothing :
+                         String(spec.force_field.lipid),
         ),
         "protocol" => [stage_to_dict(s) for s in spec.protocol],
         "observables" => [Dict(
@@ -294,6 +429,46 @@ function stage_to_dict(s::MinimizeStage)
     Dict("kind" => "minimize",
          "max_iterations" => s.max_iterations,
          "tolerance_kj_mol_nm" => s.tolerance_kj_mol_nm)
+end
+
+function stage_to_dict(s::REMDStage)
+    Dict(
+        "kind"                       => "remd",
+        "temperature_ladder_K"       => s.temperature_ladder_K,
+        "duration_per_replica_ns"    => s.duration_per_replica_ns,
+        "exchange_attempt_period_ps" => s.exchange_attempt_period_ps,
+        "ensemble"                   => String(s.ensemble),
+        "pressure_bar"               => s.pressure_bar,
+        "dt_fs"                      => s.dt_fs,
+        "thermostat"                 => String(s.thermostat),
+        "friction_ps"                => s.friction_ps,
+        "constraints"                => String(s.constraints),
+    )
+end
+
+function stage_to_dict(s::MetadynamicsStage)
+    Dict(
+        "kind"                   => "metadynamics",
+        "cvs" => [Dict(
+            "kind"      => String(cv.kind),
+            "name"      => cv.name,
+            "selection" => cv.selection,
+            "reference" => cv.reference,
+            "sigma"     => cv.sigma,
+        ) for cv in s.cvs],
+        "bias_height_kj_mol"     => s.bias_height_kj_mol,
+        "bias_deposit_period_ps" => s.bias_deposit_period_ps,
+        "duration_ns"            => s.duration_ns,
+        "well_tempered"          => s.well_tempered,
+        "bias_factor"            => s.bias_factor,
+        "ensemble"               => String(s.ensemble),
+        "temperature_K"          => s.temperature_K,
+        "pressure_bar"           => s.pressure_bar,
+        "dt_fs"                  => s.dt_fs,
+        "thermostat"             => String(s.thermostat),
+        "friction_ps"            => s.friction_ps,
+        "constraints"            => String(s.constraints),
+    )
 end
 
 function stage_to_dict(s::FEPStage)
@@ -350,12 +525,22 @@ function spec_from_json(json_str::AbstractString)::MDSpec
         SolventSpec(
             model        = Symbol(obj.system.solvent.model),
             ions_NaCl_mM = obj.system.solvent.ions_NaCl_mM,
+            membrane     = let m = get(obj.system.solvent, :membrane, nothing)
+                m === nothing ? nothing : LipidBilayer(
+                    composition       = Symbol(m.composition),
+                    n_lipids          = Int(m.n_lipids),
+                    chol_mol_fraction = Float64(m.chol_mol_fraction),
+                )
+            end,
         ),
     )
     ff = ForceFieldSpec(
         protein = Symbol(obj.force_field.protein),
         water   = Symbol(obj.force_field.water),
         ligand  = Symbol(obj.force_field.ligand),
+        lipid   = let l = get(obj.force_field, :lipid, nothing)
+            l === nothing ? nothing : Symbol(l)
+        end,
     )
     protocol = Stage[stage_from_dict(s) for s in obj.protocol]
     observables = Observable[
@@ -388,6 +573,43 @@ function stage_from_dict(s)
         MinimizeStage(
             max_iterations      = s.max_iterations,
             tolerance_kj_mol_nm = s.tolerance_kj_mol_nm,
+        )
+    elseif String(s.kind) == "remd"
+        REMDStage(
+            temperature_ladder_K       = Float64[Float64(x) for x in s.temperature_ladder_K],
+            duration_per_replica_ns    = Float64(s.duration_per_replica_ns),
+            exchange_attempt_period_ps = Float64(s.exchange_attempt_period_ps),
+            ensemble                   = Symbol(s.ensemble),
+            pressure_bar               = s.pressure_bar === nothing ? nothing : Float64(s.pressure_bar),
+            dt_fs                      = Float64(s.dt_fs),
+            thermostat                 = Symbol(s.thermostat),
+            friction_ps                = Float64(s.friction_ps),
+            constraints                = Symbol(s.constraints),
+        )
+    elseif String(s.kind) == "metadynamics"
+        MetadynamicsStage(
+            cvs = CollectiveVariable[
+                CollectiveVariable(
+                    kind      = Symbol(cv.kind),
+                    name      = String(cv.name),
+                    selection = String(cv.selection),
+                    reference = get(cv, :reference, nothing) === nothing ?
+                                nothing : String(cv.reference),
+                    sigma     = Float64(cv.sigma),
+                ) for cv in s.cvs
+            ],
+            bias_height_kj_mol     = Float64(s.bias_height_kj_mol),
+            bias_deposit_period_ps = Float64(s.bias_deposit_period_ps),
+            duration_ns            = Float64(s.duration_ns),
+            well_tempered          = Bool(s.well_tempered),
+            bias_factor            = Float64(s.bias_factor),
+            ensemble               = Symbol(s.ensemble),
+            temperature_K          = Float64(s.temperature_K),
+            pressure_bar           = s.pressure_bar === nothing ? nothing : Float64(s.pressure_bar),
+            dt_fs                  = Float64(s.dt_fs),
+            thermostat             = Symbol(s.thermostat),
+            friction_ps            = Float64(s.friction_ps),
+            constraints            = Symbol(s.constraints),
         )
     elseif String(s.kind) == "free_energy"
         FEPStage(

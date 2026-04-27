@@ -15,11 +15,20 @@ Greenfield Julia app: a researcher uploads a paper (PDF, arXiv ID, bioRxiv DOI, 
 The v1+ items below were partly closed in v1.0:
 
 - **SMILES → ligand parameters**: `OpenFFParameterizer` is now a real subprocess implementation (openff-toolkit + Interchange). New SystemSource types `:smiles` (pure ligand) and `:protein_ligand` (PDBFixer + SMIRNOFFTemplateGenerator at script-runtime). The BYO-topology gate goes away for the common protein + small-molecule case.
-- **Alchemical free-energy methods**: `FEPStage` ships with `:decouple` / `:annihilate` modes, λ windowing, and an `openmmtools.alchemy`-based renderer that emits `u_kln.csv` for downstream MBAR analysis. REMD / metadynamics / QM/MM / membranes still deferred.
+- **Alchemical free-energy methods**: `FEPStage` ships with `:decouple` / `:annihilate` modes, λ windowing, and an `openmmtools.alchemy`-based renderer that emits `u_kln.csv` for downstream MBAR analysis.
 - **Web frontend**: `WebRenderer` is no longer a stub — `crucible serve` boots an HTTP.jl-based single-page UI + JSON API for the full pipeline. Genie.jl deliberately NOT used (overweight for the endpoint surface).
 - **Local LLM provider**: `LocalProvider` is real (OpenAI-compatible: vLLM / Ollama / llama.cpp).
 
-Still deferred to v1.5+: enhanced sampling beyond FEP, QM/MM, membranes, plumed, multi-GPU orchestration, fine-tuned chem-LLM, actual cloud provisioning.
+## v1.5 update (2026-04-26) — enhanced sampling + membranes
+
+The remaining v1+ items closed in v1.5:
+
+- **REMD** (`REMDStage`): `openmmtools.multistate.ParallelTemperingSampler` renderer, multistate netcdf output for WHAM/MBAR, T-ladder validation rule (strictly increasing + acceptance-ratio warning).
+- **Metadynamics** (`MetadynamicsStage` + `CollectiveVariable`): `openmm-plumed` renderer with up to 8 CVs (distance/angle/dihedral/RMSD), well-tempered + bias-factor support.
+- **Membrane systems**: `LipidBilayer` in `SolventSpec`, `:charmm36_lipid` / `:lipid21` / `:slipids` in the FF allowlist, automatic `MonteCarloMembraneBarostat` (XYIsotropic, ZFree) for NPT stages.
+- **Multi-GPU advisor**: A100x4/x8, L4x4 candidates with `default_gpu_count` + `multi_gpu_factor`. Become competitive only when `n_replicas >= default_gpu_count`.
+
+Still deferred to v2+: QM/MM, constant-pH MD, explicit Martini coarse-graining (beyond Molly's CG sweet spot), fine-tuned chem-LLM (needs ~1k logged sessions), actual cloud provisioning.
 
 ## Non-goals (deferred; do not build in v0)
 

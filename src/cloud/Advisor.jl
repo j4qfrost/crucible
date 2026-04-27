@@ -47,17 +47,41 @@ function advise(spec::MDSpec; budget_hours::Real=6.0, prefer_cloud::Symbol=:gcp,
     backend_mult = Float64(get(multipliers, String(backend_name), 1.0))
 
     n_atoms = max(1, spec.system.n_atoms_estimate)
-    total_ns = sum(s isa DynamicsStage ? s.duration_ns : 0.0 for s in spec.protocol)
+    total_ns = 0.0
+    n_replicas = 1
+    for s in spec.protocol
+        if s isa DynamicsStage
+            total_ns += s.duration_ns
+        elseif s isa FEPStage
+            total_ns += length(s.lambda_windows) * s.duration_per_window_ns
+        elseif s isa REMDStage
+            # Each replica does duration_per_replica_ns of MD; total compute
+            # is K * duration. Multi-GPU drops wall-clock for the eligible
+            # candidates (handled below).
+            total_ns += length(s.temperature_ladder_K) * s.duration_per_replica_ns
+            n_replicas = max(n_replicas, length(s.temperature_ladder_K))
+        elseif s isa MetadynamicsStage
+            total_ns += s.duration_ns
+        end
+    end
     total_ns = max(total_ns + 0.5, 0.5)   # +0.5 ns equilibration overhead
 
     candidates = CloudCandidate[]
     for (gpu, t) in bench["gpu"]
         ns_per_day_base = Float64(t["ns_per_day_baseline"])
-        # Linear inverse scaling with atom count above baseline; cap above
-        # baseline so tiny systems don't claim absurd throughput.
         scale = baseline_atoms / max(n_atoms, baseline_atoms / 4)
         ns_per_day = ns_per_day_base * backend_mult * scale
-        runtime_hours = (total_ns / max(ns_per_day, 1e-9)) * 24
+        # Multi-replica workloads (REMD) benefit from multiple GPUs only for
+        # GPU types whose benchmark entry includes a `multi_gpu_factor`. The
+        # factor is the fraction of perfect linear scaling (typical: 0.85
+        # for an A100 4-GPU node, 0.7 for an L4 cluster). We treat the
+        # advertised throughput as the per-GPU throughput, and divide
+        # wall-clock by the parallelism factor.
+        gpu_count = max(1, Int(get(t, "default_gpu_count", 1)))
+        parallelism = gpu_count >= n_replicas ? n_replicas :
+                      gpu_count
+        eff_factor = parallelism * Float64(get(t, "multi_gpu_factor", 1.0))
+        runtime_hours = (total_ns / max(ns_per_day, 1e-9)) * 24 / max(eff_factor, 1.0)
         cost = runtime_hours * Float64(t["on_demand_usd_per_hour"])
         push!(candidates, CloudCandidate(
             gpu, ns_per_day, runtime_hours, cost,
@@ -98,6 +122,12 @@ function advise(spec::MDSpec; budget_hours::Real=6.0, prefer_cloud::Symbol=:gcp,
     end
     if backend_name == :molly && n_atoms > 50_000
         push!(warnings, "Molly backend selected with n_atoms=$(n_atoms); OpenMM backend would likely be ~3x faster")
+    end
+    if n_replicas > 1
+        push!(warnings,
+            "spec requires $(n_replicas) parallel replicas; multi-GPU instances " *
+            "(a2-highgpu-Ng on GCP, p4d.24xlarge on AWS) will finish in roughly " *
+            "1/$(n_replicas) the wall-clock at proportional cost")
     end
 
     AdvisorRecommendation(candidates, chosen, reason, warnings, requires_confirm)

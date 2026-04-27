@@ -18,4 +18,7 @@ using Crucible
     include("smiles_test.jl")
     include("fep_test.jl")
     include("web_test.jl")
+    include("remd_test.jl")
+    include("metadynamics_test.jl")
+    include("membrane_test.jl")
 end

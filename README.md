@@ -16,20 +16,23 @@ The user shell is a Pluto.jl notebook.
 
 ## Status
 
-v1.0 (active development). See `docs/PLAN.md` for the full design and roadmap.
+v1.5 (active development). See `docs/PLAN.md` for the full design and roadmap.
 
 | Component        | Count | Items                                                |
 |------------------|-------|------------------------------------------------------|
-| Tests            | 240+  | offline; +5 with `CRUCIBLE_RUN_OPENMM=1`             |
+| Tests            | 386   | offline; +5 with `CRUCIBLE_RUN_OPENMM=1`             |
 | Backends         | 3+1   | `MollyBackend`, `OpenMMBackend`, `KineticsBackend` (stub) |
 | LLM providers    | 3     | `AnthropicProvider`, `RecordedProvider`, `LocalProvider` (real, OpenAI-compat) |
 | Input adapters   | 4     | PDF, arXiv, bioRxiv, raw notes (PDFs auto-extracted via `pdftotext`) |
 | Output renderers | 4     | `PlutoRenderer`, `MarkdownRenderer`, `NotebookRenderer`, `WebRenderer` (real HTTP) |
 | CLI subcommands  | 11    | `transpile`, `validate`, `render`, `advise`, `summarize`, `diff`, `walkthrough`, `info`, `parameterize`, `verify`, `serve` |
 | Source types     | 5     | `:user_supplied`, `:pdb_id`, `:pdb_fetch`, `:smiles`, `:protein_ligand` |
-| Stage types      | 3     | `MinimizeStage`, `DynamicsStage`, `FEPStage` (alchemical FEP) |
+| Stage types      | 5     | `MinimizeStage`, `DynamicsStage`, `FEPStage`, `REMDStage`, `MetadynamicsStage` |
+| Solvent extras   | —     | `LipidBilayer` for membrane systems (`:POPC`, `:POPE`, `:DPPC`, `:mixed_POPC_chol`) |
+| Lipid FFs        | 3     | `:charmm36_lipid`, `:lipid21`, `:slipids` (auto MonteCarloMembraneBarostat) |
 | Validation gates | 5     | schema, semantic, loadability, preview, user-confirm |
-| Examples         | 7     | `walkthrough.jl`, `walkthrough_notebook.jl`, `lifecycle.jl`, `from_methods.jl`, `from_smiles.jl`, `protein_ligand_fep.jl`, `smoke_alanine_dipeptide.sh` |
+| Cloud GPUs       | 8     | T4, L4, A10G, A100, H100, V100 + multi-GPU (A100x4/8, L4x4) for REMD |
+| Examples         | 9     | `walkthrough.jl`, `walkthrough_notebook.jl`, `lifecycle.jl`, `from_methods.jl`, `from_smiles.jl`, `protein_ligand_fep.jl`, `remd_protein_folding.jl`, `membrane_protein.jl`, `smoke_alanine_dipeptide.sh` |
 | Tools            | 4     | `check.sh`, `regenerate_docs.jl`, `regenerate_fixtures.sh`, `sync_remotes.sh` |
 
 ### What works (v0–v0.4)
@@ -60,8 +63,9 @@ v1.0 (active development). See `docs/PLAN.md` for the full design and roadmap.
   separate pipeline step on Julia 1.10
 - `examples/walkthrough.jl` for a no-API-key end-to-end demo
 
-### What works (v1.0 — heavy lifts shipped)
+### What works (v1.0 / v1.5 — heavy lifts shipped)
 
+v1.0:
 - **SMILES → AMBER topology** via `OpenFFParameterizer` (subprocess: openff-toolkit
   + Interchange). Two new SystemSource types: `:smiles` (pure ligand) and
   `:protein_ligand` (PDBFixer + OpenFF + SMIRNOFFTemplateGenerator at runtime)
@@ -71,11 +75,26 @@ v1.0 (active development). See `docs/PLAN.md` for the full design and roadmap.
   transpile / validate / render / advise / parameterize. HTTP.jl, no Genie dep
 - **Real `LocalProvider`** (OpenAI-compatible: vLLM / Ollama / llama.cpp)
 
-### Explicitly deferred (v1.5+)
+v1.5:
+- **REMD** (`REMDStage`): temperature-ladder replica exchange, renderer emits
+  `openmmtools.multistate.ParallelTemperingSampler` + multistate netcdf for
+  WHAM/MBAR. Acceptance heuristic warns on aggressive ladder ratios.
+- **Metadynamics** (`MetadynamicsStage` + `CollectiveVariable`): up to 8 CVs
+  (distance/angle/dihedral/RMSD), well-tempered + bias-factor support, renderer
+  emits an `openmm-plumed` PLUMED block
+- **Membrane systems**: `LipidBilayer` in `SolventSpec`, lipid21 / charmm36_lipid
+  FF allowlist, automatic switch from `MonteCarloBarostat` to `MonteCarloMembraneBarostat`
+  (XYIsotropic, ZFree) for NPT in the renderer
+- **Multi-GPU advisor candidates** (A100x4/x8, L4x4) become competitive when
+  the spec demands replicas
 
-- Enhanced sampling (REMD, metadynamics), QM/MM, membranes, plumed
-- Multi-GPU / multi-replica orchestration
+### Explicitly deferred (v2+)
+
+- QM/MM (CP2K / TeraChem / Psi4 integration)
+- Constant-pH MD
+- Coarse-grained MD (Martini explicit support beyond Molly's CG sweet spot)
 - Fine-tuned LLM provider against the Crucible-collected transcript corpus
+  (Phase B/C/D of the option-3 roadmap; needs ~1k logged sessions first)
 - Actual cloud provisioning (advisor outputs commands; you run them)
 
 ## Hard rule
@@ -144,6 +163,10 @@ step):
   + OpenFFParameterizer end-to-end (ethanol-in-vacuum)
 - [`examples/protein_ligand_fep.jl`](examples/protein_ligand_fep.jl) — `:protein_ligand`
   source + `FEPStage` decoupling λ-windowing scaffolding
+- [`examples/remd_protein_folding.jl`](examples/remd_protein_folding.jl) — 8-replica
+  temperature-REMD via `openmmtools.multistate`
+- [`examples/membrane_protein.jl`](examples/membrane_protein.jl) — GPCR in POPC
+  bilayer with `MonteCarloMembraneBarostat`
 
 ## How the option-3 flywheel works
 

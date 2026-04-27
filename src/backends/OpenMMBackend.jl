@@ -17,7 +17,8 @@ backend_name(b::OpenMMBackend) = b.name
 function supported_features(::OpenMMBackend)::Set{Symbol}
     Set([:pme, :npt, :nvt, :nve, :explicit_solvent, :implicit_solvent, :ligand,
          :barostat, :thermostat, :constraints, :langevin, :monte_carlo, :gpu,
-         :alchemy])
+         :alchemy, :remd, :metadynamics, :biased_sampling, :plumed,
+         :multi_replica, :membrane])
 end
 
 function validate_spec(b::OpenMMBackend, spec::MDSpec)::ValidationReport
@@ -277,7 +278,6 @@ function _emit_forcefield(spec::MDSpec)
     elseif ff.protein == :charmm36m
         push!(ff_files, "charmm36.xml")
     elseif ff.protein == :opls_aam
-        # OPLS-AA/M needs a separate XML; flag for user
         print(io, "# WARNING: opls_aam requires user-supplied OPLS XML; falling back to amber14-all\n")
         push!(ff_files, "amber14-all.xml")
     end
@@ -289,8 +289,16 @@ function _emit_forcefield(spec::MDSpec)
         push!(ff_files, "amber14/spce.xml")
     elseif ff.water == :implicit_GBSA
         push!(ff_files, "implicit/gbn2.xml")
-    elseif ff.water == :vacuum
-        # no water FF
+    end
+    if ff.lipid !== nothing
+        if ff.lipid == :charmm36_lipid
+            push!(ff_files, "charmm36/lipid17.xml")
+        elseif ff.lipid == :lipid21
+            push!(ff_files, "amber14/lipid21.xml")
+        elseif ff.lipid == :slipids
+            print(io, "# NOTE: slipids requires user-supplied SLIPIDS XML; falling back to lipid21\n")
+            push!(ff_files, "amber14/lipid21.xml")
+        end
     end
     files_repr = "[" * join((repr(f) for f in ff_files), ", ") * "]"
     print(io, "if not _use_amber:\n")
@@ -337,6 +345,14 @@ function _emit_protocol(spec::MDSpec)
             print(io, _emit_fep_stage(stage, i))
             continue
         end
+        if stage isa REMDStage
+            print(io, _emit_remd_stage(stage, i))
+            continue
+        end
+        if stage isa MetadynamicsStage
+            print(io, _emit_metadynamics_stage(stage, i))
+            continue
+        end
         if stage isa MinimizeStage
             print(io, "# Stage ", i, ": minimize\n")
             print(io, "_min_integrator = LangevinMiddleIntegrator(300*unit.kelvin, 1.0/unit.picosecond, 0.001*unit.picoseconds)\n")
@@ -366,11 +382,22 @@ function _emit_protocol(spec::MDSpec)
                           "*unit.kelvin, ", stage.friction_ps, "/unit.picosecond, ",
                           stage.dt_fs, "*unit.femtoseconds)\n")
             end
-            # NPT: add barostat as a force in the system, then create the simulation
+            # NPT: add barostat as a force in the system, then create the simulation.
+            # Membrane systems use MonteCarloMembraneBarostat for semi-isotropic
+            # coupling (XY isotropic, Z independent — physically correct for bilayers).
             if stage.ensemble == :NPT
                 p = stage.pressure_bar === nothing ? 1.0 : stage.pressure_bar
-                print(io, "_baro = MonteCarloBarostat(", p, "*unit.bar, ",
-                          stage.temperature_K, "*unit.kelvin, 25)\n")
+                if spec.system.solvent.membrane !== nothing
+                    print(io, "from openmm import MonteCarloMembraneBarostat\n")
+                    print(io, "_baro = MonteCarloMembraneBarostat(", p, "*unit.bar, ",
+                              "0.0*unit.bar*unit.nanometer, ",   # surface tension γ=0
+                              stage.temperature_K, "*unit.kelvin,\n",
+                              "    MonteCarloMembraneBarostat.XYIsotropic, ",
+                              "MonteCarloMembraneBarostat.ZFree, 25)\n")
+                else
+                    print(io, "_baro = MonteCarloBarostat(", p, "*unit.bar, ",
+                              stage.temperature_K, "*unit.kelvin, 25)\n")
+                end
                 print(io, "_baro_index = system.addForce(_baro)\n")
             end
             print(io, "_sim = Simulation(topology, system, _integrator, platform)\n")
@@ -443,6 +470,125 @@ function _emit_protocol(spec::MDSpec)
             print(io, "del _sim, _integrator\n\n")
         end
     end
+    String(take!(io))
+end
+
+function _emit_remd_stage(stage::REMDStage, i::Int)
+    io = IOBuffer()
+    K = length(stage.temperature_ladder_K)
+    print(io, "# Stage ", i, ": REMD (", K, " replicas across ",
+              round(first(stage.temperature_ladder_K); digits=1), "–",
+              round(last(stage.temperature_ladder_K); digits=1), " K, ",
+              stage.duration_per_replica_ns, " ns each)\n")
+    print(io, "# Requires openmmtools.multistate at runtime — install via\n")
+    print(io, "#   pip install openmmtools mpiplus  (mpi optional, single-node falls back to threads)\n")
+    print(io, "from openmmtools import states as _omt_states, mcmc as _omt_mcmc\n")
+    print(io, "from openmmtools.multistate import ParallelTemperingSampler, MultiStateReporter\n")
+    print(io, "from openmm import unit as _u\n")
+    print(io, "_temps_K = ", repr_pylist(stage.temperature_ladder_K), "\n")
+    n_steps = ns_to_steps(stage.duration_per_replica_ns, stage.dt_fs)
+    exch_steps = max(1, ps_to_steps(stage.exchange_attempt_period_ps, stage.dt_fs))
+    n_iterations = max(1, div(n_steps, exch_steps))
+    print(io, "_n_iter = ", n_iterations, "\n")
+    print(io, "_steps_per_iter = ", exch_steps, "\n")
+    print(io, "_thermo_states = [_omt_states.ThermodynamicState(system=system, temperature=T*_u.kelvin")
+    if stage.ensemble == :NPT
+        p = stage.pressure_bar === nothing ? 1.0 : stage.pressure_bar
+        print(io, ", pressure=", p, "*_u.bar")
+    end
+    print(io, ") for T in _temps_K]\n")
+    print(io, "_sampler_state = _omt_states.SamplerState(positions=current_positions)\n")
+    print(io, "_move = _omt_mcmc.LangevinSplittingDynamicsMove(\n")
+    print(io, "    timestep=", stage.dt_fs, "*_u.femtoseconds,\n")
+    print(io, "    collision_rate=", stage.friction_ps, "/_u.picosecond,\n")
+    print(io, "    n_steps=_steps_per_iter, reassign_velocities=False)\n")
+    print(io, "_remd_storage = os.path.join(OUTPUT_DIR, ", repr("remd_$(i).nc"), ")\n")
+    print(io, "if os.path.exists(_remd_storage): os.remove(_remd_storage)\n")
+    print(io, "_reporter = MultiStateReporter(_remd_storage, checkpoint_interval=_n_iter)\n")
+    print(io, "_sampler = ParallelTemperingSampler(mcmc_moves=_move, number_of_iterations=_n_iter)\n")
+    print(io, "_sampler.create(thermodynamic_states=_thermo_states, sampler_states=_sampler_state, storage=_reporter)\n")
+    print(io, "_remd_iterations = _cap(_n_iter)\n")
+    print(io, "if _remd_iterations < _n_iter:\n")
+    print(io, "    _sampler.number_of_iterations = _remd_iterations\n")
+    print(io, "_sampler.run()\n")
+    print(io, "# Extract acceptance + replica-state matrix for downstream analysis\n")
+    print(io, "_mix = _sampler._mix_replicas\n")
+    print(io, "print('REMD: completed', _sampler.iteration, 'iterations across', len(_temps_K), 'replicas')\n")
+    print(io, "_acc_path = os.path.join(OUTPUT_DIR, ", repr("remd_$(i)_acceptance.csv"), ")\n")
+    print(io, "with open(_acc_path, 'w') as _f:\n")
+    print(io, "    _f.write('rung_low_K,rung_high_K\\n')\n")
+    print(io, "    for _k in range(len(_temps_K)-1):\n")
+    print(io, "        _f.write(str(_temps_K[_k]) + ',' + str(_temps_K[_k+1]) + '\\n')\n")
+    print(io, "# Promote replica-0 (lowest T) state for the next stage\n")
+    print(io, "_final_state = _sampler.sampler_states[0]\n")
+    print(io, "current_positions = _final_state.positions\n")
+    print(io, "current_velocities = _final_state.velocities\n")
+    print(io, "del _sampler, _reporter, _move, _thermo_states\n\n")
+    String(take!(io))
+end
+
+function _emit_metadynamics_stage(stage::MetadynamicsStage, i::Int)
+    io = IOBuffer()
+    print(io, "# Stage ", i, ": metadynamics (", length(stage.cvs), " CVs, ",
+              stage.duration_ns, " ns",
+              stage.well_tempered ? ", well-tempered γ=$(stage.bias_factor)" : "",
+              ")\n")
+    print(io, "# Requires openmm-plumed at runtime — install via\n")
+    print(io, "#   conda install -c conda-forge openmm-plumed plumed\n")
+    print(io, "from openmmplumed import PlumedForce\n")
+    # Build the PLUMED script as a multi-line python string.
+    print(io, "_plumed = (\n")
+    for cv in stage.cvs
+        if cv.kind == :distance
+            print(io, "    '", cv.name, ": DISTANCE ATOMS=", cv.selection, "\\n'\n")
+        elseif cv.kind == :angle
+            print(io, "    '", cv.name, ": ANGLE ATOMS=", cv.selection, "\\n'\n")
+        elseif cv.kind == :dihedral
+            print(io, "    '", cv.name, ": TORSION ATOMS=", cv.selection, "\\n'\n")
+        elseif cv.kind == :rmsd
+            ref = cv.reference === nothing ? "REFERENCE" : cv.reference
+            print(io, "    '", cv.name, ": RMSD REFERENCE=", ref, " TYPE=OPTIMAL\\n'\n")
+        end
+    end
+    cv_arg = join((cv.name for cv in stage.cvs), ",")
+    sigma_arg = join((string(cv.sigma) for cv in stage.cvs), ",")
+    pace = max(1, ps_to_steps(stage.bias_deposit_period_ps, stage.dt_fs))
+    print(io, "    'metad: METAD ARG=", cv_arg, " SIGMA=", sigma_arg,
+              " HEIGHT=", stage.bias_height_kj_mol, " PACE=", pace,
+              " FILE=", "HILLS_$i")
+    if stage.well_tempered
+        print(io, " BIASFACTOR=", stage.bias_factor, " TEMP=", stage.temperature_K)
+    end
+    print(io, "\\n'\n")
+    print(io, "    'PRINT ARG=", cv_arg, ",metad.bias FILE=COLVAR_$i STRIDE=", pace, "\\n'\n")
+    print(io, ")\n")
+    print(io, "_plumed_force = PlumedForce(_plumed)\n")
+    print(io, "_plumed_index = system.addForce(_plumed_force)\n")
+    print(io, "_meta_integrator = LangevinMiddleIntegrator(", stage.temperature_K,
+              "*unit.kelvin, ", stage.friction_ps, "/unit.picosecond, ",
+              stage.dt_fs, "*unit.femtoseconds)\n")
+    if stage.ensemble == :NPT
+        p = stage.pressure_bar === nothing ? 1.0 : stage.pressure_bar
+        print(io, "_meta_baro = MonteCarloBarostat(", p, "*unit.bar, ",
+                  stage.temperature_K, "*unit.kelvin, 25)\n")
+        print(io, "_meta_baro_index = system.addForce(_meta_baro)\n")
+    end
+    print(io, "_meta_sim = Simulation(topology, system, _meta_integrator, platform)\n")
+    print(io, "_meta_sim.context.setPositions(current_positions)\n")
+    print(io, "if current_velocities is not None:\n")
+    print(io, "    _meta_sim.context.setVelocities(current_velocities)\n")
+    print(io, "else:\n")
+    print(io, "    _meta_sim.context.setVelocitiesToTemperature(", stage.temperature_K, "*unit.kelvin)\n")
+    n_steps = ns_to_steps(stage.duration_ns, stage.dt_fs)
+    print(io, "_meta_sim.step(_cap(", n_steps, "))\n")
+    print(io, "_state = _meta_sim.context.getState(getPositions=True, getVelocities=True)\n")
+    print(io, "current_positions = _state.getPositions(asNumpy=True)\n")
+    print(io, "current_velocities = _state.getVelocities(asNumpy=True)\n")
+    if stage.ensemble == :NPT
+        print(io, "system.removeForce(_meta_baro_index)\n")
+    end
+    print(io, "system.removeForce(_plumed_index)\n")
+    print(io, "del _meta_sim, _meta_integrator, _plumed_force\n\n")
     String(take!(io))
 end
 

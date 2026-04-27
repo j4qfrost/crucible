@@ -32,6 +32,7 @@ Auto-generated from `src/spec/schema.json` by `tools/regenerate_docs.jl`. Do not
 
 | field | type | required | notes |
 |-------|------|----------|-------|
+| `membrane` | oneOf | — |  |
 | `model` | enum: `TIP3P`, `TIP4P_EW`, `SPC_E`, `implicit_GBSA`, `vacuum` | ✓ |  |
 | `ions_NaCl_mM` | `number` | ✓ | min=0; max=5000 |
 
@@ -54,6 +55,7 @@ Auto-generated from `src/spec/schema.json` by `tools/regenerate_docs.jl`. Do not
 | `water` | enum: `TIP3P`, `TIP4P_EW`, `SPC_E`, `implicit_GBSA`, `vacuum` | ✓ |  |
 | `protein` | enum: `amber14sb`, `amber99sb_ildn`, `amber03`, `charmm36m`, `opls_aam` | ✓ |  |
 | `ligand` | enum: `user_supplied`, `gaff2`, `openff_sage_2_2_0` | ✓ |  |
+| `lipid` | oneOf | — |  |
 
 ## `protocol` stages
 
@@ -68,6 +70,44 @@ Each stage is one of two shapes (oneOf):
 | `kind` | `"minimize"` | ✓ |  |
 | `max_iterations` | `integer` | ✓ | min=1; max=1000000 |
 | `tolerance_kj_mol_nm` | `number` | ✓ | min=0; max=1000000 |
+
+### Stage kind: `remd`
+
+### fields
+
+| field | type | required | notes |
+|-------|------|----------|-------|
+| `pressure_bar` | number or null | ✓ |  |
+| `kind` | `"remd"` | ✓ |  |
+| `ensemble` | enum: `NVT`, `NPT` | ✓ |  |
+| `dt_fs` | `number` | ✓ | max=5; > 0 |
+| `thermostat` | enum: `langevin`, `nose_hoover`, `andersen`, `berendsen` | ✓ |  |
+| `friction_ps` | `number` | ✓ | min=0; max=100 |
+| `constraints` | enum: `none`, `h_bonds`, `all_bonds` | ✓ |  |
+| `exchange_attempt_period_ps` | `number` | ✓ | max=1000; > 0 |
+| `duration_per_replica_ns` | `number` | ✓ | max=10000; > 0 |
+| `temperature_ladder_K` | `array` | ✓ | minItems=2 |
+
+### Stage kind: `metadynamics`
+
+### fields
+
+| field | type | required | notes |
+|-------|------|----------|-------|
+| `dt_fs` | `number` | ✓ | max=5; > 0 |
+| `bias_factor` | `number` | ✓ | min=1; max=100 |
+| `bias_deposit_period_ps` | `number` | ✓ | max=1000; > 0 |
+| `cvs` | `array` | ✓ | minItems=1 |
+| `constraints` | enum: `none`, `h_bonds`, `all_bonds` | ✓ |  |
+| `duration_ns` | `number` | ✓ | max=100000; > 0 |
+| `bias_height_kj_mol` | `number` | ✓ | max=1000; > 0 |
+| `well_tempered` | `boolean` | ✓ |  |
+| `kind` | `"metadynamics"` | ✓ |  |
+| `ensemble` | enum: `NVT`, `NPT` | ✓ |  |
+| `temperature_K` | `number` | ✓ | min=0; max=1000 |
+| `thermostat` | enum: `langevin`, `nose_hoover`, `andersen`, `berendsen` | ✓ |  |
+| `friction_ps` | `number` | ✓ | min=0; max=100 |
+| `pressure_bar` | number or null | ✓ |  |
 
 ### Stage kind: `free_energy`
 

@@ -98,6 +98,9 @@ function gate_semantic(spec::MDSpec)::ValidationReport
         _rule_nve_timestep,
         _rule_smiles_source_coherence,
         _rule_fep_lambda_monotonic,
+        _rule_remd_ladder_monotonic,
+        _rule_metadynamics_cv_atoms,
+        _rule_membrane_coherence,
     )
         r = rule(spec, r)
     end
@@ -213,6 +216,115 @@ function _rule_langevin_friction_nonzero(spec::MDSpec, r::ValidationReport)
         if s.thermostat == :langevin && s.friction_ps == 0
             r = record_warning!(r,
                 "stage $i: langevin thermostat with friction_ps=0 is degenerate (no coupling); consider 1.0 ps^-1")
+        end
+    end
+    r
+end
+
+function _rule_membrane_coherence(spec::MDSpec, r::ValidationReport)
+    mem = spec.system.solvent.membrane
+    mem === nothing && return r
+    if spec.force_field.lipid === nothing
+        r = record_error!(r,
+            "system.solvent.membrane is set but force_field.lipid is null — pick one of " *
+            "(:charmm36_lipid, :lipid21, :slipids)")
+    end
+    if spec.system.solvent.model in (:vacuum, :implicit_GBSA)
+        r = record_error!(r,
+            "membrane systems require explicit water (TIP3P / TIP4P_EW / SPC_E); " *
+            "got solvent.model=:$(spec.system.solvent.model)")
+    end
+    if mem.composition == :mixed_POPC_chol && mem.chol_mol_fraction <= 0
+        r = record_error!(r,
+            "system.solvent.membrane.composition=:mixed_POPC_chol requires chol_mol_fraction > 0")
+    end
+    if mem.composition != :mixed_POPC_chol && mem.chol_mol_fraction > 0
+        r = record_warning!(r,
+            "system.solvent.membrane.chol_mol_fraction=$(mem.chol_mol_fraction) is ignored when " *
+            "composition=$(mem.composition); switch to :mixed_POPC_chol to honor it")
+    end
+    # Membrane systems should use anisotropic NPT coupling (semi-isotropic
+    # — XY coupled, Z independent). Crucible's renderer handles this; warn
+    # if the user picked NVT for production (rare for membranes).
+    for (i, s) in enumerate(spec.protocol)
+        if s isa DynamicsStage && s.role == :production && s.ensemble == :NVT
+            r = record_warning!(r,
+                "stage $i: production NVT in a membrane system is unusual; " *
+                "membranes typically run NPT with anisotropic coupling to relax box dimensions")
+            break
+        end
+    end
+    r
+end
+
+function _rule_remd_ladder_monotonic(spec::MDSpec, r::ValidationReport)
+    for (i, s) in enumerate(spec.protocol)
+        s isa REMDStage || continue
+        T = s.temperature_ladder_K
+        if length(T) < 2
+            r = record_error!(r, "stage $i: REMD requires ≥2 temperatures (got $(length(T)))")
+            continue
+        end
+        for k in 2:length(T)
+            if T[k] <= T[k-1]
+                r = record_error!(r,
+                    "stage $i: REMD temperature_ladder_K must be strictly increasing; rung $(k-1)→$k drops or repeats")
+                break
+            end
+        end
+        if any(t -> t < 50 || t > 1000, T)
+            r = record_warning!(r,
+                "stage $i: REMD ladder includes temperatures outside the typical 50–1000 K range")
+        end
+        if s.ensemble == :NPT && s.pressure_bar === nothing
+            r = record_error!(r, "stage $i: REMD NPT ensemble requires pressure_bar to be set")
+        end
+        # Check exchange acceptance heuristic — energy gap scales as
+        # sqrt(N) * (T_{k+1}-T_k); we just warn if any rung is >1.3x of the
+        # previous, which usually gives <20% acceptance for proteins.
+        for k in 2:length(T)
+            ratio = T[k] / T[k-1]
+            if ratio > 1.3
+                r = record_warning!(r,
+                    "stage $i: REMD rung $(k-1)→$k has T-ratio $(round(ratio; digits=2))x (>1.3); " *
+                    "exchange acceptance likely low for systems above ~5k atoms")
+                break
+            end
+        end
+    end
+    r
+end
+
+function _rule_metadynamics_cv_atoms(spec::MDSpec, r::ValidationReport)
+    cv_atom_counts = Dict(:distance => 2, :angle => 3, :dihedral => 4)
+    for (i, s) in enumerate(spec.protocol)
+        s isa MetadynamicsStage || continue
+        if isempty(s.cvs)
+            r = record_error!(r, "stage $i: metadynamics requires ≥1 collective variable")
+            continue
+        end
+        for (j, cv) in enumerate(s.cvs)
+            if cv.kind == :rmsd && (cv.reference === nothing || isempty(cv.reference))
+                r = record_error!(r,
+                    "stage $i: metadynamics CV[$j] kind=:rmsd requires a reference PDB path")
+            end
+            if haskey(cv_atom_counts, cv.kind)
+                # Best-effort count: number of comma-separated atom groups.
+                ngroups = count(==(','), cv.selection) + 1
+                if ngroups != cv_atom_counts[cv.kind]
+                    r = record_warning!(r,
+                        "stage $i: metadynamics CV[$j] kind=:$(cv.kind) typically needs " *
+                        "$(cv_atom_counts[cv.kind]) atom groups in selection (got selection " *
+                        "with $(ngroups) comma-separated entries)")
+                end
+            end
+        end
+        if s.well_tempered && s.bias_factor <= 1.0
+            r = record_error!(r,
+                "stage $i: well_tempered=true requires bias_factor > 1.0 (got $(s.bias_factor))")
+        end
+        if s.ensemble == :NPT && s.pressure_bar === nothing
+            r = record_error!(r, "stage $i: metadynamics NPT ensemble requires pressure_bar")
         end
     end
     r

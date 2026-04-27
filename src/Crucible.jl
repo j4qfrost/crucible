@@ -45,8 +45,9 @@ include("renderers/WebRenderer.jl")
 
 include("cloud/Advisor.jl")
 
-export MDSpec, SystemSpec, SystemSource, SolventSpec, ForceFieldSpec,
-       Stage, MinimizeStage, DynamicsStage, FEPStage, RestraintSpec,
+export MDSpec, SystemSpec, SystemSource, SolventSpec, LipidBilayer, ForceFieldSpec,
+       Stage, MinimizeStage, DynamicsStage, FEPStage, REMDStage,
+       MetadynamicsStage, CollectiveVariable, RestraintSpec,
        Observable, Provenance,
        SpecDiff, diff_specs, migrate_spec_json, register_migration!,
        read_observable_csv, summarize_observable,

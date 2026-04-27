@@ -80,3 +80,45 @@ aws_command         = "aws ec2 run-instances --instance-type p3.2xlarge --image-
 azure_instance      = "Standard_NC6s_v3"
 azure_command       = "az vm create --name crucible-md --resource-group crucible --image microsoft-dsvm:ubuntu-hpc:2204:latest --size Standard_NC6s_v3 --location eastus"
 on_demand_usd_per_hour = 3.06
+
+# -- Multi-GPU entries: only become competitive for REMD / multi-replica
+# workloads. The advisor scales runtime by `default_gpu_count *
+# multi_gpu_factor` (e.g. 4 GPUs at 0.85 efficiency = 3.4x speedup) for
+# specs whose `n_replicas >= default_gpu_count`. Single-replica work pays
+# for idle GPUs and these candidates lose to single-GPU alternatives.
+
+[gpu.A100x4]
+ns_per_day_baseline = 350
+default_gpu_count   = 4
+multi_gpu_factor    = 0.85
+gcp_instance        = "a2-highgpu-4g"
+gcp_command         = "gcloud compute instances create crucible-md --machine-type=a2-highgpu-4g --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
+aws_instance        = "p4d.24xlarge (8x A100; oversized — use A100x8 for 8-replica REMD)"
+aws_command         = "aws ec2 run-instances --instance-type p4d.24xlarge --image-id ami-deeplearning --count 1"
+azure_instance      = "Standard_ND96asr_v4 (8x A100)"
+azure_command       = "az vm create --name crucible-md --resource-group crucible --image microsoft-dsvm:ubuntu-hpc:2204:latest --size Standard_ND96asr_v4 --location eastus"
+on_demand_usd_per_hour = 14.69
+
+[gpu.A100x8]
+ns_per_day_baseline = 350
+default_gpu_count   = 8
+multi_gpu_factor    = 0.80
+gcp_instance        = "a2-highgpu-8g"
+gcp_command         = "gcloud compute instances create crucible-md --machine-type=a2-highgpu-8g --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
+aws_instance        = "p4d.24xlarge"
+aws_command         = "aws ec2 run-instances --instance-type p4d.24xlarge --image-id ami-deeplearning --count 1"
+azure_instance      = "Standard_ND96asr_v4"
+azure_command       = "az vm create --name crucible-md --resource-group crucible --image microsoft-dsvm:ubuntu-hpc:2204:latest --size Standard_ND96asr_v4 --location eastus"
+on_demand_usd_per_hour = 32.77
+
+[gpu.L4x4]
+ns_per_day_baseline = 110
+default_gpu_count   = 4
+multi_gpu_factor    = 0.75
+gcp_instance        = "g2-standard-48 (4x L4)"
+gcp_command         = "gcloud compute instances create crucible-md --machine-type=g2-standard-48 --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
+aws_instance        = "g6.12xlarge (4x L4)"
+aws_command         = "aws ec2 run-instances --instance-type g6.12xlarge --image-id ami-deeplearning --count 1"
+azure_instance      = "(no L4 multi-GPU on Azure — fall back to 4x T4 NC64as_T4_v3)"
+azure_command       = "(prefer GCP/AWS for multi-L4)"
+on_demand_usd_per_hour = 4.72
