@@ -44,7 +44,7 @@ docker run --rm \
 The cached `/tmp/crucible-depot` makes repeat runs ~10× faster. For the
 full live OpenMM + PDBFixer + mdtraj integration, set
 `CRUCIBLE_RUN_OPENMM=1` and ensure the container has `openmm`,
-`pdbfixer`, `mdtraj` installed (the `.github/workflows/ci.yml` `openmm-smoke`
+`pdbfixer`, `mdtraj` installed (the `openmm-smoke`
 step shows the recipe).
 
 ## Testing conventions
@@ -123,16 +123,24 @@ step shows the recipe).
 
 ## CI
 
-- GitHub Actions is the canonical CI. `.github/workflows/ci.yml`
-  matrix on Julia 1.10 + 1.11. A second `openmm-smoke` job installs
+Two parallel pipelines run on every push to `main`:
+
+- **GitHub Actions** (`.github/workflows/ci.yml`) — matrix on
+  Julia 1.10 + 1.11, plus an opt-in `openmm-smoke` job that installs
   `openmm + pdbfixer + mdtraj` into a venv and re-runs `Pkg.test()`
-  with `CRUCIBLE_RUN_OPENMM=1` so the live OpenMM testset actually
-  exercises the alanine-dipeptide fixture.
-- Don't add steps that reference repository secrets via `${{ secrets.X }}`
-  unless `X` has been configured in **Settings → Secrets and variables →
-  Actions**. The job will fail with an empty-value error otherwise.
-- `julia-actions/cache@v2` caches the Julia depot per-OS-per-version,
-  so repeat runs on the same matrix cell start in seconds.
+  with `CRUCIBLE_RUN_OPENMM=1`. Caches the Julia depot via
+  `julia-actions/cache@v2`. This is the public-facing pipeline that
+  surfaces a status badge.
+- **Woodpecker on snowman** (`.woodpecker.yml`) — same matrix +
+  same OpenMM smoke step, runs on the user's home server. Stays
+  green even if the GitHub-side billing limit clamps Actions.
+  This is the load-bearing pipeline for solo development.
+
+Keep both in sync when you change the build commands. Don't add
+steps that reference secrets (`${{ secrets.X }}` on GitHub or
+`from_secret: x` on Woodpecker) unless the secret has been
+configured on the matching CI host — both fail at parse time
+when a referenced secret is missing.
 
 ## Commit style
 

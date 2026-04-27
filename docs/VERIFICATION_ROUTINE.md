@@ -53,7 +53,7 @@ In order:
    - **PythonCall + CondaPkg integration status** — note that
      subprocess was the chosen path, not PythonCall
    - **Anthropic provider end-to-end status** — has the live smoke
-     ever run? (`CRUCIBLE_RUN_ANTHROPIC=1` + GitHub Actions repo secret)
+     ever run? (`CRUCIBLE_RUN_ANTHROPIC=1` + repo secret on GitHub Actions or Woodpecker)
    - **Other gaps surfaced**
    - **Recommended next sprint** — 3-5 concrete tasks in priority
      order
