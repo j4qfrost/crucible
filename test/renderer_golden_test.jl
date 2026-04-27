@@ -141,6 +141,16 @@ end
     rep = Crucible.validate_spec(omm, bad_spec)
     @test !rep.ok
     @test any(occursin("has_ligand=true is unsupported", e) for e in rep.errors)
+
+    # AMD/ROCm support: the rendered script picks a platform via
+    # auto-fallthrough (CUDA → HIP → OpenCL → CPU) so AMD users get
+    # HIP without editing anything. The CRUCIBLE_PLATFORM env still
+    # forces a specific platform.
+    spec_ok = _good_spec()
+    script = Crucible.render_script(omm, spec_ok; output_dir="/tmp/amd-test")
+    @test occursin("_crucible_pick_platform", script)
+    @test occursin("'CUDA', 'HIP', 'OpenCL', 'CPU'", script)
+    @test occursin("crucible: platform =", script)
 end
 
 @testset "MollyBackend renderer" begin

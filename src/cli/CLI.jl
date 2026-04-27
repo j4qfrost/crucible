@@ -190,6 +190,8 @@ function cmd_advise(args::Vector{String})
                 "runtime_hours" => rec.chosen.runtime_hours,
                 "on_demand_usd" => rec.chosen.on_demand_usd,
                 "ns_per_day"    => rec.chosen.ns_per_day,
+                "vram_gb"       => rec.chosen.vram_gb,
+                "fits_system"   => rec.chosen.fits_system,
                 "gcp_instance"  => rec.chosen.gcp_instance,
                 "gcp_command"   => rec.chosen.gcp_command,
                 "aws_instance"  => rec.chosen.aws_instance,
@@ -204,6 +206,8 @@ function cmd_advise(args::Vector{String})
                 "gpu" => c.gpu, "ns_per_day" => c.ns_per_day,
                 "runtime_hours" => c.runtime_hours,
                 "on_demand_usd" => c.on_demand_usd,
+                "vram_gb" => c.vram_gb,
+                "fits_system" => c.fits_system,
             ) for c in rec.candidates],
         )
         println(JSON3.write(obj))
@@ -435,20 +439,49 @@ function cmd_doctor(::Vector{String})
                "openmm-forcefields:",
                "pip install openmm-forcefields  # required for :protein_ligand source")
 
-    # GPU probe
+    # GPU probe — multi-vendor.
     println()
     println("  GPU detection:")
-    if Sys.which("nvidia-smi") !== nothing
+    nvidia = Sys.which("nvidia-smi")
+    rocm   = Sys.which("rocm-smi")
+    intel  = Sys.which("intel_gpu_top")
+    if nvidia !== nothing
         try
             out = _run_capture(`nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader`)
             for line in eachline(IOBuffer(out))
-                println("    ", strip(line))
+                stripped = strip(line)
+                isempty(stripped) || println("    NVIDIA: ", stripped)
             end
         catch err
             println("    nvidia-smi present but query failed: $(err)")
         end
-    else
-        println("    nvidia-smi not on PATH (no NVIDIA GPU detected)")
+    end
+    if rocm !== nothing
+        try
+            # rocm-smi emits a banner + per-GPU rows; --showproductname is
+            # the most stable subset across ROCm versions.
+            out = _run_capture(`rocm-smi --showproductname --showmeminfo vram --csv`)
+            shown = false
+            for line in eachline(IOBuffer(out))
+                stripped = strip(line)
+                # Skip header + blank lines + banner, keep card rows.
+                if startswith(stripped, "card") || startswith(stripped, "GPU") ||
+                   occursin("Card series", stripped)
+                    println("    AMD:    ", stripped)
+                    shown = true
+                end
+            end
+            shown || println("    AMD:    rocm-smi found but no card rows parsed")
+        catch err
+            println("    rocm-smi present but query failed: $(err)")
+        end
+    end
+    if intel !== nothing
+        println("    Intel:  intel_gpu_top on PATH (live monitor; see `intel_gpu_top -L`)")
+    end
+    if nvidia === nothing && rocm === nothing && intel === nothing
+        println("    no GPU SDK detected (nvidia-smi / rocm-smi / intel_gpu_top all absent)")
+        println("                  → script will fall through to CPU (slow but correct)")
     end
 
     # Crucible's own optional bits

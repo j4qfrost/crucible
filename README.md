@@ -103,6 +103,25 @@ v1.5:
 The LLM never invents force-field parameters. The IR carries source attribution
 on every numeric field. The renderer is the only thing that converts units.
 
+## GPU acceleration
+
+The OpenMM renderer emits a platform-fallthrough block: when the script runs
+it tries `CUDA → HIP → OpenCL → CPU` in order and picks the first available.
+Override with `CRUCIBLE_PLATFORM=HIP` (or `CUDA`/`CPU`/`Reference`) to force a
+specific platform.
+
+- **NVIDIA**: install `openmm` from conda/pip; CUDA driver ≥ 11.x.
+- **AMD ROCm**: install OpenMM with the HIP plugin (`conda install -c
+  conda-forge openmm-hip` on a ROCm-enabled machine). Crucible's `crucible
+  doctor` probes both `nvidia-smi` and `rocm-smi`, so an AMD-only box surfaces
+  cleanly.
+- **CPU fallback**: works everywhere; ~10-30× slower than a discrete GPU.
+
+The cloud advisor's `benchmarks.toml` covers 8 NVIDIA cloud profiles plus AMD
+entries (RX 7900 XT for local rigs, MI300X for Azure ND_MI300X_v5). VRAM
+headroom is checked against the spec's `n_atoms_estimate` (≈150 bytes/atom +
+25% margin) — the advisor warns if the chosen GPU likely won't fit.
+
 ## Quick start
 
 ```bash

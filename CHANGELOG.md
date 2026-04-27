@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### v1.10 — AMD/ROCm support (2026-04-27)
+
+Closes the "renderer assumes CUDA" gap. Trade-off documented in
+`OpenMMBackend._emit_protocol`: rather than hard-defaulting to CUDA
+(which AMD users had to override every run), the script now picks a
+platform via auto-fallthrough so the same rendered script Just Works
+on NVIDIA, AMD, or CPU-only boxes.
+
+- **Renderer platform fallthrough**: `_crucible_pick_platform()` in
+  every rendered script tries CUDA → HIP → OpenCL → CPU and falls
+  through to whichever is available. `CRUCIBLE_PLATFORM=<name>` still
+  forces a specific platform. AMD users with `openmm-hip` installed
+  no longer need to touch the env.
+- **`crucible doctor` multi-vendor probe**: detects NVIDIA via
+  `nvidia-smi`, AMD via `rocm-smi --showproductname --showmeminfo`,
+  Intel via `intel_gpu_top` presence. Reports cleanly per vendor.
+- **AMD cloud advisor entries**: `RX_7900_XT` (gfx1100, local rig
+  template — `$0/hr`) and `MI300X` (Azure ND_MI300X_v5).
+- **VRAM headroom check**: every benchmark entry gains a `vram_gb`
+  field; advisor estimates per-system memory usage at ~150 bytes
+  per atom + 25% margin (× 2 for FEP) and flags when the chosen
+  GPU is likely to OOM. `CloudCandidate` gains `vram_gb` +
+  `fits_system` fields exposed in JSON output.
+- **Local-rig recommendation**: `$0/hr` candidates are kept in the
+  candidates list but excluded from the cloud "chosen" slot. When
+  one fits the system, the advisor surfaces a separate warning
+  ("local rig option: RX_7900_XT finishes in 3.93 h at $0").
+- README adds a "GPU acceleration" section documenting the
+  fallthrough behavior and the conda install hint for `openmm-hip`.
+- Tests: 693/693 pass on Julia 1.10.
+
 ### v1.9.3 — Pluto + info catch-up + starter_session.sh (2026-04-27)
 
 Closing-out polish for the autonomous session. Brings the Pluto

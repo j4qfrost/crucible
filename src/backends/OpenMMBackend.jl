@@ -353,7 +353,22 @@ end
 function _emit_protocol(spec::MDSpec)
     io = IOBuffer()
     print(io, "# --- protocol ---\n")
-    print(io, "platform = Platform.getPlatformByName(os.environ.get('CRUCIBLE_PLATFORM', 'CUDA'))\n")
+    # Platform selection. CRUCIBLE_PLATFORM forces a specific platform
+    # ('CUDA' / 'HIP' / 'OpenCL' / 'CPU' / 'Reference'); 'auto' (default)
+    # tries each in order and falls through. This means an AMD box with
+    # gfx1100 + ROCm gets HIP automatically; a no-GPU CI machine gets CPU.
+    print(io, "def _crucible_pick_platform():\n")
+    print(io, "    req = os.environ.get('CRUCIBLE_PLATFORM', 'auto')\n")
+    print(io, "    if req != 'auto':\n")
+    print(io, "        return Platform.getPlatformByName(req)\n")
+    print(io, "    for _name in ('CUDA', 'HIP', 'OpenCL', 'CPU'):\n")
+    print(io, "        try:\n")
+    print(io, "            return Platform.getPlatformByName(_name)\n")
+    print(io, "        except Exception:\n")
+    print(io, "            continue\n")
+    print(io, "    return Platform.getPlatformByName('Reference')\n")
+    print(io, "platform = _crucible_pick_platform()\n")
+    print(io, "print('crucible: platform =', platform.getName())\n")
     # Preview gate: when CRUCIBLE_PREVIEW_STEPS is set, every dynamics stage
     # caps n_steps at that value. Lets validation Gate 4 reuse this script.
     print(io, "_preview_cap = int(os.environ['CRUCIBLE_PREVIEW_STEPS']) if 'CRUCIBLE_PREVIEW_STEPS' in os.environ else None\n")

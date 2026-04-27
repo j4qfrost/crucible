@@ -19,6 +19,7 @@ baseline_atoms = 30000
 
 [gpu.T4]
 ns_per_day_baseline = 40
+vram_gb             = 16
 gcp_instance        = "n1-standard-4 + 1x T4"
 gcp_command         = "gcloud compute instances create crucible-md --machine-type=n1-standard-4 --accelerator=type=nvidia-tesla-t4,count=1 --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
 aws_instance        = "g4dn.xlarge"
@@ -29,6 +30,7 @@ on_demand_usd_per_hour = 0.55
 
 [gpu.L4]
 ns_per_day_baseline = 110
+vram_gb             = 24
 gcp_instance        = "g2-standard-4"
 gcp_command         = "gcloud compute instances create crucible-md --machine-type=g2-standard-4 --accelerator=type=nvidia-l4,count=1 --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
 aws_instance        = "g6.xlarge"
@@ -39,6 +41,7 @@ on_demand_usd_per_hour = 0.78
 
 [gpu.A10G]
 ns_per_day_baseline = 140
+vram_gb             = 24
 gcp_instance        = "(not directly available — closest is L4 g2 or A100 a2)"
 gcp_command         = "(skip — use L4 or A100 on GCP)"
 aws_instance        = "g5.xlarge"
@@ -49,6 +52,7 @@ on_demand_usd_per_hour = 1.05
 
 [gpu.A100_40GB]
 ns_per_day_baseline = 350
+vram_gb             = 40
 gcp_instance        = "a2-highgpu-1g"
 gcp_command         = "gcloud compute instances create crucible-md --machine-type=a2-highgpu-1g --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
 aws_instance        = "(closest single-GPU: p4d.24xlarge — oversized for 1 replica)"
@@ -59,6 +63,7 @@ on_demand_usd_per_hour = 3.75
 
 [gpu.H100]
 ns_per_day_baseline = 550
+vram_gb             = 80
 gcp_instance        = "a3-highgpu-1g (when available; often only 8g)"
 gcp_command         = "gcloud compute instances create crucible-md --machine-type=a3-highgpu-1g --image-family=debian-12 --image-project=debian-cloud --maintenance-policy=TERMINATE --zone=us-central1-a"
 aws_instance        = "p5.48xlarge (oversized for 1 replica)"
@@ -73,6 +78,7 @@ on_demand_usd_per_hour = 10.00
 
 [gpu.V100_Azure]
 ns_per_day_baseline = 200
+vram_gb             = 16
 gcp_instance        = "(use A100 instead on GCP)"
 gcp_command         = "(skip)"
 aws_instance        = "p3.2xlarge"
@@ -89,6 +95,7 @@ on_demand_usd_per_hour = 3.06
 
 [gpu.A100x4]
 ns_per_day_baseline = 350
+vram_gb             = 40
 default_gpu_count   = 4
 multi_gpu_factor    = 0.85
 gcp_instance        = "a2-highgpu-4g"
@@ -101,6 +108,7 @@ on_demand_usd_per_hour = 14.69
 
 [gpu.A100x8]
 ns_per_day_baseline = 350
+vram_gb             = 40
 default_gpu_count   = 8
 multi_gpu_factor    = 0.80
 gcp_instance        = "a2-highgpu-8g"
@@ -111,8 +119,40 @@ azure_instance      = "Standard_ND96asr_v4"
 azure_command       = "az vm create --name crucible-md --resource-group crucible --image microsoft-dsvm:ubuntu-hpc:2204:latest --size Standard_ND96asr_v4 --location eastus"
 on_demand_usd_per_hour = 32.77
 
+# -- AMD GPUs (HIP/ROCm). Few major-cloud first-party offerings; these
+# entries mostly cover on-premises rigs (snowman with gfx1100) and the
+# rare cloud Instinct nodes. OpenMM 8.x supports HIP via the OpenMM-HIP
+# plugin, sometimes shipped as `openmm-hip` on conda-forge. Numbers are
+# rough — AMD MD throughput is workload-sensitive and the OpenMM-HIP
+# plugin is less mature than CUDA.
+
+[gpu.RX_7900_XT]
+ns_per_day_baseline = 95          # ~80% of L4 on solvated protein
+vram_gb             = 20
+gcp_instance        = "(no consumer Radeon on GCP)"
+gcp_command         = "(use a local rig — snowman has gfx1100)"
+aws_instance        = "(no consumer Radeon on AWS; closest is g4ad/Radeon Pro V520)"
+aws_command         = "(use a local rig)"
+azure_instance      = "(no consumer Radeon on Azure)"
+azure_command       = "(use a local rig)"
+on_demand_usd_per_hour = 0.0      # local hardware, no cloud price
+notes               = "consumer card, gfx1100, OpenMM-HIP plugin, single-precision"
+
+[gpu.MI300X]
+ns_per_day_baseline = 600         # H100-class, single-replica
+vram_gb             = 192
+gcp_instance        = "(no MI300 on GCP as of 2026)"
+gcp_command         = "(skip — Azure ND-MI300 or AWS Trn2-style alternative)"
+aws_instance        = "(MI300X SuperServer via AWS partner; pricing varies)"
+aws_command         = "(check AWS Marketplace MI300X listings)"
+azure_instance      = "Standard_ND_MI300X_v5"
+azure_command       = "az vm create --name crucible-md --resource-group crucible --image microsoft-dsvm:ubuntu-hpc:2204:latest --size Standard_ND_MI300X_v5 --location eastus2"
+on_demand_usd_per_hour = 9.50     # approximate Azure list as of late 2025
+notes               = "Instinct datacenter card, gfx942, OpenMM-HIP plugin"
+
 [gpu.L4x4]
 ns_per_day_baseline = 110
+vram_gb             = 24
 default_gpu_count   = 4
 multi_gpu_factor    = 0.75
 gcp_instance        = "g2-standard-48 (4x L4)"
