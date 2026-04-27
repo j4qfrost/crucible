@@ -28,7 +28,7 @@ Walk the registered migrations from the input's `schema_version` to
 `target`. Returns the migrated JSON. Errors if no path exists.
 """
 function migrate_spec_json(json::AbstractString;
-                           target::AbstractString = "0.1.0")::String
+                           target::AbstractString = "0.2.0")::String
     obj = JSON3.read(json, Dict)
     src_version = String(get(obj, "schema_version", "unknown"))
     if src_version == target
@@ -73,4 +73,27 @@ end
 # Bootstrap migrations: identity for the current version. When 0.2.0 lands,
 # add `register_migration!("0.1.0", "0.2.0", spec_v0_1_to_v0_2)` here.
 
-# (No migrations registered yet — schema is at 0.1.0 baseline.)
+# 0.1.0 → 0.2.0: introduces nullable fields for v1.0/v1.5 features.
+#   - system.source.ligand_smiles      (null in old specs)
+#   - system.solvent.membrane          (null in old specs)
+#   - force_field.lipid                (null in old specs)
+# All three are nullable + optional in the new schema, so this migration
+# only fills them in explicitly (so old transcripts replay byte-stable
+# through `JSON3.write`).
+function _migrate_v0_1_to_v0_2(obj::Dict{String,Any})::Dict{String,Any}
+    if haskey(obj, "system")
+        sys = obj["system"]
+        if haskey(sys, "source") && !haskey(sys["source"], "ligand_smiles")
+            sys["source"]["ligand_smiles"] = nothing
+        end
+        if haskey(sys, "solvent") && !haskey(sys["solvent"], "membrane")
+            sys["solvent"]["membrane"] = nothing
+        end
+    end
+    if haskey(obj, "force_field") && !haskey(obj["force_field"], "lipid")
+        obj["force_field"]["lipid"] = nothing
+    end
+    obj
+end
+
+register_migration!("0.1.0", "0.2.0", _migrate_v0_1_to_v0_2)

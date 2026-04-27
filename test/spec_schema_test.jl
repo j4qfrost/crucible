@@ -9,7 +9,7 @@ import JSON3
     # Round-trip parse
     spec = Crucible.spec_from_json(json_str)
     @test spec isa MDSpec
-    @test spec.schema_version == "0.1.0"
+    @test spec.schema_version == "0.2.0"
     @test spec.system.has_ligand == true
     @test length(spec.protocol) == 4
     @test spec.protocol[1] isa Crucible.MinimizeStage

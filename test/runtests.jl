@@ -21,4 +21,5 @@ using Crucible
     include("remd_test.jl")
     include("metadynamics_test.jl")
     include("membrane_test.jl")
+    include("molly_gating_test.jl")
 end

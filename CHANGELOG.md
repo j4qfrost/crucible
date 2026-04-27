@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### v1.5.1 — schema bump + Molly gating + Pluto refresh (2026-04-27)
+
+Polish pass following v1.5.
+
+- **Schema version bump 0.1.0 → 0.2.0**. `MDSpec.schema_version` and the
+  `const` in `schema.json` both now read `"0.2.0"`. Real
+  `_migrate_v0_1_to_v0_2` registered in `Migrations.jl`: fills nullable
+  defaults for `system.source.ligand_smiles`, `system.solvent.membrane`,
+  and `force_field.lipid` so old transcripts forward-compatibly upgrade.
+  Existing fixtures migrated in place; default `target` of
+  `migrate_spec_json` advanced to `"0.2.0"`.
+- **MollyBackend rejects v1+ stages explicitly**. `validate_spec` now
+  emits a per-stage error pointing at OpenMMBackend for `FEPStage` /
+  `REMDStage` / `MetadynamicsStage`, and a separate error for
+  `LipidBilayer` membrane systems. Replaces the generic "missing
+  features" line for these cases.
+- **Router auto-prefers OpenMM** for any spec demanding `:alchemy`,
+  `:remd`, `:metadynamics`, `:membrane`, `:biased_sampling`,
+  `:multi_replica`, or `:plumed` — even when the only thing Molly is
+  missing is one of these.
+- **Pluto notebook refresh**. Top-of-page banner lists v0.2.0 schema
+  + 5 stage types + 5 source types + lipid bilayer note. Section 2
+  (`## 2. Transpile`) gains a `provider_kind` selector for
+  `recorded` / `anthropic` / `local` so the offline iteration path
+  works without environment manipulation.
+- **New test file**: `test/molly_gating_test.jl` — 6 testsets pinning
+  the Molly rejection messages + the Router preference for OpenMM
+  on v1+ features.
+- **Tests**: 401/401 pass on Julia 1.10 (offline; +5 with
+  `CRUCIBLE_RUN_OPENMM=1`).
+
 ### v1.5 — enhanced sampling + membranes (2026-04-26)
 
 The remaining items from the v1+ deferred list, partly closed.

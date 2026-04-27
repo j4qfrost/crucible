@@ -39,9 +39,19 @@ function route_backend(spec::MDSpec;
         return BackendChoice(by_name[:openmm], "user requested OpenMM")
     end
 
-    # auto: prefer OpenMM for anything resembling a real protein-ligand system.
+    # auto: prefer OpenMM for anything resembling a real protein-ligand system,
+    # any v1+ enhanced-sampling stage type, or membrane.
     has_explicit_solvent = :pme in needed
     has_ligand           = :ligand in needed
+    needs_openmm_only    = any(f -> f in needed,
+                               [:alchemy, :remd, :metadynamics, :membrane,
+                                :biased_sampling, :multi_replica, :plumed])
+
+    if needs_openmm_only && haskey(by_name, :openmm)
+        return BackendChoice(by_name[:openmm],
+            "spec requires v1+ feature ($(intersect(needed, [:alchemy, :remd, :metadynamics, :membrane])) " *
+            "— OpenMM-only). Routing to OpenMM.")
+    end
 
     if (has_explicit_solvent || has_ligand) && haskey(by_name, :openmm)
         return BackendChoice(by_name[:openmm],

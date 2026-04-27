@@ -20,6 +20,15 @@ md"""
 Drop in a paper, get a runnable molecular-dynamics simulation. The pipeline
 is gated — production runs only fire after Gates 1–4 pass and you click the
 final button.
+
+**Schema:** v0.2.0 (5 stage types: minimize / dynamics / FEP / REMD / metadynamics)
+
+**Sources supported:** `:user_supplied`, `:pdb_id`, `:pdb_fetch`,
+`:smiles` (pure ligand → OpenFFParameterizer), `:protein_ligand` (PDBFixer + SMIRNOFF).
+
+**Solvent:** explicit (TIP3P / TIP4P_EW / SPC_E), implicit (GBSA), vacuum,
+or **lipid bilayer** (POPC / POPE / DPPC / mixed_POPC_chol; auto-emits
+`MonteCarloMembraneBarostat` for NPT).
 """
 
 # ╔═╡ 33333333-3333-3333-3333-333333333333
@@ -49,11 +58,21 @@ paper = let
 end
 
 # ╔═╡ 77777777-7777-7777-7777-777777777777
-md"""## 2. Transpile (Anthropic)
+md"""## 2. Transpile
 
-Click to send the paper to Claude. Without an `ANTHROPIC_API_KEY` the provider
-no-ops — use the recorded fixture path below for offline iteration.
+Pick a provider, then click `transpile`. `recorded` replays a fixture (no
+API call); `anthropic` needs `ANTHROPIC_API_KEY`; `local` hits an
+OpenAI-compatible endpoint at `http://localhost:8000/v1` (override via
+`CRUCIBLE_LOCAL_ENDPOINT`).
 """
+
+# ╔═╡ 77777777-aaaa-7777-7777-777777777777
+@bind provider_kind Select(
+    ["recorded" => "recorded fixture (offline)",
+     "anthropic" => "anthropic (Claude)",
+     "local"     => "local (vLLM / Ollama / llama.cpp)"];
+    default = "recorded",
+)
 
 # ╔═╡ 88888888-8888-8888-8888-888888888888
 @bind transpile_button CounterButton("transpile paper → MDSpec")
@@ -61,7 +80,16 @@ no-ops — use the recorded fixture path below for offline iteration.
 # ╔═╡ 99999999-9999-9999-9999-999999999999
 result = let
     transpile_button   # depend on the button so we don't auto-fire on every paper edit
-    provider = AnthropicProvider()
+    provider = if provider_kind == "anthropic"
+        AnthropicProvider()
+    elseif provider_kind == "local"
+        LocalProvider()
+    else
+        # Recorded — use the bundled fixture by default.
+        fixture = joinpath(@__DIR__, "..", "..", "test", "fixtures",
+                           "recorded_anthropic_spec.json")
+        RecordedProvider(fixture)
+    end
     transpile(provider, paper.body_text)
 end
 

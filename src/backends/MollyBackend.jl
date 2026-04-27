@@ -25,6 +25,31 @@ end
 
 function validate_spec(b::MollyBackend, spec::MDSpec)::ValidationReport
     r = ValidationReport()
+    # Up-front rejection of v1+ stage types Molly's renderer doesn't handle.
+    # The required-features check below catches NPT / barostat / explicit
+    # solvent, but the stage-type dispatch is a separate axis worth its own
+    # error message.
+    for (i, s) in enumerate(spec.protocol)
+        if s isa FEPStage
+            r = record_error!(r,
+                "MollyBackend: stage $i is FEPStage (alchemical free-energy); " *
+                "Molly has no openmmtools.alchemy equivalent. Route to OpenMMBackend.")
+        elseif s isa REMDStage
+            r = record_error!(r,
+                "MollyBackend: stage $i is REMDStage (replica exchange); " *
+                "Molly has no multistate sampler equivalent. Route to OpenMMBackend.")
+        elseif s isa MetadynamicsStage
+            r = record_error!(r,
+                "MollyBackend: stage $i is MetadynamicsStage; " *
+                "Molly has no openmm-plumed equivalent. Route to OpenMMBackend.")
+        end
+    end
+    if spec.system.solvent.membrane !== nothing
+        r = record_error!(r,
+            "MollyBackend: lipid bilayer systems require MonteCarloMembraneBarostat " *
+            "and the lipid17/lipid21 force-field XML, neither of which are in Molly's " *
+            "v0 renderer. Route to OpenMMBackend.")
+    end
     feats = supported_features(b)
     needed = required_features(spec)
     missing_feats = setdiff(needed, feats)
