@@ -85,6 +85,24 @@ step shows the recipe).
 4. Don't auto-log to the transcript store from inside `transpile` —
    logging is the caller's responsibility (see Pluto notebook + CLI).
 
+## On quantum computing
+
+See `docs/QUANTUM_OUTLOOK.md` for the project's standing view on quantum
+computing for molecular simulation. **TL;DR: the IR doesn't need a
+quantum backend.** Direct quantum simulation of biological-scale MD is
+not on any credible roadmap. The genuinely useful crucible-side
+extension would be a `QuantumParameterizer <: LigandParameterizer`
+that runs ground-state energy calculations on a quantum or
+quantum-emulator backend, then hands the resulting prmtop/rst7 to the
+OpenMMBackend like any other parameterizer. Don't scaffold this until
+a vendor publishes a ligand-binding-relevant result on real hardware
+(probably 2028+).
+
+The more impactful adjacent lane is **ML potentials trained on
+quantum-chemistry data** (ANI, MACE, Allegro). When those mature, add
+them to `LIGAND_FF_ALLOWLIST` using the constph/Martini scaffolding
+pattern.
+
 ## Adding a new ligand parameterizer
 
 1. Subtype `LigandParameterizer` in `src/ligand/`.

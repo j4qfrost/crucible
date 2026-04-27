@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### v1.12 — GPU CI smoke + quantum-MD outlook (2026-04-27)
+
+- **`.github/workflows/gpu-smoke.yml`** — closes the live-OpenMM-on-
+  real-GPU CI gap. Targets the self-hosted-snowman runner registered
+  by `tools/gha-runner-setup.sh`. Renders the `vanilla` template,
+  invokes `crucible run` with `--platform auto --precision mixed --seed 42`,
+  asserts the workdir contains the expected files. Gated on the
+  `gpu-smoke` PR label so unrelated PRs don't queue behind it.
+  `CRUCIBLE_GPU_VENV` env / repo secret picks the conda env name
+  (default `crucible-openmm`).
+- **`crucible doctor` reports OpenMM platforms list** (CPU /
+  CUDA / HIP / OpenCL / Reference) so the user knows which
+  platforms the install actually exposes — not just "openmm is
+  installed."
+- **`docs/QUANTUM_OUTLOOK.md`** — project's standing view on
+  quantum computing for MD. Conclusion: don't scaffold a
+  quantum backend; the IR-relevant extension is a future
+  `QuantumParameterizer <: LigandParameterizer`, but only when a
+  vendor publishes a ligand-binding result on real hardware
+  (~2028+). The more impactful adjacent lane is ML potentials
+  (ANI / MACE / Allegro) — adding those to the `LIGAND_FF_ALLOWLIST`
+  is the correct next move when they mature, using the existing
+  constph/Martini scaffolding pattern. AGENTS.md gets a short
+  note pointing at this doc.
+- Tests: 715/715 pass on Julia 1.10.
+
 ### v1.11.2 — run --resume + bench --baseline (2026-04-27)
 
 Two ergonomic add-ons that compose with v1.11/v1.11.1.

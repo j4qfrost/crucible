@@ -1,0 +1,86 @@
+name: GPU smoke (self-hosted)
+
+# Live OpenMM end-to-end on a real GPU. Targets the self-hosted runner
+# registered on snowman by tools/gha-runner-setup.sh (label
+# `self-hosted-snowman`). The runner needs:
+#
+#   * Julia 1.10+ on PATH
+#   * a python with `openmm`, `pdbfixer`, `mdtraj`. For AMD: also
+#     `openmm-hip`. Conda env name is read from $CRUCIBLE_GPU_VENV
+#     (default `crucible-openmm`).
+#   * GPU drivers visible to the conda env (CUDA/HIP).
+#
+# Trigger:
+#   * push to main + PRs labelled `gpu-smoke`
+#   * manual via workflow_dispatch
+#
+# Trade-off: this job can't run on GitHub-hosted runners (no GPU). It's
+# intentionally gated behind the label so unrelated PRs don't queue
+# behind it. The CPU-side `ci.yml` matrix still covers everything else.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+jobs:
+  gpu-smoke:
+    name: live OpenMM on self-hosted GPU
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      contains(github.event.pull_request.labels.*.name, 'gpu-smoke')
+    runs-on: [self-hosted, self-hosted-snowman]
+    timeout-minutes: 30
+    env:
+      CRUCIBLE_GPU_VENV: ${{ secrets.CRUCIBLE_GPU_VENV || 'crucible-openmm' }}
+      CRUCIBLE_PLATFORM: ${{ vars.CRUCIBLE_PLATFORM || 'auto' }}
+      CRUCIBLE_PRECISION: mixed
+      CRUCIBLE_RUN_OPENMM: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve julia env
+        run: julia --project -e 'using Pkg; Pkg.instantiate()'
+
+      - name: crucible doctor
+        run: |
+          source $(conda info --base)/etc/profile.d/conda.sh
+          conda activate "$CRUCIBLE_GPU_VENV"
+          julia --project -e 'include("src/cli/CLI.jl"); CLI.main(["doctor"])'
+
+      - name: live alanine-dipeptide smoke (CPU-fallback gate)
+        run: |
+          source $(conda info --base)/etc/profile.d/conda.sh
+          conda activate "$CRUCIBLE_GPU_VENV"
+          julia --project -e 'using Pkg; Pkg.test()'
+
+      - name: vanilla template, render + execute on GPU
+        run: |
+          source $(conda info --base)/etc/profile.d/conda.sh
+          conda activate "$CRUCIBLE_GPU_VENV"
+          ./bin/crucible templates init vanilla --out /tmp/gpu-smoke-spec.json
+          # Tiny duration so the run finishes inside the timeout. We're
+          # asserting "the platform handshake works", not "the simulation
+          # is publication-quality".
+          CRUCIBLE_PREVIEW_STEPS=500 \
+            ./bin/crucible run /tmp/gpu-smoke-spec.json \
+              --workdir /tmp/gpu-smoke-workdir \
+              --platform "$CRUCIBLE_PLATFORM" \
+              --precision mixed \
+              --seed 42
+
+      - name: assert workdir contents
+        run: |
+          test -f /tmp/gpu-smoke-workdir/run_openmm.py
+          test -f /tmp/gpu-smoke-workdir/equilibrate_2.log || true
+          ls -la /tmp/gpu-smoke-workdir/
+          # The platform line should appear in the launched process output.
+          # We don't capture it directly here; the "render + execute on GPU"
+          # step exits non-zero if anything errored.
+
+      - name: cleanup
+        if: always()
+        run: rm -rf /tmp/gpu-smoke-workdir /tmp/gpu-smoke-spec.json

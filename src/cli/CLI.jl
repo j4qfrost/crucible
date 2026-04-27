@@ -503,6 +503,17 @@ function cmd_doctor(::Vector{String})
 
     _probe_pkg("import openmm", "openmm.__version__", "openmm:",
                "pip install openmm")
+    # Per-platform plugin probes. OpenMM's CUDA support ships in the main
+    # wheel; HIP + OpenCL are separate optional plugins.
+    if py !== nothing
+        try
+            out = strip(_run_capture(`$py -c "import openmm; ps = [openmm.Platform.getPlatform(i).getName() for i in range(openmm.Platform.getNumPlatforms())]; print(','.join(ps))"`))
+            if !isempty(out) && !occursin("Traceback", out)
+                println("    OpenMM platforms:    ", out)
+            end
+        catch
+        end
+    end
     _probe_pkg("from openff.toolkit import __version__ as v", "v",
                "openff-toolkit:",
                "pip install openff-toolkit openff-interchange rdkit")
