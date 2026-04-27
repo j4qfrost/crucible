@@ -2,6 +2,49 @@
 
 ## Unreleased
 
+### v1.6 — templates / snapshot / constph IR / v1.5 walkthrough (2026-04-27)
+
+A polish pass focused on user onboarding (templates, snapshot/restore,
+walkthrough notebook) plus IR scaffolding for the next big feature
+(constant-pH MD).
+
+- **`crucible templates`** — six canned starter MDSpecs:
+  `vanilla`, `smiles`, `protein_ligand_fep`, `remd`, `membrane`,
+  `metadynamics`. Templates are programmatic (function builders in
+  `src/spec/Templates.jl`), so they're guaranteed schema-valid and
+  zero-drift on schema bumps. Trade-off documented in the source.
+  Subcommands: `list`, `show <name>`, `init <name> [--out path]`.
+  Tests pin every template through Gates 1-2 + Router dispatch.
+- **`crucible snapshot` / `crucible restore`** — pack a workdir
+  (MDSpec + script + logs/trajectories) into a reproducible
+  `.tar.gz` with a checksumed manifest. `--max-size-mb` truncates
+  large files to a stub recording original size + sha256. Restore
+  verifies sha256 by default (`--no-verify` to skip). Trade-off
+  noted: shells out to `tar` rather than using `Tar.jl` stdlib +
+  `CodecZlib`, matching the project's subprocess-over-pure-Julia
+  precedent.
+- **MarkdownRenderer** for `LintReport` + `CoverageReport`. Full
+  GFM tables for both, embeddable in PR descriptions or README.
+- **Web frontend new endpoints**: `/api/lint`, `/api/coverage`,
+  `GET /api/templates`, `GET /api/templates/<name>`. Single-page
+  UI gains "Lint" and "Coverage" buttons.
+- **Constant-pH MD IR scaffolding (v2)**. New `ProtonationSpec`
+  attaches optionally to `SystemSpec.protonation`. Schema entry,
+  JSON round-trip, validation rule (`_rule_protonation_coherence`),
+  `:constph` + `:titration` features, `OpenMMBackend.supported_features`
+  declares them. Renderer emits a `NotImplementedError` stub with
+  remediation hint pointing at `openmm-constph`. Trade-off: ship
+  IR shape + validation now so user transcripts collected in v1.x
+  forward-compat with the eventual v2 runtime.
+- **`examples/walkthrough_v15_methods.jl`** — Pluto notebook that
+  picks a template, validates, lints, costs, and renders the
+  script in one flow. No Python deps needed; offline iteration
+  for the full v1.5 method surface.
+- **CLI**: 14 → **17 subcommands** (added `templates`,
+  `snapshot`, `restore`).
+- **Tests**: 532/532 pass (up from 471). New files:
+  `templates_test.jl`, `snapshot_test.jl`, `constph_test.jl`.
+
 ### v1.5.2 — diagnostic + quality CLI (2026-04-27)
 
 UX-only polish: three new CLI subcommands and one new module that

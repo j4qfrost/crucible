@@ -120,6 +120,53 @@ _short(x) = string(x)
 _short(x::Nothing) = "—"
 _short(x::AbstractString) = length(x) > 60 ? string(SubString(x, 1, 57), "…") : x
 
+function render(::MarkdownRenderer, c::CoverageReport)::String
+    io = IOBuffer()
+    score = coverage_score(c)
+    pct = c.total_numeric_fields == 0 ? 0.0 :
+          100.0 * c.fields_with_provenance / c.total_numeric_fields
+    print(io, "## Provenance coverage\n\n")
+    print(io, "- **Quality score:** `", round(score; digits=3), "`",
+              " (1.0 = all paper-cited, 0.0 = nothing)\n")
+    print(io, "- **Coverage:** ", c.fields_with_provenance, " / ",
+              c.total_numeric_fields, " (", round(pct; digits=1), "%)\n\n")
+    if !isempty(c.by_source)
+        print(io, "| source | count |\n|--------|-------|\n")
+        for (src, n) in sort(collect(c.by_source); by = x -> -x[2])
+            print(io, "| `", String(src), "` | ", n, " |\n")
+        end
+        print(io, "\n")
+    end
+    if !isempty(c.missing_paths)
+        print(io, "### Missing provenance (", length(c.missing_paths), ")\n\n")
+        for p in c.missing_paths
+            print(io, "- `", p, "`\n")
+        end
+        print(io, "\n")
+    end
+    String(take!(io))
+end
+
+function render(::MarkdownRenderer, r::LintReport)::String
+    io = IOBuffer()
+    print(io, "## Lint\n\n")
+    if isempty(r)
+        print(io, "✅ no advisories\n\n")
+    else
+        print(io, "| severity | rule | path | message |\n")
+        print(io, "|----------|------|------|---------|\n")
+        for f in r.findings
+            sev = f.severity == :warn ? "⚠ warn" :
+                  f.severity == :advisory ? "💡 advisory" : "ℹ info"
+            print(io, "| ", sev, " | `", String(f.rule), "` | `", f.path,
+                      "` | ", f.message, " |\n")
+        end
+        print(io, "\n")
+    end
+    print(io, render(MarkdownRenderer(), r.coverage))
+    String(take!(io))
+end
+
 function render(::MarkdownRenderer, r::ValidationReport)::String
     io = IOBuffer()
     print(io, "## Validation\n\n")

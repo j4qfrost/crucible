@@ -101,6 +101,7 @@ function gate_semantic(spec::MDSpec)::ValidationReport
         _rule_remd_ladder_monotonic,
         _rule_metadynamics_cv_atoms,
         _rule_membrane_coherence,
+        _rule_protonation_coherence,
     )
         r = rule(spec, r)
     end
@@ -217,6 +218,29 @@ function _rule_langevin_friction_nonzero(spec::MDSpec, r::ValidationReport)
             r = record_warning!(r,
                 "stage $i: langevin thermostat with friction_ps=0 is degenerate (no coupling); consider 1.0 ps^-1")
         end
+    end
+    r
+end
+
+function _rule_protonation_coherence(spec::MDSpec, r::ValidationReport)
+    p = spec.system.protonation
+    p === nothing && return r
+    if isempty(p.titrating_residues)
+        r = record_error!(r,
+            "system.protonation set but titrating_residues is empty — list at least one " *
+            "selector (e.g. [\"resname HIS\", \"resid 35\"])")
+    end
+    if spec.system.solvent.model in (:vacuum, :implicit_GBSA)
+        r = record_warning!(r,
+            "constant-pH MD with solvent.model=:$(spec.system.solvent.model); the standard " *
+            "openmm-constph implementation assumes explicit water — verify your reference impl")
+    end
+    # Constant-pH currently doesn't compose with membrane-anisotropic barostat
+    # (no published implementation handles both). Warn loudly.
+    if spec.system.solvent.membrane !== nothing
+        r = record_warning!(r,
+            "constant-pH MD + membrane bilayer is unsupported by openmm-constph and " *
+            "would require a custom integrator")
     end
     r
 end

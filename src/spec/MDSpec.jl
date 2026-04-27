@@ -58,12 +58,41 @@ end
 SolventSpec(; model=:TIP3P, ions_NaCl_mM=0.0, membrane=nothing) =
     SolventSpec(model, ions_NaCl_mM, membrane)
 
+"""
+    ProtonationSpec
+
+Constant-pH MD scaffolding (v2 IR; no runtime execution in v1.x). Used
+to tag a system as titrating: which residues can change protonation
+state, what pH to sample at, and how often to attempt state transitions.
+
+The renderer emits an import for the chosen reference implementation
+(`openmm-constph-py`) and raises `NotImplementedError` with a clear
+remediation hint. The IR shape is stable so user-facing transcripts
+collected today don't break when a real implementation lands.
+"""
+struct ProtonationSpec
+    pH::Float64                              # solvent pH; 0–14
+    titrating_residues::Vector{String}       # selectors, e.g. ["resid 35", "resname HIS"]
+    transition_attempt_per_ps::Float64        # 0 = disabled (state held)
+    salt_concentration_M::Float64            # background ions for the implicit titrant
+end
+
+ProtonationSpec(; pH=7.0, titrating_residues=String[],
+                  transition_attempt_per_ps=0.0,
+                  salt_concentration_M=0.15) =
+    ProtonationSpec(pH, titrating_residues, transition_attempt_per_ps, salt_concentration_M)
+
 struct SystemSpec
     source::SystemSource
     n_atoms_estimate::Int
     has_ligand::Bool
     solvent::SolventSpec
+    protonation::Union{Nothing,ProtonationSpec}    # nothing for non-titrating systems
 end
+
+SystemSpec(source::SystemSource, n_atoms_estimate::Int, has_ligand::Bool,
+           solvent::SolventSpec) =
+    SystemSpec(source, n_atoms_estimate, has_ligand, solvent, nothing)
 
 # -----------------------------------------------------------------------------
 # Force field
@@ -330,6 +359,7 @@ function required_features(spec::MDSpec)::Set{Symbol}
     spec.system.solvent.model == :implicit_GBSA && push!(feats, :implicit_solvent)
     spec.system.solvent.model in (:TIP3P, :TIP4P_EW, :SPC_E) && push!(feats, :explicit_solvent)
     spec.system.solvent.membrane !== nothing && push!(feats, :membrane, :anisotropic_barostat)
+    spec.system.protonation !== nothing && push!(feats, :constph, :titration)
     spec.system.has_ligand && push!(feats, :ligand)
     for s in spec.protocol
         if s isa FEPStage
@@ -387,6 +417,14 @@ function spec_to_json(spec::MDSpec)::String
             ),
             "n_atoms_estimate" => spec.system.n_atoms_estimate,
             "has_ligand"       => spec.system.has_ligand,
+            "protonation"      => spec.system.protonation === nothing ?
+                                  nothing :
+                                  Dict(
+                                      "pH"                       => spec.system.protonation.pH,
+                                      "titrating_residues"       => spec.system.protonation.titrating_residues,
+                                      "transition_attempt_per_ps" => spec.system.protonation.transition_attempt_per_ps,
+                                      "salt_concentration_M"     => spec.system.protonation.salt_concentration_M,
+                                  ),
             "solvent" => Dict(
                 "model"        => String(spec.system.solvent.model),
                 "ions_NaCl_mM" => spec.system.solvent.ions_NaCl_mM,
@@ -533,6 +571,14 @@ function spec_from_json(json_str::AbstractString)::MDSpec
                 )
             end,
         ),
+        let p = get(obj.system, :protonation, nothing)
+            p === nothing ? nothing : ProtonationSpec(
+                pH = Float64(p.pH),
+                titrating_residues = String[String(s) for s in p.titrating_residues],
+                transition_attempt_per_ps = Float64(p.transition_attempt_per_ps),
+                salt_concentration_M = Float64(p.salt_concentration_M),
+            )
+        end,
     )
     ff = ForceFieldSpec(
         protein = Symbol(obj.force_field.protein),

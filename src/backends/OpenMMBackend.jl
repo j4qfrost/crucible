@@ -18,7 +18,11 @@ function supported_features(::OpenMMBackend)::Set{Symbol}
     Set([:pme, :npt, :nvt, :nve, :explicit_solvent, :implicit_solvent, :ligand,
          :barostat, :thermostat, :constraints, :langevin, :monte_carlo, :gpu,
          :alchemy, :remd, :metadynamics, :biased_sampling, :plumed,
-         :multi_replica, :membrane])
+         :multi_replica, :membrane,
+         # Scaffolding-only — IR roundtrips, validation passes, but the
+         # renderer emits a NotImplementedError stub. v2 commits to a
+         # real implementation; the IR shape is stable now.
+         :constph, :titration])
 end
 
 function validate_spec(b::OpenMMBackend, spec::MDSpec)::ValidationReport
@@ -99,6 +103,7 @@ function render_script(::OpenMMBackend, spec::MDSpec; output_dir::AbstractString
     print(io, _emit_system_load(spec))
     print(io, _emit_forcefield(spec))
     print(io, _emit_system_creation(spec))
+    print(io, _emit_protonation(spec))
     print(io, _emit_protocol(spec))
     print(io, _emit_observables(spec))
     print(io, _emit_finalize(spec))
@@ -471,6 +476,30 @@ function _emit_protocol(spec::MDSpec)
         end
     end
     String(take!(io))
+end
+
+function _emit_protonation(spec::MDSpec)
+    p = spec.system.protonation
+    p === nothing && return ""
+    io = IOBuffer()
+    print(io, "# --- constant-pH MD (v2 scaffolding stub) ---\n")
+    print(io, "# pH=", p.pH, ", titrating_residues=",
+              repr_pylist_str(p.titrating_residues),
+              ", transition_attempt_per_ps=", p.transition_attempt_per_ps, "\n")
+    print(io, "# Crucible v1.5.x ships the IR + validation only — the runtime path requires\n")
+    print(io, "# `openmm-constph` (academic implementation, install via\n")
+    print(io, "# `pip install git+https://github.com/choderalab/openmm-constph.git`).\n")
+    print(io, "# When that lands in v2, this stub becomes a real ConstantPHIntegrator.\n")
+    print(io, "raise NotImplementedError(\n")
+    print(io, "    'crucible: constant-pH MD is v2-deferred. The IR is stable; the runtime '\n")
+    print(io, "    'is awaiting a settled openmm-constph release. To unblock locally: '\n")
+    print(io, "    'install openmm-constph from source and replace this block in run_openmm.py.'\n")
+    print(io, ")\n\n")
+    String(take!(io))
+end
+
+function repr_pylist_str(xs::AbstractVector{<:AbstractString})
+    "[" * join((repr(s) for s in xs), ", ") * "]"
 end
 
 function _emit_remd_stage(stage::REMDStage, i::Int)

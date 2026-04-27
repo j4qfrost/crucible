@@ -43,6 +43,22 @@
         },
         "n_atoms_estimate": {"type": "integer", "minimum": 1, "maximum": 10000000},
         "has_ligand": {"type": "boolean"},
+        "protonation": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["pH", "titrating_residues", "transition_attempt_per_ps", "salt_concentration_M"],
+              "properties": {
+                "pH":                        {"type": "number", "minimum": 0, "maximum": 14},
+                "titrating_residues":        {"type": "array", "minItems": 0, "maxItems": 256, "items": {"type": "string"}},
+                "transition_attempt_per_ps": {"type": "number", "minimum": 0, "maximum": 100},
+                "salt_concentration_M":      {"type": "number", "minimum": 0, "maximum": 5}
+              }
+            }
+          ]
+        },
         "solvent": {
           "type": "object",
           "additionalProperties": false,

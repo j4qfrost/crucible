@@ -36,6 +36,9 @@ Usage:
   crucible doctor                                                 # diagnose Python / OpenMM / OpenFF deps
   crucible coverage      <spec.json>                              # provenance coverage report
   crucible lint          <spec.json> [--format text|json]         # advisory checks
+  crucible templates     list | show <name> | init <name> [--out spec.json]
+  crucible snapshot      <workdir> --out <archive.tar.gz> [--max-size-mb N]
+  crucible restore       <archive.tar.gz> --out <dest-dir> [--no-verify]
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -266,7 +269,8 @@ function cmd_info(::Vector{String})
     println("Validation gates: 1) schema  2) semantic  3) loadability  4) preview  5) user-confirm")
     println()
     println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
-    println("                 info parameterize verify serve doctor coverage lint")
+    println("                 info parameterize verify serve doctor coverage lint templates")
+    println("                 snapshot restore")
     println()
     println("Ligand parameterizer:")
     avail = parameterizer_available()
@@ -504,6 +508,75 @@ function cmd_coverage(args::Vector{String})
     0
 end
 
+function cmd_snapshot(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: snapshot <workdir> --out <archive.tar.gz> [--max-size-mb N]")
+    workdir = pos[1]
+    out = get(kw, "out", "")
+    isempty(out) && error("--out <archive.tar.gz> is required")
+    max_mb = haskey(kw, "max-size-mb") ? parse(Float64, kw["max-size-mb"]) : nothing
+    path = Crucible.snapshot(workdir, out; max_size_mb=max_mb)
+    println("wrote: $(path) ($(filesize(path)) bytes)")
+    0
+end
+
+function cmd_restore(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: restore <archive.tar.gz> --out <dest-dir> [--no-verify]")
+    archive = pos[1]
+    out = get(kw, "out", "")
+    isempty(out) && error("--out <dest-dir> is required")
+    verify = !haskey(kw, "no-verify")
+    dest, manifest = Crucible.restore(archive, out; verify=verify)
+    println("restored to:        $(dest)")
+    println("crucible version:   $(manifest.crucible_version)")
+    println("schema version:     $(manifest.schema_version)")
+    println("snapshot taken at:  $(manifest.created_at)")
+    println("files:              $(length(manifest.files))")
+    println("verified:           $(verify)")
+    0
+end
+
+function cmd_templates(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    isempty(pos) && error("usage: templates list | show <name> | init <name> [--out path]")
+    sub = pos[1]
+    if sub == "list"
+        names = list_templates()
+        println("Templates ($(length(names))):")
+        for n in names
+            spec = get_template(n)
+            println("  ", rpad(string(n), 22), strip(spec.notes))
+        end
+        return 0
+    elseif sub == "show"
+        length(pos) < 2 && error("usage: templates show <name>")
+        spec = get_template(Symbol(pos[2]))
+        # Pretty-print (JSON3.write doesn't pretty-print; round-trip
+        # through Dict so we can hand-format).
+        json = spec_to_json(spec)
+        # Re-emit with indentation for human reading.
+        obj = JSON3.read(json, Dict)
+        println(JSON3.write(obj; allow_inf=false))
+        return 0
+    elseif sub == "init"
+        length(pos) < 2 && error("usage: templates init <name> [--out path]")
+        name = Symbol(pos[2])
+        spec = get_template(name)
+        json = spec_to_json(spec)
+        out_path = get(kw, "out", "")
+        if isempty(out_path)
+            println(json)
+        else
+            write(out_path, json)
+            println(stderr, "wrote: $(out_path) ($(filesize(out_path)) bytes)")
+        end
+        return 0
+    else
+        error("unknown templates subcommand: $(sub) (expected list|show|init)")
+    end
+end
+
 function cmd_lint(args::Vector{String})
     pos, kw = _parse_kw_args(args)
     length(pos) < 1 && error("usage: lint <spec.json> [--format text|json]")
@@ -605,6 +678,9 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "doctor";       return cmd_doctor(rest)
         elseif cmd == "coverage";     return cmd_coverage(rest)
         elseif cmd == "lint";         return cmd_lint(rest)
+        elseif cmd == "templates";    return cmd_templates(rest)
+        elseif cmd == "snapshot";     return cmd_snapshot(rest)
+        elseif cmd == "restore";      return cmd_restore(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")

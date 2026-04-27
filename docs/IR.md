@@ -26,6 +26,7 @@ Auto-generated from `src/spec/schema.json` by `tools/regenerate_docs.jl`. Do not
 | `has_ligand` | `boolean` | ✓ |  |
 | `solvent` | `object` | ✓ | strict (no extra fields) |
 | `source` | `object` | ✓ | strict (no extra fields) |
+| `protonation` | oneOf | — |  |
 | `n_atoms_estimate` | `integer` | ✓ | min=1; max=10000000 |
 
 ### system.solvent fields

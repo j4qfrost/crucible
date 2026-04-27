@@ -23,4 +23,7 @@ using Crucible
     include("membrane_test.jl")
     include("molly_gating_test.jl")
     include("coverage_test.jl")
+    include("templates_test.jl")
+    include("snapshot_test.jl")
+    include("constph_test.jl")
 end

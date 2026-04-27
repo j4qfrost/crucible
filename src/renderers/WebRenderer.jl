@@ -159,6 +159,8 @@ pre{background:#f6f8fa;border-radius:4px;padding:0.6em 1em;overflow-x:auto;max-h
       <button class="btn" onclick="validate()">Validate</button>
       <button class="btn" onclick="renderScript()">Render</button>
       <button class="btn" onclick="advise()">Cloud advise</button>
+      <button class="btn" onclick="lintSpec()">Lint</button>
+      <button class="btn" onclick="coverageSpec()">Coverage</button>
     </p>
   </div>
 </div>
@@ -203,6 +205,16 @@ async function advise(){
   const spec_json = document.getElementById('spec').value;
   const [ok, res] = await call('/api/advise', {spec_json});
   show('advise', ok, res);
+}
+async function lintSpec(){
+  const spec_json = document.getElementById('spec').value;
+  const [ok, res] = await call('/api/lint', {spec_json});
+  show('lint', ok, res);
+}
+async function coverageSpec(){
+  const spec_json = document.getElementById('spec').value;
+  const [ok, res] = await call('/api/coverage', {spec_json});
+  show('coverage', ok, res);
 }
 </script>
 </body></html>
@@ -344,6 +356,71 @@ function _handle_advise(req::HTTP.Request)
     end
 end
 
+function _handle_lint(req::HTTP.Request)
+    try
+        body = _read_json(req)
+        spec_json = String(get(body, "spec_json", ""))
+        isempty(spec_json) && return _bad("spec_json is required")
+        spec = spec_from_json(spec_json)
+        rep = lint(spec)
+        _json_response(Dict(
+            "ok"        => true,
+            "findings"  => [Dict("severity" => String(f.severity),
+                                 "rule"     => String(f.rule),
+                                 "path"     => f.path,
+                                 "message"  => f.message)
+                            for f in rep.findings],
+            "coverage"  => Dict(
+                "total_numeric_fields"   => rep.coverage.total_numeric_fields,
+                "fields_with_provenance" => rep.coverage.fields_with_provenance,
+                "score"                  => coverage_score(rep.coverage),
+                "by_source"              => Dict(String(k) => v for (k, v) in rep.coverage.by_source),
+                "missing_paths"          => rep.coverage.missing_paths,
+            ),
+        ))
+    catch err
+        _bad("lint failed: $(err)"; status=500)
+    end
+end
+
+function _handle_coverage(req::HTTP.Request)
+    try
+        body = _read_json(req)
+        spec_json = String(get(body, "spec_json", ""))
+        isempty(spec_json) && return _bad("spec_json is required")
+        spec = spec_from_json(spec_json)
+        cov = provenance_coverage(spec)
+        _json_response(Dict(
+            "ok"                     => true,
+            "total_numeric_fields"   => cov.total_numeric_fields,
+            "fields_with_provenance" => cov.fields_with_provenance,
+            "score"                  => coverage_score(cov),
+            "by_source"              => Dict(String(k) => v for (k, v) in cov.by_source),
+            "missing_paths"          => cov.missing_paths,
+        ))
+    catch err
+        _bad("coverage failed: $(err)"; status=500)
+    end
+end
+
+function _handle_templates(req::HTTP.Request)
+    target = req.target
+    if target == "/api/templates" || target == "/api/templates/"
+        return _json_response(Dict("ok" => true,
+            "templates" => [String(n) for n in list_templates()]))
+    end
+    # /api/templates/<name>
+    name = strip(replace(target, "/api/templates/" => "", r"^/api/templates" => ""), '/')
+    isempty(name) && return _bad("template name required")
+    try
+        spec = get_template(Symbol(name))
+        _json_response(Dict("ok" => true, "name" => String(name),
+                            "spec_json" => spec_to_json(spec)))
+    catch err
+        _bad("unknown template: $(name)"; status=404)
+    end
+end
+
 function _handle_parameterize(req::HTTP.Request)
     try
         body = _read_json(req)
@@ -391,6 +468,12 @@ function _router(req::HTTP.Request)
         return _handle_advise(req)
     elseif method == "POST" && target == "/api/parameterize"
         return _handle_parameterize(req)
+    elseif method == "POST" && target == "/api/lint"
+        return _handle_lint(req)
+    elseif method == "POST" && target == "/api/coverage"
+        return _handle_coverage(req)
+    elseif method == "GET" && (target == "/api/templates" || startswith(target, "/api/templates/"))
+        return _handle_templates(req)
     end
     HTTP.Response(404, ["content-type" => "application/json"],
                   JSON3.write(Dict("error" => "not found: $(method) $(target)")))

@@ -1,5 +1,6 @@
 module Crucible
 
+using Dates
 using JSON3
 using JSONSchema
 using Mustache
@@ -16,6 +17,8 @@ include("spec/Diff.jl")
 include("spec/Migrations.jl")
 include("spec/Observables.jl")
 include("spec/Coverage.jl")
+include("spec/Templates.jl")
+include("spec/Snapshot.jl")
 
 include("backends/SimBackend.jl")
 include("ligand/Parameterizer.jl")
@@ -46,7 +49,8 @@ include("renderers/WebRenderer.jl")
 
 include("cloud/Advisor.jl")
 
-export MDSpec, SystemSpec, SystemSource, SolventSpec, LipidBilayer, ForceFieldSpec,
+export MDSpec, SystemSpec, SystemSource, SolventSpec, LipidBilayer,
+       ProtonationSpec, ForceFieldSpec,
        Stage, MinimizeStage, DynamicsStage, FEPStage, REMDStage,
        MetadynamicsStage, CollectiveVariable, RestraintSpec,
        Observable, Provenance,
@@ -54,6 +58,8 @@ export MDSpec, SystemSpec, SystemSource, SolventSpec, LipidBilayer, ForceFieldSp
        read_observable_csv, summarize_observable,
        CoverageReport, LintFinding, LintReport,
        provenance_coverage, coverage_score, lint,
+       list_templates, get_template, register_template!,
+       SnapshotManifest, snapshot, restore,
        SimBackend, MollyBackend, OpenMMBackend, KineticsBackend, route_backend,
        KineticsSpec, Species, Reaction,
        LigandParameterizer, OpenFFParameterizer, ParameterizedLigand, parameterize,
