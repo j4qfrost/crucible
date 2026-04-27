@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### v1.9.2 — crucible analyze (2026-04-27)
+
+- **`crucible analyze <workdir> [--format text|markdown|json]`** —
+  walks every observable CSV in a workdir (rmsd / rmsf / rg / sasa
+  / distance / hbonds), runs `summarize_observable` on each, and
+  emits a report. Markdown output is paste-ready for PR descriptions
+  / lab notebooks; JSON output feeds external tooling. Complements
+  `trajstat` (which lists files) by actually reducing them.
+- CLI 26 → 27 subcommands. Tests: 680/680 pass on Julia 1.10.
+
 ### v1.9.1 — import-jsonl + LLM prompt v1.9 + explain polish (2026-04-27)
 
 Closes the JSONL round-trip (`templates_to_jsonl` → `import-jsonl`)

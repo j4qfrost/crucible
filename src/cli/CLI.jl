@@ -41,6 +41,7 @@ Usage:
   crucible restore       <archive.tar.gz> --out <dest-dir> [--no-verify]
   crucible fmt           <spec.json> [--in-place]                # pretty-print spec
   crucible trajstat      <workdir>                                # walk + classify artifacts
+  crucible analyze       <workdir> [--format text|markdown|json]  # summarize observables
   crucible upgrade       <spec.json> [--out path] [--target ver]  # forward-migrate schema
   crucible bench         [--format text|json] [--repeat N]         # renderer micro-bench
   crucible cite          <spec.json>                                # list every provenance entry
@@ -279,7 +280,7 @@ function cmd_info(::Vector{String})
     println()
     println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
     println("                 info parameterize verify serve doctor coverage lint templates")
-    println("                 snapshot restore fmt trajstat upgrade bench cite explain")
+    println("                 snapshot restore fmt trajstat analyze upgrade bench cite explain")
     println("                 export-jsonschema audit-transcripts import-jsonl")
     println()
     println("Ligand parameterizer:")
@@ -909,6 +910,95 @@ function _pretty_json(v; indent=0, step=2)
     end
 end
 
+function cmd_analyze(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: analyze <workdir> [--format text|markdown|json]")
+    workdir = pos[1]
+    isdir(workdir) || error("analyze: not a directory: $(workdir)")
+    fmt = get(kw, "format", "text")
+
+    # Discover observable CSVs by name. The renderer writes them with
+    # canonical filenames; we hardcode the mapping rather than parsing
+    # headers to keep the report deterministic.
+    expected = [
+        ("rmsd",     "rmsd.csv",     "rmsd_nm",     "RMSD (nm)"),
+        ("rmsf",     "rmsf.csv",     "rmsf_nm",     "RMSF per atom (nm)"),
+        ("rg",       "rg.csv",       "rg_nm",       "Radius of gyration (nm)"),
+        ("sasa",     "sasa.csv",     "total_nm2",   "SASA total (nm²)"),
+        ("distance", "distance.csv", "distance_nm", "Distance (nm)"),
+        ("hbonds",   "hbonds.csv",   "n_hbonds",    "Hydrogen-bond count"),
+    ]
+    found = NamedTuple[]
+    for (kind, fname, _col, label) in expected
+        path = joinpath(workdir, fname)
+        isfile(path) || continue
+        s = try
+            Crucible.summarize_observable(path)
+        catch err
+            (; kind=kind, path=path, error=string(err))
+        end
+        push!(found, (kind=kind, label=label, path=path, summary=s))
+    end
+
+    if fmt == "json"
+        rows = []
+        for f in found
+            row = Dict{String,Any}(
+                "kind" => f.kind,
+                "path" => f.path,
+            )
+            if f.summary isa NamedTuple && haskey(f.summary, :count)
+                row["count"] = f.summary.count
+                row["mean"]  = f.summary.mean
+                row["min"]   = f.summary.min
+                row["max"]   = f.summary.max
+                row["last"]  = f.summary.last
+            else
+                row["error"] = haskey(f.summary, :error) ? f.summary.error : "unknown"
+            end
+            push!(rows, row)
+        end
+        println(JSON3.write(rows))
+    elseif fmt == "markdown"
+        println("# Crucible analysis: ", basename(rstrip(abspath(workdir), '/')))
+        println()
+        if isempty(found)
+            println("_(no observable CSVs found in `$(workdir)`)_")
+        else
+            println("| observable | n | mean | min | max | last |")
+            println("|---|---:|---:|---:|---:|---:|")
+            for f in found
+                (f.summary isa NamedTuple && haskey(f.summary, :count)) || continue
+                s = f.summary
+                println("| ", f.label, " | ", s.count, " | ",
+                        round(s.mean; digits=4), " | ",
+                        round(s.min; digits=4), " | ",
+                        round(s.max; digits=4), " | ",
+                        round(s.last; digits=4), " |")
+            end
+        end
+    else
+        println("crucible analyze: $(workdir)")
+        println()
+        if isempty(found)
+            println("(no observable CSVs found)")
+        else
+            for f in found
+                println("[$(f.kind)] $(f.label)")
+                println("  file: $(f.path)")
+                if f.summary isa NamedTuple && haskey(f.summary, :count)
+                    s = f.summary
+                    println("  n=$(s.count)  mean=$(round(s.mean; digits=4))  min=$(round(s.min; digits=4))  max=$(round(s.max; digits=4))  last=$(round(s.last; digits=4))")
+                else
+                    println("  ERROR: ", haskey(f.summary, :error) ? f.summary.error : "unknown")
+                end
+                println()
+            end
+        end
+    end
+    0
+end
+
 function cmd_trajstat(args::Vector{String})
     pos, _ = _parse_kw_args(args)
     length(pos) < 1 && error("usage: trajstat <workdir>")
@@ -1165,6 +1255,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "restore";      return cmd_restore(rest)
         elseif cmd == "fmt";          return cmd_fmt(rest)
         elseif cmd == "trajstat";     return cmd_trajstat(rest)
+        elseif cmd == "analyze";      return cmd_analyze(rest)
         elseif cmd == "upgrade";      return cmd_upgrade(rest)
         elseif cmd == "bench";        return cmd_bench(rest)
         elseif cmd == "cite";         return cmd_cite(rest)

@@ -197,6 +197,54 @@ end
     end
 end
 
+@testset "cmd_analyze summarizes a synthetic workdir" begin
+    workdir = mktempdir(prefix="crucible-analyze-")
+    try
+        # Synthetic rmsd.csv + rg.csv
+        write(joinpath(workdir, "rmsd.csv"),
+              "frame,rmsd_nm\n0,0.10\n1,0.12\n2,0.15\n3,0.13\n4,0.14\n")
+        write(joinpath(workdir, "rg.csv"),
+              "frame,rg_nm\n0,1.20\n1,1.21\n2,1.18\n")
+
+        original_stdout = stdout
+        rd, wr = redirect_stdout()
+        rc = nothing
+        try
+            rc = CLI.main(String["analyze", workdir, "--format", "markdown"])
+        finally
+            redirect_stdout(original_stdout)
+            close(wr)
+        end
+        @test rc == 0
+        out = read(rd, String)
+        @test occursin("# Crucible analysis", out)
+        @test occursin("RMSD", out)
+        @test occursin("Radius of gyration", out)
+    finally
+        rm(workdir; recursive=true, force=true)
+    end
+end
+
+@testset "cmd_analyze handles empty workdir gracefully" begin
+    workdir = mktempdir(prefix="crucible-analyze-empty-")
+    try
+        original_stdout = stdout
+        rd, wr = redirect_stdout()
+        rc = nothing
+        try
+            rc = CLI.main(String["analyze", workdir])
+        finally
+            redirect_stdout(original_stdout)
+            close(wr)
+        end
+        @test rc == 0
+        out = read(rd, String)
+        @test occursin("no observable CSVs found", out)
+    finally
+        rm(workdir; recursive=true, force=true)
+    end
+end
+
 @testset "cmd_export_jsonschema prints the schema" begin
     original_stdout = stdout
     rd, wr = redirect_stdout()
