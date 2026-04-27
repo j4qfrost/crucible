@@ -33,7 +33,7 @@ Usage:
                                               [--python python] [--name LIG]
   crucible verify        <spec.json> [--backend openmm|molly]   # gates 1-3 + render
   crucible run           <spec.json> [--workdir path] [--platform X] [--precision P]
-                                     [--seed N] [--backend openmm]   # render + execute
+                                     [--seed N] [--resume] [--backend openmm]   # render + execute
   crucible serve         [--host 0.0.0.0] [--port 8080]         # HTTP web frontend
   crucible doctor                                                 # diagnose Python / OpenMM / OpenFF deps
   crucible coverage      <spec.json>                              # provenance coverage report
@@ -45,7 +45,8 @@ Usage:
   crucible trajstat      <workdir>                                # walk + classify artifacts
   crucible analyze       <workdir> [--format text|markdown|json]  # summarize observables
   crucible upgrade       <spec.json> [--out path] [--target ver]  # forward-migrate schema
-  crucible bench         [--format text|json] [--repeat N]         # renderer micro-bench
+  crucible bench         [--format text|json] [--repeat N]
+                         [--save baseline.json] [--baseline base.json] [--threshold 20]
   crucible cite          <spec.json>                                # list every provenance entry
   crucible explain       <spec.json>                                # natural-language summary
   crucible export-jsonschema [--out path]                            # dump the live schema.json
@@ -386,6 +387,19 @@ function cmd_run(args::Vector{String})
     haskey(kw, "platform")  && (env["CRUCIBLE_PLATFORM"]  = kw["platform"])
     haskey(kw, "precision") && (env["CRUCIBLE_PRECISION"] = kw["precision"])
     haskey(kw, "seed")      && (env["CRUCIBLE_SEED"]      = kw["seed"])
+
+    # --resume: auto-find the most recent .chk in the workdir.
+    if haskey(kw, "resume")
+        chks = filter(f -> endswith(f, ".chk"), readdir(workdir))
+        if isempty(chks)
+            println(stderr, "crucible run: --resume given but no .chk files in $(workdir)")
+            return 3
+        end
+        # Sort by mtime, take latest.
+        latest = argmax(c -> stat(joinpath(workdir, c)).mtime, chks)
+        env["CRUCIBLE_RESUME_FROM"] = joinpath(workdir, latest)
+        println("resume from:    $(env["CRUCIBLE_RESUME_FROM"])")
+    end
 
     println("python:         $(py)")
     println("env overrides:  ",
@@ -896,16 +910,17 @@ function cmd_bench(args::Vector{String})
     _, kw = _parse_kw_args(args)
     n_repeat = parse(Int, get(kw, "repeat", "10"))
     fmt = get(kw, "format", "text")
+    baseline_path = get(kw, "baseline", "")
+    save_path = get(kw, "save", "")
+    threshold_pct = parse(Float64, get(kw, "threshold", "20"))
     backend = OpenMMBackend()
     results = NamedTuple[]
     workdir = "/tmp/crucible-bench"
     for name in list_templates()
         spec = get_template(name)
         json = spec_to_json(spec)
-        # Warm-up
         _ = Crucible.render_script(backend, spec; output_dir=workdir)
         _ = Crucible.gate_schema(json)
-        # Time render_script
         t_render = @elapsed for _ in 1:n_repeat
             _ = Crucible.render_script(backend, spec; output_dir=workdir)
         end
@@ -918,12 +933,63 @@ function cmd_bench(args::Vector{String})
                         validate_us_per = (t_validate / n_repeat) * 1e6,
                         script_bytes = bytes))
     end
+
+    # Optional baseline comparison.
+    baseline = nothing
+    if !isempty(baseline_path)
+        baseline_obj = JSON3.read(read(baseline_path, String))
+        baseline = Dict{String,NamedTuple}()
+        for r in baseline_obj
+            baseline[String(r.name)] = (
+                render_us_per   = Float64(r.render_us_per_call),
+                validate_us_per = Float64(r.validate_us_per_call),
+                script_bytes    = Int(r.script_bytes),
+            )
+        end
+    end
+
+    # Optional save.
+    if !isempty(save_path)
+        snapshot = [Dict("name" => r.name,
+                         "render_us_per_call"   => r.render_us_per,
+                         "validate_us_per_call" => r.validate_us_per,
+                         "script_bytes"         => r.script_bytes) for r in results]
+        write(save_path, JSON3.write(snapshot))
+        println(stderr, "wrote baseline: $(save_path)")
+    end
+
+    regressions = NamedTuple[]
+    if baseline !== nothing
+        for r in results
+            haskey(baseline, r.name) || continue
+            b = baseline[r.name]
+            for (label, cur, base_v) in (
+                ("render",   r.render_us_per,   b.render_us_per),
+                ("validate", r.validate_us_per, b.validate_us_per),
+            )
+                base_v <= 0 && continue
+                pct = 100 * (cur - base_v) / base_v
+                if pct > threshold_pct
+                    push!(regressions, (template=r.name, op=label,
+                                        before=base_v, after=cur, pct=pct))
+                end
+            end
+        end
+    end
     if fmt == "json"
-        println(JSON3.write([Dict("name" => r.name,
-                                  "render_us_per_call"   => r.render_us_per,
-                                  "validate_us_per_call" => r.validate_us_per,
-                                  "script_bytes"         => r.script_bytes)
-                             for r in results]))
+        out = Dict{String,Any}(
+            "results" => [Dict("name" => r.name,
+                               "render_us_per_call"   => r.render_us_per,
+                               "validate_us_per_call" => r.validate_us_per,
+                               "script_bytes"         => r.script_bytes)
+                          for r in results],
+        )
+        if baseline !== nothing
+            out["regressions"] = [Dict("template" => r.template, "op" => r.op,
+                                       "before_us" => r.before, "after_us" => r.after,
+                                       "pct" => r.pct) for r in regressions]
+        end
+        println(JSON3.write(out))
     else
         println("crucible bench (n=$(n_repeat) per template, OpenMM backend)")
         println()
@@ -935,8 +1001,20 @@ function cmd_bench(args::Vector{String})
                     rpad(string(round(r.validate_us_per; digits=1)), 14),
                     r.script_bytes)
         end
+        if baseline !== nothing
+            println()
+            if isempty(regressions)
+                println("baseline: ✓ no regressions above $(threshold_pct)% threshold")
+            else
+                println("baseline: $(length(regressions)) regression(s) above $(threshold_pct)% threshold")
+                for r in regressions
+                    println("  $(r.template) ($(r.op)): $(round(r.before; digits=1)) → $(round(r.after; digits=1)) µs ($(round(r.pct; digits=1))%)")
+                end
+            end
+        end
     end
-    0
+    # Non-zero exit when --baseline + regressions found, so CI can gate.
+    return isempty(regressions) ? 0 : 4
 end
 
 function cmd_upgrade(args::Vector{String})

@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### v1.11.2 — run --resume + bench --baseline (2026-04-27)
+
+Two ergonomic add-ons that compose with v1.11/v1.11.1.
+
+- **`crucible run --resume`** — auto-finds the most recent `.chk`
+  in the workdir and threads it through as `CRUCIBLE_RESUME_FROM`
+  for the launched python subprocess. One-flag failover after a
+  crash mid-run. Errors clearly (rc=3) when no checkpoints are
+  present.
+- **`crucible bench --save baseline.json` + `--baseline base.json
+  [--threshold 20]`** — bench can now save a JSON snapshot or
+  compare against one. Per-template render + validate timings are
+  diffed; entries that drift more than `--threshold`% are flagged
+  as regressions. Returns rc=4 when regressions are present, so
+  CI pipelines can gate on this output. JSON output mode includes
+  the `regressions` array for machine consumption.
+- Tests: 715/715 pass on Julia 1.10.
+
 ### v1.11.1 — checkpoint/resume for long runs (2026-04-27)
 
 Long REMD / production runs survive node reboots + queue evictions.

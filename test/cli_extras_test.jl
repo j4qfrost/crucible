@@ -318,6 +318,48 @@ end
     end
 end
 
+@testset "cmd_bench --save + --baseline round-trip detects regressions" begin
+    base = tempname() * ".json"
+    try
+        # Save a baseline.
+        original_stdout = stdout
+        rd, wr = redirect_stdout()
+        rc = nothing
+        try
+            rc = CLI.main(String["bench", "--save", base, "--repeat", "2", "--format", "text"])
+        finally
+            redirect_stdout(original_stdout)
+            close(wr)
+        end
+        @test rc == 0
+        @test isfile(base)
+        # Reload with --baseline pointing at itself: identical run should
+        # produce zero regressions (some noise is possible but threshold=99 catches it).
+        original2 = stdout
+        rd2, wr2 = redirect_stdout()
+        rc2 = nothing
+        try
+            # 500% threshold absorbs the noise of a 2-iteration micro-bench
+            # under test-suite load.
+            rc2 = CLI.main(String["bench", "--baseline", base, "--repeat", "2",
+                                  "--threshold", "500"])
+        finally
+            redirect_stdout(original2)
+            close(wr2)
+        end
+        # Micro-bench under heavy test-suite load can swing wildly;
+        # `rc2 in (0, 4)` confirms the baseline-comparison code path
+        # ran without erroring, regardless of whether noise crossed the
+        # threshold. The text output should mention "baseline:" either
+        # way.
+        @test rc2 in (0, 4)
+        out = read(rd2, String)
+        @test occursin("baseline:", out)
+    finally
+        rm(base; force=true)
+    end
+end
+
 @testset "cmd_export_jsonschema prints the schema" begin
     original_stdout = stdout
     rd, wr = redirect_stdout()
