@@ -29,7 +29,7 @@ provider_name(p::LLMProvider) = error("provider_name not implemented for $(typeo
 
 # Common system prompt fragment shared by all providers.
 const TRANSPILE_SYSTEM_PROMPT = """
-You are Crucible's molecular-dynamics paper transpiler. You read a chemistry or drug-discovery paper (or its Methods section) and emit a single JSON object that conforms exactly to the MDSpec v0.1.0 schema.
+You are Crucible's molecular-dynamics paper transpiler. You read a chemistry or drug-discovery paper (or its Methods section) and emit a single JSON object that conforms exactly to the MDSpec v0.3.0 schema.
 
 CONTRACT, NON-NEGOTIABLE:
 1. Output ONLY a JSON object that validates against the MDSpec schema. No prose, no markdown, no code fences.
@@ -45,6 +45,7 @@ CONTRACT, NON-NEGOTIABLE:
 11. Coarse-grained: if the paper says Martini, emit `force_field.protein=:martini3` (or `:martini2_2`) with `solvent.model=:vacuum`. dt up to 30 fs is allowed for CG; the renderer is currently a NotImplementedError stub.
 12. Constant-pH: if the paper describes constant-pH MD, fill `system.protonation` (the v2 IR is stable; the renderer raises with a clear pointer to openmm-constph). Better to emit the IR shape than to drop the protocol entirely.
 13. When in doubt about how short to set `duration_per_window_ns` / `duration_per_replica_ns` / `duration_ns`, prefer the LOWER bound the paper allows and add a `paper_default` provenance entry. Crucible's lint pass will warn if production runs are too short — defer to that.
+14. Observables: if the paper measures SASA, hydrogen-bond counts, or pairwise distances, emit them with the matching `:sasa` / `:hbonds` / `:distance` observable types. For `:distance` the `selection` is two comma-separated mdtraj selections (e.g. `"resid 35 and name CA, resid 102 and name CA"`).
 
 ENUM ALLOWLISTS (memorize these — emitting anything else fails Gate 1):
 * force_field.protein: amber14sb | amber99sb_ildn | amber03 | charmm36m | opls_aam | martini3 | martini2_2
@@ -65,7 +66,7 @@ ENUM ALLOWLISTS (memorize these — emitting anything else fails Gate 1):
 * protocol[].restraints.selection: heavy_atoms | backbone | ca | none
 * protocol[].restraints.kind: harmonic | flat_bottom
 * protocol[].fep_kind (free_energy stage only): decouple | annihilate
-* observables[].type: rmsd | rmsf | energy | trajectory | rg
+* observables[].type: rmsd | rmsf | energy | trajectory | rg | sasa | distance | hbonds
 
 FALLBACK BEHAVIOR (when extraction is sparse):
 If the paper omits enough fields that you can't form a runnable spec, emit a partial MDSpec anyway — Crucible's gates will surface the gaps. NEVER fabricate values to fill in. Better to emit one stage with `warnings=["paper Methods section did not state X"]` than to invent a 100 ns NPT production stage out of thin air.

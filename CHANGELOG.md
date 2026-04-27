@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### v1.9.1 — import-jsonl + LLM prompt v1.9 + explain polish (2026-04-27)
+
+Closes the JSONL round-trip (`templates_to_jsonl` → `import-jsonl`)
+and brings the LLM prompt up to schema 0.3.0.
+
+- **`crucible import-jsonl <file.jsonl> [--db path]`** — read a
+  JSONL training-pair file (the format `templates_to_jsonl.jl` emits
+  + the format `export_transcripts_jsonl` produces) and insert each
+  record into a TranscriptStore. Closes the round-trip:
+  `crucible templates init … | templates_to_jsonl > seed.jsonl &&
+   crucible import-jsonl seed.jsonl` populates the local store with
+  six idealized examples. Skipped lines (malformed JSON or missing
+  spec_json) are reported, never fatal.
+- **LLM transpile prompt v1.9**: now opens with "MDSpec v0.3.0
+  schema" (was 0.1.0); the observables enum lists the new
+  `:sasa` / `:distance` / `:hbonds` types; rule 14 explains
+  the `:distance` selection format ("selA, selB").
+- **`crucible explain`** surfaces coarse-grained protein force
+  fields with a `(coarse-grained — runtime requires martinize2)`
+  hint, so the explainer reflects the v2 IR scaffolding state.
+- Tests: 673/673 pass on Julia 1.10. CLI 25 → 26 subcommands.
+
 ### v1.9 — schema 0.3.0 / new observables / corpus auditing (2026-04-27)
 
 Schema additive bump + two CLI commands aimed at the option-3 fine-

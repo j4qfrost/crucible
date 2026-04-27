@@ -154,6 +154,65 @@ end
           occursin("(no provenance entries)", out)
 end
 
+@testset "cmd_import_jsonl round-trips a templates_to_jsonl export" begin
+    # Build a fake JSONL that templates_to_jsonl would produce.
+    src = tempname() * ".jsonl"
+    open(src, "w") do io
+        for name in list_templates()
+            spec = get_template(name)
+            entry = Dict("id" => "template:$(name)",
+                         "paper_text" => spec.notes,
+                         "spec_json"  => Crucible.spec_to_json(spec),
+                         "schema_version" => "0.3.0",
+                         "method_kind" => String(name),
+                         "split"      => "synthetic_seed",
+                         "provider"   => "import")
+            println(io, JSON3.write(entry))
+        end
+    end
+    db = tempname() * ".duckdb"
+    try
+        original_stdout = stdout
+        rd, wr = redirect_stdout()
+        rc = nothing
+        try
+            rc = CLI.main(String["import-jsonl", src, "--db", db])
+        finally
+            redirect_stdout(original_stdout)
+            close(wr)
+        end
+        @test rc == 0
+        out = read(rd, String)
+        @test occursin("imported", out)
+        @test occursin(string(length(list_templates())), out)
+        store = open_transcript_store(path=db)
+        try
+            @test transcript_count(store) == length(list_templates())
+        finally
+            close_transcript_store(store)
+        end
+    finally
+        rm(src; force=true)
+        rm(db; force=true)
+    end
+end
+
+@testset "cmd_export_jsonschema prints the schema" begin
+    original_stdout = stdout
+    rd, wr = redirect_stdout()
+    rc = nothing
+    try
+        rc = CLI.main(String["export-jsonschema"])
+    finally
+        redirect_stdout(original_stdout)
+        close(wr)
+    end
+    @test rc == 0
+    out = read(rd, String)
+    @test occursin("MDSpec", out)
+    @test occursin("0.3.0", out)
+end
+
 @testset "cmd_explain produces a paragraph for every template" begin
     for name in list_templates()
         spec = get_template(name)

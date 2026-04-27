@@ -47,6 +47,7 @@ Usage:
   crucible explain       <spec.json>                                # natural-language summary
   crucible export-jsonschema [--out path]                            # dump the live schema.json
   crucible audit-transcripts <db.duckdb> [--threshold 0.5] [--format text|json]  # corpus quality
+  crucible import-jsonl  <file.jsonl> [--db path]                  # load training pairs into TranscriptStore
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -279,7 +280,7 @@ function cmd_info(::Vector{String})
     println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
     println("                 info parameterize verify serve doctor coverage lint templates")
     println("                 snapshot restore fmt trajstat upgrade bench cite explain")
-    println("                 export-jsonschema audit-transcripts")
+    println("                 export-jsonschema audit-transcripts import-jsonl")
     println()
     println("Ligand parameterizer:")
     avail = parameterizer_available()
@@ -517,6 +518,62 @@ function cmd_coverage(args::Vector{String})
     0
 end
 
+function cmd_import_jsonl(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: import-jsonl <file.jsonl> [--db path]")
+    src = pos[1]
+    isfile(src) || error("import-jsonl: file not found: $(src)")
+    db_path = get(kw, "db", Crucible.default_transcript_db())
+    store = open_transcript_store(path=db_path)
+    n_imported = 0
+    n_skipped = 0
+    try
+        for line in eachline(src)
+            isempty(strip(line)) && continue
+            obj = try
+                JSON3.read(line, Dict)
+            catch err
+                println(stderr, "import-jsonl: skipping malformed line: $(err)")
+                n_skipped += 1
+                continue
+            end
+            # Extract spec_json — may be nested object or string.
+            spec_obj = get(obj, "spec_json", nothing)
+            spec_obj === nothing && (n_skipped += 1; continue)
+            spec_json = spec_obj isa AbstractString ? String(spec_obj) : JSON3.write(spec_obj)
+            paper_text = String(get(obj, "paper_text", ""))
+
+            # Synthesize the structs log_transcript expects.
+            paper = Crucible.PaperRepr(
+                source_kind = Symbol(get(obj, "method_kind", get(obj, "paper_kind", "imported"))),
+                source_id = String(get(obj, "id", "imported:unknown")),
+                title = get(obj, "paper_title", nothing),
+                body_text = paper_text,
+            )
+            spec = nothing
+            try
+                spec = spec_from_json(spec_json)
+            catch
+                spec = nothing
+            end
+            result = Crucible.TranspileResult(
+                spec_json, spec,
+                String(get(obj, "raw_response", "")),
+                Symbol(get(obj, "provider", "imported")),
+                String(get(obj, "model", "")),
+                Float64(get(obj, "cost_usd", 0.0)),
+            )
+            log_transcript(store, paper, result)
+            n_imported += 1
+        end
+    finally
+        close_transcript_store(store)
+    end
+    println("imported $(n_imported) entries into $(db_path)" *
+            (n_skipped > 0 ? " ($(n_skipped) malformed lines skipped)" : ""))
+    0
+end
+
 function cmd_export_jsonschema(args::Vector{String})
     _, kw = _parse_kw_args(args)
     schema_path = joinpath(@__DIR__, "..", "spec", "schema.json")
@@ -672,7 +729,9 @@ function _explain_spec(spec::MDSpec)::String
         print(io, "in $(String(sol.model)) water with $(sol.ions_NaCl_mM) mM NaCl")
     end
     print(io, ".\n\n")
+    is_cg = spec.force_field.protein in (:martini3, :martini2_2)
     print(io, "Force field: $(String(spec.force_field.protein))")
+    is_cg && print(io, " (coarse-grained — runtime requires martinize2)")
     spec.force_field.water != :vacuum && print(io, " + $(String(spec.force_field.water))")
     spec.force_field.lipid !== nothing && print(io, " + $(String(spec.force_field.lipid))")
     spec.force_field.ligand != :user_supplied && print(io, " + $(String(spec.force_field.ligand)) for the ligand")
@@ -1112,6 +1171,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "explain";      return cmd_explain(rest)
         elseif cmd == "export-jsonschema"; return cmd_export_jsonschema(rest)
         elseif cmd == "audit-transcripts"; return cmd_audit_transcripts(rest)
+        elseif cmd == "import-jsonl"; return cmd_import_jsonl(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")
