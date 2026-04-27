@@ -102,6 +102,7 @@ function gate_semantic(spec::MDSpec)::ValidationReport
         _rule_metadynamics_cv_atoms,
         _rule_membrane_coherence,
         _rule_protonation_coherence,
+        _rule_coarse_grain_coherence,
     )
         r = rule(spec, r)
     end
@@ -119,18 +120,22 @@ function _rule_npt_requires_barostat(spec::MDSpec, r::ValidationReport)
 end
 
 function _rule_constraints_timestep(spec::MDSpec, r::ValidationReport)
+    # Coarse-grained dynamics (Martini etc.) routinely run at 20-25 fs;
+    # the atomistic 5 fs hard cap doesn't apply.
+    is_cg = spec.force_field.protein in CG_PROTEIN_FF
+    cap_fs = is_cg ? 30.0 : 5.0
     for (i, s) in enumerate(spec.protocol)
         s isa DynamicsStage || continue
-        if s.constraints == :none && s.dt_fs > 1.0
+        if !is_cg && s.constraints == :none && s.dt_fs > 1.0
             r = record_warning!(r,
                 "stage $i: dt=$(s.dt_fs) fs without constraints risks integrator instability; consider :h_bonds")
         end
-        if s.constraints in (:h_bonds, :all_bonds) && s.dt_fs > 4.0
+        if !is_cg && s.constraints in (:h_bonds, :all_bonds) && s.dt_fs > 4.0
             r = record_warning!(r,
                 "stage $i: dt=$(s.dt_fs) fs is aggressive even with constraints")
         end
-        if s.dt_fs > 5.0
-            r = record_error!(r, "stage $i: dt=$(s.dt_fs) fs exceeds the 5 fs hard cap")
+        if s.dt_fs > cap_fs
+            r = record_error!(r, "stage $i: dt=$(s.dt_fs) fs exceeds the $(cap_fs) fs hard cap")
         end
     end
     r
@@ -217,6 +222,32 @@ function _rule_langevin_friction_nonzero(spec::MDSpec, r::ValidationReport)
         if s.thermostat == :langevin && s.friction_ps == 0
             r = record_warning!(r,
                 "stage $i: langevin thermostat with friction_ps=0 is degenerate (no coupling); consider 1.0 ps^-1")
+        end
+    end
+    r
+end
+
+function _rule_coarse_grain_coherence(spec::MDSpec, r::ValidationReport)
+    is_cg = spec.force_field.protein in CG_PROTEIN_FF
+    is_cg || return r
+    if spec.system.solvent.model in (:TIP3P, :TIP4P_EW, :SPC_E)
+        r = record_error!(r,
+            "force_field.protein=:$(spec.force_field.protein) is coarse-grained; " *
+            "atomistic water model :$(spec.system.solvent.model) is incoherent. " *
+            "Use :vacuum for Martini (Martini's polarizable water is supplied by the topology)")
+    end
+    if spec.force_field.lipid !== nothing
+        r = record_warning!(r,
+            "Martini protein FF + atomistic lipid FF $(spec.force_field.lipid) is unusual; " *
+            "Martini bilayers are typically supplied as user_supplied topology")
+    end
+    for (i, s) in enumerate(spec.protocol)
+        s isa DynamicsStage || continue
+        if s.dt_fs < 10.0
+            r = record_warning!(r,
+                "stage $i: Martini typically uses 20–25 fs timesteps; got $(s.dt_fs) fs " *
+                "(coarse-grained dynamics are stable at much larger steps than atomistic)")
+            break   # one warning is enough
         end
     end
     r

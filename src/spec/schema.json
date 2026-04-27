@@ -90,7 +90,7 @@
       "additionalProperties": false,
       "required": ["protein", "water", "ligand"],
       "properties": {
-        "protein": {"enum": ["amber14sb", "amber99sb_ildn", "amber03", "charmm36m", "opls_aam"]},
+        "protein": {"enum": ["amber14sb", "amber99sb_ildn", "amber03", "charmm36m", "opls_aam", "martini3", "martini2_2"]},
         "water":   {"enum": ["TIP3P", "TIP4P_EW", "SPC_E", "implicit_GBSA", "vacuum"]},
         "ligand":  {"enum": ["user_supplied", "gaff2", "openff_sage_2_2_0"]},
         "lipid":   {"oneOf": [{"type": "null"},
@@ -164,7 +164,7 @@
               "ensemble":               {"enum": ["NVT", "NPT"]},
               "temperature_K":          {"type": "number", "minimum": 0, "maximum": 1000},
               "pressure_bar":           {"type": ["number", "null"]},
-              "dt_fs":                  {"type": "number", "exclusiveMinimum": 0, "maximum": 5},
+              "dt_fs":                  {"type": "number", "exclusiveMinimum": 0, "maximum": 30},
               "thermostat":             {"enum": ["langevin", "nose_hoover", "andersen", "berendsen"]},
               "friction_ps":            {"type": "number", "minimum": 0, "maximum": 100},
               "constraints":            {"enum": ["none", "h_bonds", "all_bonds"]}
@@ -186,7 +186,7 @@
               "ensemble":               {"enum": ["NVT", "NPT"]},
               "temperature_K":          {"type": "number", "minimum": 0, "maximum": 1000},
               "pressure_bar":           {"type": ["number", "null"]},
-              "dt_fs":                  {"type": "number", "exclusiveMinimum": 0, "maximum": 5},
+              "dt_fs":                  {"type": "number", "exclusiveMinimum": 0, "maximum": 30},
               "thermostat":             {"enum": ["langevin", "nose_hoover", "andersen", "berendsen"]},
               "friction_ps":            {"type": "number", "minimum": 0, "maximum": 100},
               "constraints":            {"enum": ["none", "h_bonds", "all_bonds"]}
@@ -220,7 +220,7 @@
               "role":          {"enum": ["equilibrate", "production"]},
               "ensemble":      {"enum": ["NVE", "NVT", "NPT"]},
               "duration_ns":   {"type": "number", "exclusiveMinimum": 0, "maximum": 10000},
-              "dt_fs":         {"type": "number", "exclusiveMinimum": 0, "maximum": 5},
+              "dt_fs":         {"type": "number", "exclusiveMinimum": 0, "maximum": 30},
               "temperature_K": {"type": "number", "minimum": 0, "maximum": 1000},
               "pressure_bar":  {"type": ["number", "null"]},
               "thermostat":    {"enum": ["langevin", "nose_hoover", "andersen", "berendsen"]},

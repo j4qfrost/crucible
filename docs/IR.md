@@ -54,7 +54,7 @@ Auto-generated from `src/spec/schema.json` by `tools/regenerate_docs.jl`. Do not
 | field | type | required | notes |
 |-------|------|----------|-------|
 | `water` | enum: `TIP3P`, `TIP4P_EW`, `SPC_E`, `implicit_GBSA`, `vacuum` | ✓ |  |
-| `protein` | enum: `amber14sb`, `amber99sb_ildn`, `amber03`, `charmm36m`, `opls_aam` | ✓ |  |
+| `protein` | enum: `amber14sb`, `amber99sb_ildn`, `amber03`, `charmm36m`, `opls_aam`, `martini3`, `martini2_2` | ✓ |  |
 | `ligand` | enum: `user_supplied`, `gaff2`, `openff_sage_2_2_0` | ✓ |  |
 | `lipid` | oneOf | — |  |
 
@@ -95,7 +95,7 @@ Each stage is one of two shapes (oneOf):
 
 | field | type | required | notes |
 |-------|------|----------|-------|
-| `dt_fs` | `number` | ✓ | max=5; > 0 |
+| `dt_fs` | `number` | ✓ | max=30; > 0 |
 | `bias_factor` | `number` | ✓ | min=1; max=100 |
 | `bias_deposit_period_ps` | `number` | ✓ | max=1000; > 0 |
 | `cvs` | `array` | ✓ | minItems=1 |
@@ -117,7 +117,7 @@ Each stage is one of two shapes (oneOf):
 | field | type | required | notes |
 |-------|------|----------|-------|
 | `target_selection` | `string` | ✓ |  |
-| `dt_fs` | `number` | ✓ | max=5; > 0 |
+| `dt_fs` | `number` | ✓ | max=30; > 0 |
 | `constraints` | enum: `none`, `h_bonds`, `all_bonds` | ✓ |  |
 | `duration_per_window_ns` | `number` | ✓ | max=100; > 0 |
 | `kind` | `"free_energy"` | ✓ |  |
@@ -136,7 +136,7 @@ Each stage is one of two shapes (oneOf):
 | field | type | required | notes |
 |-------|------|----------|-------|
 | `role` | enum: `equilibrate`, `production` | ✓ |  |
-| `dt_fs` | `number` | ✓ | max=5; > 0 |
+| `dt_fs` | `number` | ✓ | max=30; > 0 |
 | `restraints` | `object` | ✓ | strict (no extra fields) |
 | `constraints` | enum: `none`, `h_bonds`, `all_bonds` | ✓ |  |
 | `barostat` | oneOf | ✓ |  |

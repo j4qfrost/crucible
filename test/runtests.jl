@@ -26,4 +26,6 @@ using Crucible
     include("templates_test.jl")
     include("snapshot_test.jl")
     include("constph_test.jl")
+    include("martini_test.jl")
+    include("cli_extras_test.jl")
 end

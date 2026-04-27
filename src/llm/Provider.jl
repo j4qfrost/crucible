@@ -40,14 +40,23 @@ CONTRACT, NON-NEGOTIABLE:
 6. If the paper describes a system you cannot represent in v0 (membranes, free-energy, REMD, plumed), emit an MDSpec for the closest reduced sub-protocol (typically: minimize → NVT → NPT → production) and add a warning describing what you dropped.
 7. has_ligand=true with system.source.type=user_supplied requires the user to supply a topology — if the paper provides a SMILES string instead, prefer system.source.type=:smiles (pure ligand) or :protein_ligand (PDB + SMILES) so Crucible's OpenFFParameterizer can build the topology automatically. Never invent FF parameters yourself.
 8. Free-energy / alchemical protocols: if the paper describes FEP / TI / decoupling / annihilation, emit a free_energy stage with explicit lambda_windows + duration_per_window_ns. If the paper does not state lambdas, default to 11 evenly-spaced windows [0.0, 0.1, ..., 1.0] and add a warning.
+9. Enhanced sampling: if the paper describes REMD / parallel tempering, emit a `remd` stage with the temperature ladder verbatim (or, if not stated, an exponential ladder over the range with ratio ≈1.10 → ~30% acceptance heuristic). If metadynamics, emit a `metadynamics` stage with all CVs the paper names; if no CVs are explicit, emit a warning rather than guessing.
+10. Membrane systems: if the paper describes a lipid bilayer, set `system.solvent.membrane` (`POPC` / `POPE` / `DPPC` / `mixed_POPC_chol`) AND `force_field.lipid` (`lipid21` / `charmm36_lipid` / `slipids`). The renderer auto-emits MonteCarloMembraneBarostat for NPT — do NOT emit `barostat=monte_carlo` thinking you need to override it.
+11. Coarse-grained: if the paper says Martini, emit `force_field.protein=:martini3` (or `:martini2_2`) with `solvent.model=:vacuum`. dt up to 30 fs is allowed for CG; the renderer is currently a NotImplementedError stub.
+12. Constant-pH: if the paper describes constant-pH MD, fill `system.protonation` (the v2 IR is stable; the renderer raises with a clear pointer to openmm-constph). Better to emit the IR shape than to drop the protocol entirely.
+13. When in doubt about how short to set `duration_per_window_ns` / `duration_per_replica_ns` / `duration_ns`, prefer the LOWER bound the paper allows and add a `paper_default` provenance entry. Crucible's lint pass will warn if production runs are too short — defer to that.
 
 ENUM ALLOWLISTS (memorize these — emitting anything else fails Gate 1):
-* force_field.protein: amber14sb | amber99sb_ildn | amber03 | charmm36m | opls_aam
+* force_field.protein: amber14sb | amber99sb_ildn | amber03 | charmm36m | opls_aam | martini3 | martini2_2
 * force_field.water:   TIP3P | TIP4P_EW | SPC_E | implicit_GBSA | vacuum
 * force_field.ligand:  user_supplied | gaff2 | openff_sage_2_2_0
 * system.solvent.model: same as force_field.water
 * system.source.type: user_supplied | pdb_id | pdb_fetch | smiles | protein_ligand
-* protocol[].kind: minimize | dynamics | free_energy
+* protocol[].kind: minimize | dynamics | free_energy | remd | metadynamics
+* force_field.lipid: charmm36_lipid | lipid21 | slipids | null
+* system.source.type: user_supplied | pdb_id | pdb_fetch | smiles | protein_ligand
+* system.solvent.membrane.composition: POPC | POPE | DPPC | mixed_POPC_chol | null
+* metadynamics CV kinds: distance | angle | dihedral | rmsd
 * protocol[].role: equilibrate | production
 * protocol[].ensemble: NVE | NVT | NPT
 * protocol[].thermostat: langevin | nose_hoover | andersen | berendsen
@@ -57,6 +66,11 @@ ENUM ALLOWLISTS (memorize these — emitting anything else fails Gate 1):
 * protocol[].restraints.kind: harmonic | flat_bottom
 * protocol[].fep_kind (free_energy stage only): decouple | annihilate
 * observables[].type: rmsd | rmsf | energy | trajectory | rg
+
+FALLBACK BEHAVIOR (when extraction is sparse):
+If the paper omits enough fields that you can't form a runnable spec, emit a partial MDSpec anyway — Crucible's gates will surface the gaps. NEVER fabricate values to fill in. Better to emit one stage with `warnings=["paper Methods section did not state X"]` than to invent a 100 ns NPT production stage out of thin air.
+
+If the paper is about a method Crucible can't render (e.g. constant-pH MD without the openmm-constph runtime; coarse-grained MD without martinize2; QM/MM), emit the matching IR fields anyway — they round-trip and serve as training signal for v2. Add a warning explaining which runtime is missing.
 
 CROSS-FIELD INVARIANTS (also enforced by the schema):
 * ensemble=NPT requires barostat ∈ {monte_carlo, berendsen, parrinello_rahman} AND pressure_bar ≥ 0

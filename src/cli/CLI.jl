@@ -39,6 +39,8 @@ Usage:
   crucible templates     list | show <name> | init <name> [--out spec.json]
   crucible snapshot      <workdir> --out <archive.tar.gz> [--max-size-mb N]
   crucible restore       <archive.tar.gz> --out <dest-dir> [--no-verify]
+  crucible fmt           <spec.json> [--in-place]                # pretty-print spec
+  crucible trajstat      <workdir>                                # walk + classify artifacts
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -270,7 +272,7 @@ function cmd_info(::Vector{String})
     println()
     println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
     println("                 info parameterize verify serve doctor coverage lint templates")
-    println("                 snapshot restore")
+    println("                 snapshot restore fmt trajstat")
     println()
     println("Ligand parameterizer:")
     avail = parameterizer_available()
@@ -508,6 +510,144 @@ function cmd_coverage(args::Vector{String})
     0
 end
 
+function cmd_fmt(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: fmt <spec.json> [--in-place]")
+    raw = read(pos[1], String)
+    spec = spec_from_json(raw)
+    pretty = _pretty_json(JSON3.read(spec_to_json(spec), Dict))
+    if haskey(kw, "in-place")
+        write(pos[1], pretty)
+        println(stderr, "wrote: $(pos[1]) ($(filesize(pos[1])) bytes)")
+    else
+        println(pretty)
+    end
+    0
+end
+
+# Tiny JSON pretty-printer. Keeps output deterministic + close to what
+# `jq` would produce. Trade-off: doesn't sort keys (preserves insertion
+# order); good enough for human review and avoids surprising diffs.
+function _pretty_json(v; indent=0, step=2)
+    pad(n) = " " ^ (n * step)
+    if v isa AbstractDict
+        isempty(v) && return "{}"
+        io = IOBuffer()
+        print(io, "{\n")
+        keys_v = collect(keys(v))
+        for (i, k) in enumerate(keys_v)
+            print(io, pad(indent + 1))
+            print(io, JSON3.write(string(k)))
+            print(io, ": ")
+            print(io, _pretty_json(v[k]; indent=indent+1, step=step))
+            i < length(keys_v) && print(io, ",")
+            print(io, "\n")
+        end
+        print(io, pad(indent), "}")
+        String(take!(io))
+    elseif v isa AbstractVector
+        isempty(v) && return "[]"
+        # Inline short numeric/string arrays for readability.
+        if all(x -> !(x isa AbstractDict) && !(x isa AbstractVector), v) &&
+           length(v) <= 16
+            return "[" * join((JSON3.write(x) for x in v), ", ") * "]"
+        end
+        io = IOBuffer()
+        print(io, "[\n")
+        for (i, x) in enumerate(v)
+            print(io, pad(indent + 1))
+            print(io, _pretty_json(x; indent=indent+1, step=step))
+            i < length(v) && print(io, ",")
+            print(io, "\n")
+        end
+        print(io, pad(indent), "]")
+        String(take!(io))
+    else
+        JSON3.write(v)
+    end
+end
+
+function cmd_trajstat(args::Vector{String})
+    pos, _ = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: trajstat <workdir>")
+    workdir = pos[1]
+    isdir(workdir) || error("trajstat: not a directory: $(workdir)")
+    by_kind = Dict{Symbol,Vector{String}}(:trajectory=>String[],
+                                          :timeseries=>String[],
+                                          :checkpoint=>String[],
+                                          :spec=>String[],
+                                          :script=>String[],
+                                          :other=>String[])
+    total_bytes = 0
+    for (root, _dirs, fnames) in walkdir(workdir)
+        for f in fnames
+            full = joinpath(root, f)
+            n = filesize(full)
+            total_bytes += n
+            kind = endswith(f, ".dcd") || endswith(f, ".xtc") || endswith(f, ".trr") ? :trajectory :
+                   endswith(f, ".csv") || endswith(f, ".log") ? :timeseries :
+                   endswith(f, ".chk") || endswith(f, ".cpt") ? :checkpoint :
+                   endswith(f, "spec.json") || f == "spec.json" ? :spec :
+                   endswith(f, ".py") || endswith(f, ".jl") ? :script :
+                   :other
+            push!(by_kind[kind], relpath(full, workdir))
+        end
+    end
+    println("trajstat: $(workdir)")
+    println("  total bytes: $(total_bytes) ($(round(total_bytes / 1024 / 1024; digits=2)) MB)")
+    for kind in (:trajectory, :timeseries, :checkpoint, :spec, :script, :other)
+        files = sort(by_kind[kind])
+        isempty(files) && continue
+        println("  $(rpad(string(kind) * ":", 14))$(length(files)) file(s)")
+        for f in files
+            full = joinpath(workdir, f)
+            println("    $(rpad(f, 50)) $(rpad(string(filesize(full)), 12)) bytes")
+        end
+    end
+    # mdtraj sniff (if available) for trajectory frame counts.
+    if !isempty(by_kind[:trajectory])
+        py = Sys.which("python") !== nothing ? "python" :
+             Sys.which("python3") !== nothing ? "python3" : nothing
+        if py !== nothing && _has_mdtraj(py)
+            println("  trajectory frame counts (via mdtraj):")
+            for f in sort(by_kind[:trajectory])
+                full = joinpath(workdir, f)
+                top = joinpath(workdir, "spec.json")  # if the workdir has a topology, mdtraj will fail without it; use a heuristic
+                cmd = `$py -c "import mdtraj; t = mdtraj.load_dcd($(repr(full)), top=$(repr(_guess_topology(workdir)))); print(t.n_frames, t.n_atoms)"`
+                out = _run_capture(cmd)
+                if !isempty(out)
+                    parts = split(strip(out))
+                    if length(parts) == 2
+                        println("    $(rpad(f, 50)) frames=$(parts[1]) atoms=$(parts[2])")
+                    end
+                end
+            end
+        end
+    end
+    0
+end
+
+function _has_mdtraj(py::AbstractString)
+    try
+        run(pipeline(`$py -c "import mdtraj"`; stdout=devnull, stderr=devnull); wait=true)
+        return true
+    catch
+        return false
+    end
+end
+
+function _guess_topology(workdir)
+    for cand in ("topology.pdb", "system.pdb", "complex.pdb")
+        full = joinpath(workdir, cand)
+        isfile(full) && return full
+    end
+    # Fallback: any .pdb in the workdir
+    for f in readdir(workdir)
+        endswith(f, ".pdb") && return joinpath(workdir, f)
+    end
+    ""
+end
+
 function cmd_snapshot(args::Vector{String})
     pos, kw = _parse_kw_args(args)
     length(pos) < 1 && error("usage: snapshot <workdir> --out <archive.tar.gz> [--max-size-mb N]")
@@ -681,6 +821,8 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "templates";    return cmd_templates(rest)
         elseif cmd == "snapshot";     return cmd_snapshot(rest)
         elseif cmd == "restore";      return cmd_restore(rest)
+        elseif cmd == "fmt";          return cmd_fmt(rest)
+        elseif cmd == "trajstat";     return cmd_trajstat(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")

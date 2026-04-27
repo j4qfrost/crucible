@@ -100,8 +100,13 @@ SystemSpec(source::SystemSource, n_atoms_estimate::Int, has_ligand::Bool,
 # Allowlist — never let the LLM invent FF names. Mapping from "Amber99",
 # "ff14SB", etc. happens at extraction time, not render time, and is logged.
 const PROTEIN_FF_ALLOWLIST = (
-    :amber14sb, :amber99sb_ildn, :amber03, :charmm36m, :opls_aam
+    :amber14sb, :amber99sb_ildn, :amber03, :charmm36m, :opls_aam,
+    # Coarse-grained (v2 IR scaffolding; renderer stub raises) —
+    # the Martini ecosystem ships incompatible toolchains, so we
+    # commit to the IR shape now and defer the renderer to v2.
+    :martini3, :martini2_2,
 )
+const CG_PROTEIN_FF = (:martini3, :martini2_2)
 const WATER_MODEL_ALLOWLIST = (
     :TIP3P, :TIP4P_EW, :SPC_E, :implicit_GBSA, :vacuum
 )
@@ -361,6 +366,7 @@ function required_features(spec::MDSpec)::Set{Symbol}
     spec.system.solvent.membrane !== nothing && push!(feats, :membrane, :anisotropic_barostat)
     spec.system.protonation !== nothing && push!(feats, :constph, :titration)
     spec.system.has_ligand && push!(feats, :ligand)
+    spec.force_field.protein in CG_PROTEIN_FF && push!(feats, :coarse_grain)
     for s in spec.protocol
         if s isa FEPStage
             push!(feats, :alchemy)

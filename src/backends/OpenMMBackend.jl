@@ -22,7 +22,7 @@ function supported_features(::OpenMMBackend)::Set{Symbol}
          # Scaffolding-only — IR roundtrips, validation passes, but the
          # renderer emits a NotImplementedError stub. v2 commits to a
          # real implementation; the IR shape is stable now.
-         :constph, :titration])
+         :constph, :titration, :coarse_grain])
 end
 
 function validate_spec(b::OpenMMBackend, spec::MDSpec)::ValidationReport
@@ -272,6 +272,22 @@ end
 function _emit_forcefield(spec::MDSpec)
     ff = spec.force_field
     io = IOBuffer()
+    # Coarse-grained protein FF: scaffolding-only stub. The Martini ecosystem
+    # has multiple incompatible toolchains (martinize2 / vermouth / martini-
+    # vampire); committing the renderer to one would lock us in. v2 picks.
+    if ff.protein in (:martini3, :martini2_2)
+        print(io, "# --- coarse-grained force field (v2 scaffolding stub) ---\n")
+        print(io, "# Crucible v1.x ships the IR + validation only — runtime needs `martinize2`\n")
+        print(io, "# (https://github.com/marrink-lab/vermouth-martinize) to convert atomistic\n")
+        print(io, "# input to Martini topology, then `gmx grompp + mdrun` (or OpenMM\n")
+        print(io, "# with the Martini OpenMM .xml that ships with vermouth) to integrate.\n")
+        print(io, "raise NotImplementedError(\n")
+        print(io, "    'crucible: Martini coarse-grained MD is v2-deferred. The IR is stable; '\n")
+        print(io, "    'unblock locally by running martinize2 on your atomistic system, then '\n")
+        print(io, "    'load the resulting topology with the Martini OpenMM XML.'\n")
+        print(io, ")\n\n")
+        return String(take!(io))
+    end
     print(io, "# --- force field ---\n")
     ff_files = String[]
     if ff.protein == :amber14sb

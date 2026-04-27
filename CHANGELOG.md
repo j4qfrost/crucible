@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### v1.7 — Martini IR / fmt / trajstat / LLM prompt v1.6 (2026-04-27)
+
+Sibling polish pass to v1.6: another v2 IR scaffold + two small CLI
+utilities + a meaningful update to the LLM transpile prompt.
+
+- **Martini coarse-grained protein FF scaffolding**. New entries
+  `:martini3` and `:martini2_2` in `PROTEIN_FF_ALLOWLIST` (also
+  exposed via `CG_PROTEIN_FF` for convenience). Schema enum widened.
+  `_rule_coarse_grain_coherence` rejects atomistic water with CG
+  protein and warns on sub-10-fs timesteps. `_rule_constraints_timestep`
+  splits its hard cap: 5 fs for atomistic, 30 fs for CG. JSON Schema
+  `dt_fs` cap raised 5 → 30. OpenMMBackend's `_emit_forcefield`
+  emits a `NotImplementedError` stub pointing at `martinize2` —
+  trade-off note: Martini ecosystem has multiple incompatible
+  toolchains; v1.x ships IR + validation, v2 commits the renderer.
+  `:coarse_grain` added to `required_features` + supported_features.
+- **`crucible fmt <spec> [--in-place]`** — pretty-print MDSpec JSON.
+  Tiny recursive printer (preserves insertion order; doesn't sort
+  keys to avoid surprising diffs). Round-trips schema-valid.
+- **`crucible trajstat <workdir>`** — walks the workdir, classifies
+  files (`:trajectory` / `:timeseries` / `:checkpoint` / `:spec` /
+  `:script` / `:other`) by extension. Optional mdtraj sniff for
+  per-trajectory frame + atom counts when `mdtraj` is on PATH.
+- **LLM transpile prompt v1.6**. New rules 9-13 for enhanced
+  sampling, membranes, coarse-grained, constant-pH; updated
+  `system.source.type` enum; new fallback-behavior section
+  ("never fabricate; emit warnings; round-trip serves as v2
+  training signal"); added cross-field invariants for the new
+  stage types.
+- **CLI 17 → 19 subcommands** (`fmt`, `trajstat`).
+- **Tests**: 563/563 pass on Julia 1.10. New files:
+  `martini_test.jl` (9 testsets), `cli_extras_test.jl` (4 testsets).
+
 ### v1.6 — templates / snapshot / constph IR / v1.5 walkthrough (2026-04-27)
 
 A polish pass focused on user onboarding (templates, snapshot/restore,
