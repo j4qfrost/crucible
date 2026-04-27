@@ -400,6 +400,25 @@ function _emit_protocol(spec::MDSpec)
     print(io, "def _crucible_seed_integrator(integrator):\n")
     print(io, "    if _seed_int is not None and hasattr(integrator, 'setRandomNumberSeed'):\n")
     print(io, "        integrator.setRandomNumberSeed(_seed_int)\n")
+    # Checkpoint/resume plumbing.
+    # CRUCIBLE_CHECKPOINT_PERIOD_PS  — write a per-stage .chk every N ps.
+    # CRUCIBLE_RESUME_FROM           — load this checkpoint into the very
+    #                                  next dynamics stage's context.
+    # Resume pattern (long-run failover):
+    #   1. Crash happens mid-production after some checkpoint was written.
+    #   2. User reruns with CRUCIBLE_RESUME_FROM=<workdir>/production_4.chk
+    #      and CRUCIBLE_PREVIEW_STEPS unset.
+    #   3. The first dynamics stage's setPositions is replaced with
+    #      loadCheckpoint(); equilibration is therefore re-run, but the
+    #      production stage resumes the integrator state.
+    print(io, "_chk_period_ps = float(os.environ['CRUCIBLE_CHECKPOINT_PERIOD_PS']) if 'CRUCIBLE_CHECKPOINT_PERIOD_PS' in os.environ else None\n")
+    print(io, "_resume_from = os.environ.get('CRUCIBLE_RESUME_FROM')\n")
+    print(io, "_resume_consumed = False\n")
+    print(io, "if _chk_period_ps is not None:\n")
+    print(io, "    print(f'crucible: checkpointing every {_chk_period_ps} ps')\n")
+    print(io, "if _resume_from is not None:\n")
+    print(io, "    print(f'crucible: will resume from {_resume_from}')\n")
+    print(io, "from openmm.app import CheckpointReporter\n")
     # Preview gate: when CRUCIBLE_PREVIEW_STEPS is set, every dynamics stage
     # caps n_steps at that value. Lets validation Gate 4 reuse this script.
     print(io, "_preview_cap = int(os.environ['CRUCIBLE_PREVIEW_STEPS']) if 'CRUCIBLE_PREVIEW_STEPS' in os.environ else None\n")
@@ -470,11 +489,16 @@ function _emit_protocol(spec::MDSpec)
                 print(io, "_baro_index = system.addForce(_baro)\n")
             end
             print(io, "_sim = Simulation(topology, system, _integrator, platform)\n")
-            print(io, "_sim.context.setPositions(current_positions)\n")
-            print(io, "if current_velocities is not None:\n")
-            print(io, "    _sim.context.setVelocities(current_velocities)\n")
+            print(io, "if _resume_from is not None and not _resume_consumed:\n")
+            print(io, "    _sim.loadCheckpoint(_resume_from)\n")
+            print(io, "    _resume_consumed = True\n")
+            print(io, "    print(f'crucible: stage ", i, " (", String(stage.role), ") resumed from {_resume_from}')\n")
             print(io, "else:\n")
-            print(io, "    _crucible_init_velocities(_sim, ", stage.temperature_K, "*unit.kelvin)\n")
+            print(io, "    _sim.context.setPositions(current_positions)\n")
+            print(io, "    if current_velocities is not None:\n")
+            print(io, "        _sim.context.setVelocities(current_velocities)\n")
+            print(io, "    else:\n")
+            print(io, "        _crucible_init_velocities(_sim, ", stage.temperature_K, "*unit.kelvin)\n")
 
             # Reporters scoped to this stage
             stage_tag = string(String(stage.role), "_", i)
@@ -483,6 +507,11 @@ function _emit_protocol(spec::MDSpec)
             print(io, "    os.path.join(OUTPUT_DIR, ", repr("$(stage_tag).log"), "),\n")
             print(io, "    ", log_period, ", step=True, time=True, potentialEnergy=True,\n")
             print(io, "    kineticEnergy=True, totalEnergy=True, temperature=True, volume=True))\n")
+            # Periodic checkpoint when CRUCIBLE_CHECKPOINT_PERIOD_PS is set.
+            print(io, "if _chk_period_ps is not None:\n")
+            print(io, "    _chk_steps = max(1, int(_chk_period_ps * 1000 / ", stage.dt_fs, "))\n")
+            print(io, "    _sim.reporters.append(CheckpointReporter(\n")
+            print(io, "        os.path.join(OUTPUT_DIR, ", repr("$(stage_tag).chk"), "), _chk_steps))\n")
 
             # Per-spec trajectory reporters — DCDReporter at the requested
             # stride, written to <stage>_traj.dcd. Only attached for stages

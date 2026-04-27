@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### v1.11.1 — checkpoint/resume for long runs (2026-04-27)
+
+Long REMD / production runs survive node reboots + queue evictions.
+
+- **`CRUCIBLE_CHECKPOINT_PERIOD_PS`** — when set, every dynamics
+  stage gets a `CheckpointReporter` that writes a `<stage>.chk`
+  file every N picoseconds. Per-stage filenames so a
+  multi-stage protocol can be inspected mid-run.
+- **`CRUCIBLE_RESUME_FROM=<path>`** — the rendered script's first
+  dynamics stage replaces `setPositions / setVelocities` with
+  `loadCheckpoint(path)`. Subsequent stages run as normal. Pattern:
+  if a 100 ns production run dies at 73 ns, set
+  `CRUCIBLE_RESUME_FROM=$WORKDIR/production_4.chk` and re-run; the
+  protocol's earlier minimize/equilibrate stages execute first
+  (cheap), then production resumes from the checkpoint.
+- Trade-off: env-var-only, no IR pollution. Papers don't state
+  checkpoint cadence; it's a runtime knob like seed + precision.
+- Tests: 711/711 pass on Julia 1.10.
+
 ### v1.11 — `crucible run` + deterministic seeding (2026-04-27)
 
 Closes the spec→results loop and adds reproducibility plumbing.

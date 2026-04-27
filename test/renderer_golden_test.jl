@@ -162,6 +162,11 @@ end
     @test occursin("_crucible_seed_integrator", script)
     @test occursin("_crucible_init_velocities", script)
     @test occursin("CRUCIBLE_DETERMINISTIC_FORCES", script)
+    # Checkpoint/resume plumbing.
+    @test occursin("CRUCIBLE_CHECKPOINT_PERIOD_PS", script)
+    @test occursin("CheckpointReporter", script)
+    @test occursin("CRUCIBLE_RESUME_FROM", script)
+    @test occursin("loadCheckpoint", script)
 end
 
 @testset "MollyBackend renderer" begin
