@@ -45,6 +45,8 @@ Usage:
   crucible bench         [--format text|json] [--repeat N]         # renderer micro-bench
   crucible cite          <spec.json>                                # list every provenance entry
   crucible explain       <spec.json>                                # natural-language summary
+  crucible export-jsonschema [--out path]                            # dump the live schema.json
+  crucible audit-transcripts <db.duckdb> [--threshold 0.5] [--format text|json]  # corpus quality
   crucible walkthrough   <source-kind> <source>
 
 source-kind: notes | pdf | arxiv | biorxiv
@@ -277,6 +279,7 @@ function cmd_info(::Vector{String})
     println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
     println("                 info parameterize verify serve doctor coverage lint templates")
     println("                 snapshot restore fmt trajstat upgrade bench cite explain")
+    println("                 export-jsonschema audit-transcripts")
     println()
     println("Ligand parameterizer:")
     avail = parameterizer_available()
@@ -509,6 +512,100 @@ function cmd_coverage(args::Vector{String})
         println("Missing provenance ($(length(rep.missing_paths)) fields):")
         for p in rep.missing_paths
             println("  - $(p)")
+        end
+    end
+    0
+end
+
+function cmd_export_jsonschema(args::Vector{String})
+    _, kw = _parse_kw_args(args)
+    schema_path = joinpath(@__DIR__, "..", "spec", "schema.json")
+    body = read(schema_path, String)
+    out = get(kw, "out", "")
+    if isempty(out)
+        print(body)
+    else
+        write(out, body)
+        println(stderr, "wrote: $(out) ($(filesize(out)) bytes)")
+    end
+    0
+end
+
+function cmd_audit_transcripts(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: audit-transcripts <db.duckdb> [--threshold 0.5] [--format text|json]")
+    db_path = pos[1]
+    isfile(db_path) || error("audit-transcripts: db not found: $(db_path)")
+    threshold = parse(Float64, get(kw, "threshold", "0.5"))
+    fmt = get(kw, "format", "text")
+
+    store = open_transcript_store(path=db_path)
+    n_total = transcript_count(store)
+    if n_total == 0
+        close_transcript_store(store)
+        println("audit-transcripts: 0 entries in $(db_path)")
+        return 0
+    end
+
+    rows = NamedTuple[]
+    n_low = 0
+    histogram = Dict{Int,Int}()  # bucket = floor(score * 10)
+    by_method = Dict{String,Int}()
+    for row in Crucible.iter_transcripts(store)
+        spec_json = String(row.spec_json)
+        score = nothing
+        n_findings = 0
+        try
+            spec = spec_from_json(spec_json)
+            rep = Crucible.lint(spec)
+            n_findings = length(rep.findings)
+            score = Crucible.coverage_score(rep.coverage)
+        catch err
+            score = -1.0   # unparseable rows
+        end
+        if score !== nothing
+            bucket = score < 0 ? -1 : Int(floor(score * 10))
+            histogram[bucket] = get(histogram, bucket, 0) + 1
+            score >= 0 && score < threshold && (n_low += 1)
+            push!(rows, (id=row.id, score=score, findings=n_findings,
+                         provider=String(row.provider)))
+            by_method[String(row.provider)] = get(by_method, String(row.provider), 0) + 1
+        end
+    end
+    close_transcript_store(store)
+
+    if fmt == "json"
+        println(JSON3.write(Dict(
+            "total" => n_total,
+            "below_threshold" => n_low,
+            "threshold" => threshold,
+            "histogram" => Dict(string(k)=>v for (k,v) in histogram),
+            "by_provider" => by_method,
+            "rows" => [Dict("id"=>r.id, "score"=>r.score,
+                            "findings"=>r.findings, "provider"=>r.provider) for r in rows],
+        )))
+    else
+        println("audit-transcripts: $(db_path)")
+        println("  total entries:    $(n_total)")
+        println("  below score $(threshold): $(n_low) ($(round(100 * n_low / n_total; digits=1))%)")
+        println()
+        println("Score histogram (buckets of 0.1):")
+        for k in sort(collect(keys(histogram)))
+            label = k == -1 ? "  parse-fail" : "  $(round(k*0.1; digits=1))–$(round((k+1)*0.1; digits=1))"
+            println(rpad(label, 20), "█" ^ min(histogram[k], 60), " ", histogram[k])
+        end
+        println()
+        println("By provider:")
+        for (p, n) in sort(collect(by_method); by = x -> -x[2])
+            println("  $(rpad(p, 20))$(n)")
+        end
+        if !isempty(rows)
+            println()
+            println("Bottom 10 by score:")
+            sorted = sort(rows; by = r -> r.score)
+            for r in first(sorted, min(10, length(sorted)))
+                println("  id=$(r.id) score=$(round(r.score; digits=2)) findings=$(r.findings) provider=$(r.provider)")
+            end
         end
     end
     0
@@ -1013,6 +1110,8 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "bench";        return cmd_bench(rest)
         elseif cmd == "cite";         return cmd_cite(rest)
         elseif cmd == "explain";      return cmd_explain(rest)
+        elseif cmd == "export-jsonschema"; return cmd_export_jsonschema(rest)
+        elseif cmd == "audit-transcripts"; return cmd_audit_transcripts(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")

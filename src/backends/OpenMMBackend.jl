@@ -722,7 +722,7 @@ function _emit_observables(spec::MDSpec)
 
     # Trajectory observables are wired in _emit_protocol as DCDReporters.
     # Here we add post-run analysis for RMSD / RMSF / Rg.
-    needs_mdtraj = any(o -> o.type in (:rmsd, :rmsf, :rg), spec.observables)
+    needs_mdtraj = any(o -> o.type in (:rmsd, :rmsf, :rg, :sasa, :distance, :hbonds), spec.observables)
     if !needs_mdtraj
         print(io, "# (no post-run mdtraj analysis requested)\n\n")
         return String(take!(io))
@@ -760,6 +760,50 @@ function _emit_observables(spec::MDSpec)
             print(io, "            _w = _csv.writer(_f); _w.writerow(['frame','rg_nm'])\n")
             print(io, "            for i, v in enumerate(_rg): _w.writerow([i, float(v)])\n")
             print(io, "        print('observables: rg written to rg.csv (n=' + str(len(_rg)) + ')')\n")
+        elseif o.type == :sasa
+            # Shrake-Rupley SASA over the chosen selection. Time series:
+            # one row per frame, columns are total_nm2 + per-residue.
+            print(io, "        _atoms = _t.topology.select(", repr(o.selection), ")\n")
+            print(io, "        _sub = _t.atom_slice(_atoms) if len(_atoms) else _t\n")
+            print(io, "        _sasa_per = _mdt.shrake_rupley(_sub, mode='residue')\n")
+            print(io, "        with open(os.path.join(OUTPUT_DIR, 'sasa.csv'), 'w', newline='') as _f:\n")
+            print(io, "            _w = _csv.writer(_f); _w.writerow(['frame','total_nm2'])\n")
+            print(io, "            for i, row in enumerate(_sasa_per): _w.writerow([i, float(row.sum())])\n")
+            print(io, "        print('observables: sasa written to sasa.csv (n=' + str(len(_sasa_per)) + ')')\n")
+        elseif o.type == :distance
+            # `selection` for :distance is two comma-separated mdtraj
+            # selections, e.g. "name CA and resid 35, name CA and resid 102"
+            print(io, "        _sels = ", repr(o.selection), ".split(',')\n")
+            print(io, "        if len(_sels) != 2:\n")
+            print(io, "            print('observables: :distance requires \"selA,selB\"; got', ", repr(o.selection), ")\n")
+            print(io, "        else:\n")
+            print(io, "            _a = _t.topology.select(_sels[0].strip())\n")
+            print(io, "            _b = _t.topology.select(_sels[1].strip())\n")
+            print(io, "            if not (len(_a) and len(_b)):\n")
+            print(io, "                print('observables: :distance selection produced no atoms')\n")
+            print(io, "            else:\n")
+            print(io, "                import numpy as _np\n")
+            print(io, "                pairs = _np.array([[int(_a[0]), int(_b[0])]])\n")
+            print(io, "                _d = _mdt.compute_distances(_t, pairs)\n")
+            print(io, "                with open(os.path.join(OUTPUT_DIR, 'distance.csv'), 'w', newline='') as _f:\n")
+            print(io, "                    _w = _csv.writer(_f); _w.writerow(['frame','distance_nm'])\n")
+            print(io, "                    for i, v in enumerate(_d[:,0]): _w.writerow([i, float(v)])\n")
+            print(io, "                print('observables: distance written to distance.csv (n=' + str(len(_d)) + ')')\n")
+        elseif o.type == :hbonds
+            # Baker-Hubbard hbond identification per frame; record count.
+            print(io, "        _atoms = _t.topology.select(", repr(o.selection), ")\n")
+            print(io, "        _sub = _t.atom_slice(_atoms) if len(_atoms) else _t\n")
+            print(io, "        with open(os.path.join(OUTPUT_DIR, 'hbonds.csv'), 'w', newline='') as _f:\n")
+            print(io, "            _w = _csv.writer(_f); _w.writerow(['frame','n_hbonds'])\n")
+            print(io, "            try:\n")
+            print(io, "                hb_per_frame = []\n")
+            print(io, "                for fi in range(_sub.n_frames):\n")
+            print(io, "                    _hb = _mdt.baker_hubbard(_sub[fi:fi+1])\n")
+            print(io, "                    hb_per_frame.append(len(_hb))\n")
+            print(io, "                for i, c in enumerate(hb_per_frame): _w.writerow([i, c])\n")
+            print(io, "                print('observables: hbonds written to hbonds.csv (n=' + str(len(hb_per_frame)) + ')')\n")
+            print(io, "            except Exception as _e:\n")
+            print(io, "                print('observables: hbonds analysis failed:', repr(_e))\n")
         end
     end
     print(io, "except ImportError:\n")

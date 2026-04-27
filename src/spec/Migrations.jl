@@ -28,7 +28,7 @@ Walk the registered migrations from the input's `schema_version` to
 `target`. Returns the migrated JSON. Errors if no path exists.
 """
 function migrate_spec_json(json::AbstractString;
-                           target::AbstractString = "0.2.0")::String
+                           target::AbstractString = "0.3.0")::String
     obj = JSON3.read(json, Dict)
     src_version = String(get(obj, "schema_version", "unknown"))
     if src_version == target
@@ -97,3 +97,9 @@ function _migrate_v0_1_to_v0_2(obj::Dict{String,Any})::Dict{String,Any}
 end
 
 register_migration!("0.1.0", "0.2.0", _migrate_v0_1_to_v0_2)
+
+# 0.2.0 → 0.3.0: additive enum extension on `observables[].type`
+# (`:sasa`, `:distance`, `:hbonds`). Old specs that don't use the new
+# values are still semantically valid; the migration is identity except
+# for the `schema_version` bump (the framework handles the bump).
+register_migration!("0.2.0", "0.3.0", obj -> obj)

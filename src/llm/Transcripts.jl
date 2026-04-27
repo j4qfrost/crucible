@@ -136,6 +136,27 @@ function transcript_count(store::TranscriptStore)::Int
 end
 
 """
+    iter_transcripts(store) -> iterator of NamedTuples
+
+Walks every row in the store. Each yielded item exposes `id`, `ts`,
+`provider`, `model`, `paper_kind`, `paper_id`, `paper_title`,
+`paper_text`, `spec_json`, `raw_response`, `cost_usd`, `validation_ok`,
+`errors`, `warnings`. `audit-transcripts` and similar quality tools
+use this to score every entry without loading the whole table into
+memory at once.
+"""
+function iter_transcripts(store::TranscriptStore)
+    sql = """
+        SELECT id, ts, provider, model, paper_kind, paper_id, paper_title,
+               paper_text, spec_json, raw_response, cost_usd,
+               validation_ok, errors, warnings
+        FROM transcripts
+        ORDER BY ts ASC
+        """
+    DBInterface.execute(store.con, sql)
+end
+
+"""
     export_transcripts_jsonl(store, out_path; limit=nothing)
 
 Dump the transcripts table to JSON Lines at `out_path`. Each line is a

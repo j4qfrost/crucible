@@ -28,4 +28,5 @@ using Crucible
     include("constph_test.jl")
     include("martini_test.jl")
     include("cli_extras_test.jl")
+    include("observables_v3_test.jl")
 end

@@ -21,7 +21,7 @@ isdefined(Main, :CLI) || include(joinpath(@__DIR__, "..", "src", "cli", "CLI.jl"
     # Pretty output has newlines + indentation that the compact form lacks
     @test count('\n', out) > 5
     parsed = Crucible.spec_from_json(out)
-    @test parsed.schema_version == "0.2.0"
+    @test parsed.schema_version == "0.3.0"
 end
 
 @testset "cmd_fmt --in-place writes back" begin

@@ -113,7 +113,7 @@ end
     # Extract subcommand tokens from "  crucible <name> ..." lines
     subcmds = String[]
     for line in eachline(IOBuffer(help))
-        m = match(r"^\s+crucible\s+(\w+)", line)
+        m = match(r"^\s+crucible\s+([\w-]+)", line)
         m === nothing && continue
         push!(subcmds, String(m.captures[1]))
     end

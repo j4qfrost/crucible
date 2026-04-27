@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://crucible.dev/schema/mdspec-0.2.0.json",
+  "$id": "https://crucible.dev/schema/mdspec-0.3.0.json",
   "title": "MDSpec",
   "description": "Molecular-dynamics simulation intermediate representation. Emitted by the LLM transpiler; consumed by Crucible backends.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "system", "force_field", "protocol", "observables", "provenance", "warnings", "notes"],
   "properties": {
-    "schema_version": {"type": "string", "const": "0.2.0"},
+    "schema_version": {"type": "string", "const": "0.3.0"},
     "system": {
       "type": "object",
       "additionalProperties": false,
@@ -249,7 +249,7 @@
         "additionalProperties": false,
         "required": ["type", "selection", "stride_ps"],
         "properties": {
-          "type":      {"enum": ["rmsd", "rmsf", "energy", "trajectory", "rg"]},
+          "type":      {"enum": ["rmsd", "rmsf", "energy", "trajectory", "rg", "sasa", "distance", "hbonds"]},
           "selection": {"type": "string"},
           "stride_ps": {"type": "number", "exclusiveMinimum": 0}
         }

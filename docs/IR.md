@@ -2,7 +2,7 @@
 
 Auto-generated from `src/spec/schema.json` by `tools/regenerate_docs.jl`. Do not edit by hand.
 
-**Schema version:** `0.2.0`
+**Schema version:** `0.3.0`
 
 ## Top-level fields
 
@@ -14,7 +14,7 @@ Auto-generated from `src/spec/schema.json` by `tools/regenerate_docs.jl`. Do not
 | `notes` | `string` | ✓ |  |
 | `warnings` | `array` | ✓ |  |
 | `observables` | `array` | ✓ |  |
-| `schema_version` | ``"0.2.0"`` | ✓ |  |
+| `schema_version` | ``"0.3.0"`` | ✓ |  |
 | `system` | `object` | ✓ |  |
 
 ## `system`
@@ -164,7 +164,7 @@ Each stage is one of two shapes (oneOf):
 |-------|------|----------|-------|
 | `selection` | `string` | ✓ |  |
 | `stride_ps` | `number` | ✓ | > 0 |
-| `type` | enum: `rmsd`, `rmsf`, `energy`, `trajectory`, `rg` | ✓ |  |
+| `type` | enum: `rmsd`, `rmsf`, `energy`, `trajectory`, `rg`, `sasa`, `distance`, `hbonds` | ✓ |  |
 
 ## Hard rules
 

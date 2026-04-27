@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### v1.9 — schema 0.3.0 / new observables / corpus auditing (2026-04-27)
+
+Schema additive bump + two CLI commands aimed at the option-3 fine-
+tune corpus quality story.
+
+- **Schema bump 0.2.0 → 0.3.0** (additive). The
+  `observables[].type` enum gains `:sasa`, `:distance`, and
+  `:hbonds`. Migration registered as identity (existing specs
+  remain semantically valid; only the version string moves).
+  `migrate_spec_json` default target advances to `0.3.0`.
+  Fixtures migrated in place.
+- **OpenMM renderer**: post-run mdtraj block emits the new
+  observables. `:sasa` via `mdtraj.shrake_rupley` (per-frame
+  total nm²); `:distance` parses a "selA, selB" string and emits
+  `mdtraj.compute_distances` over the first atom of each;
+  `:hbonds` via `mdtraj.baker_hubbard` per frame (count). Each
+  writes a CSV alongside the existing rmsd/rmsf/rg outputs.
+- **`crucible export-jsonschema [--out path]`** — dump the
+  current `schema.json` to stdout (or a file). Useful for IDE
+  schema integration, external validators, and the option-3
+  training pipeline that consumes the schema as a typing prior.
+- **`crucible audit-transcripts <db.duckdb> [--threshold 0.5]
+  [--format text|json]`** — walks every row in a TranscriptStore,
+  re-runs Crucible's lint, prints a coverage-score histogram +
+  the worst-N entries by score. Provides a single pane to spot
+  low-quality entries before they pollute the fine-tune corpus.
+- New `iter_transcripts(store)` API (replaces ad-hoc DBInterface
+  queries elsewhere).
+- **CLI dispatch test bug fix**: the help-text regex now accepts
+  hyphenated subcommands (was `\w+`, now `[\w-]+`). Without this,
+  `export-jsonschema` and `audit-transcripts` failed the dispatch
+  coverage check.
+- CLI 23 → 25 subcommands.
+- Tests: 665/665 pass on Julia 1.10 (offline; +5 with
+  `CRUCIBLE_RUN_OPENMM=1`).
+
 ### v1.8.1 — cite / explain / templates_to_jsonl (2026-04-27)
 
 Closes the "what does this spec do?" story. Three small additions
