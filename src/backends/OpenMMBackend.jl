@@ -392,14 +392,25 @@ function _emit_protocol(spec::MDSpec)
     print(io, "    print('crucible: DeterministicForces = true (perf cost)')\n")
     # Helper used by every stage's velocity init so seed plumbing is one
     # decision in one place. Returns nothing; mutates the context.
-    print(io, "def _crucible_init_velocities(sim, T_kelvin):\n")
-    print(io, "    if _seed_int is not None:\n")
-    print(io, "        sim.context.setVelocitiesToTemperature(T_kelvin, _seed_int)\n")
+    print(io, "def _crucible_init_velocities(sim, T_kelvin, stage_index=None):\n")
+    print(io, "    seed = _crucible_stage_seed(stage_index) if stage_index is not None else _seed_int\n")
+    print(io, "    if seed is not None:\n")
+    print(io, "        sim.context.setVelocitiesToTemperature(T_kelvin, seed)\n")
     print(io, "    else:\n")
     print(io, "        sim.context.setVelocitiesToTemperature(T_kelvin)\n")
-    print(io, "def _crucible_seed_integrator(integrator):\n")
-    print(io, "    if _seed_int is not None and hasattr(integrator, 'setRandomNumberSeed'):\n")
-    print(io, "        integrator.setRandomNumberSeed(_seed_int)\n")
+    # Per-stage seed override: CRUCIBLE_SEED_STAGE_<i> takes priority over
+    # CRUCIBLE_SEED for stage <i>. Useful when the user wants different
+    # randomization between equilibration and production for statistical
+    # independence across replicates.
+    print(io, "def _crucible_stage_seed(stage_index):\n")
+    print(io, "    override = os.environ.get(f'CRUCIBLE_SEED_STAGE_{stage_index}')\n")
+    print(io, "    if override is not None:\n")
+    print(io, "        return int(override)\n")
+    print(io, "    return _seed_int\n")
+    print(io, "def _crucible_seed_integrator(integrator, stage_index=None):\n")
+    print(io, "    seed = _crucible_stage_seed(stage_index) if stage_index is not None else _seed_int\n")
+    print(io, "    if seed is not None and hasattr(integrator, 'setRandomNumberSeed'):\n")
+    print(io, "        integrator.setRandomNumberSeed(seed)\n")
     # Checkpoint/resume plumbing.
     # CRUCIBLE_CHECKPOINT_PERIOD_PS  — write a per-stage .chk every N ps.
     # CRUCIBLE_RESUME_FROM           — load this checkpoint into the very
@@ -442,7 +453,7 @@ function _emit_protocol(spec::MDSpec)
         if stage isa MinimizeStage
             print(io, "# Stage ", i, ": minimize\n")
             print(io, "_min_integrator = LangevinMiddleIntegrator(300*unit.kelvin, 1.0/unit.picosecond, 0.001*unit.picoseconds)\n")
-            print(io, "_crucible_seed_integrator(_min_integrator)\n")
+            print(io, "_crucible_seed_integrator(_min_integrator, ", i, ")\n")
             print(io, "_sim = Simulation(topology, system, _min_integrator, platform)\n")
             print(io, "_sim.context.setPositions(current_positions)\n")
             print(io, "_sim.minimizeEnergy(tolerance=", stage.tolerance_kj_mol_nm,
@@ -468,7 +479,7 @@ function _emit_protocol(spec::MDSpec)
                 print(io, "_integrator = LangevinMiddleIntegrator(", stage.temperature_K,
                           "*unit.kelvin, ", stage.friction_ps, "/unit.picosecond, ",
                           stage.dt_fs, "*unit.femtoseconds)\n")
-                print(io, "_crucible_seed_integrator(_integrator)\n")
+                print(io, "_crucible_seed_integrator(_integrator, ", i, ")\n")
             end
             # NPT: add barostat as a force in the system, then create the simulation.
             # Membrane systems use MonteCarloMembraneBarostat for semi-isotropic
@@ -498,7 +509,7 @@ function _emit_protocol(spec::MDSpec)
             print(io, "    if current_velocities is not None:\n")
             print(io, "        _sim.context.setVelocities(current_velocities)\n")
             print(io, "    else:\n")
-            print(io, "        _crucible_init_velocities(_sim, ", stage.temperature_K, "*unit.kelvin)\n")
+            print(io, "        _crucible_init_velocities(_sim, ", stage.temperature_K, "*unit.kelvin, ", i, ")\n")
 
             # Reporters scoped to this stage
             stage_tag = string(String(stage.role), "_", i)
@@ -710,7 +721,7 @@ function _emit_metadynamics_stage(stage::MetadynamicsStage, i::Int)
     print(io, "_meta_integrator = LangevinMiddleIntegrator(", stage.temperature_K,
               "*unit.kelvin, ", stage.friction_ps, "/unit.picosecond, ",
               stage.dt_fs, "*unit.femtoseconds)\n")
-    print(io, "_crucible_seed_integrator(_meta_integrator)\n")
+    print(io, "_crucible_seed_integrator(_meta_integrator, ", i, ")\n")
     if stage.ensemble == :NPT
         p = stage.pressure_bar === nothing ? 1.0 : stage.pressure_bar
         print(io, "_meta_baro = MonteCarloBarostat(", p, "*unit.bar, ",
@@ -722,7 +733,7 @@ function _emit_metadynamics_stage(stage::MetadynamicsStage, i::Int)
     print(io, "if current_velocities is not None:\n")
     print(io, "    _meta_sim.context.setVelocities(current_velocities)\n")
     print(io, "else:\n")
-    print(io, "    _crucible_init_velocities(_meta_sim, ", stage.temperature_K, "*unit.kelvin)\n")
+    print(io, "    _crucible_init_velocities(_meta_sim, ", stage.temperature_K, "*unit.kelvin, ", i, ")\n")
     n_steps = ns_to_steps(stage.duration_ns, stage.dt_fs)
     print(io, "_meta_sim.step(_cap(", n_steps, "))\n")
     print(io, "_state = _meta_sim.context.getState(getPositions=True, getVelocities=True)\n")
@@ -779,13 +790,13 @@ function _emit_fep_stage(stage::FEPStage, i::Int)
     print(io, "_fep_integrator = LangevinMiddleIntegrator(", stage.temperature_K,
               "*unit.kelvin, ", stage.friction_ps, "/unit.picosecond, ",
               stage.dt_fs, "*unit.femtoseconds)\n")
-    print(io, "_crucible_seed_integrator(_fep_integrator)\n")
+    print(io, "_crucible_seed_integrator(_fep_integrator, ", i, ")\n")
     print(io, "_fep_sim = Simulation(topology, _alch_system, _fep_integrator, platform)\n")
     print(io, "_fep_sim.context.setPositions(current_positions)\n")
     print(io, "if current_velocities is not None:\n")
     print(io, "    _fep_sim.context.setVelocities(current_velocities)\n")
     print(io, "else:\n")
-    print(io, "    _crucible_init_velocities(_fep_sim, ", stage.temperature_K, "*unit.kelvin)\n")
+    print(io, "    _crucible_init_velocities(_fep_sim, ", stage.temperature_K, "*unit.kelvin, ", i, ")\n")
     print(io, "for _k, _lam in enumerate(_lambdas):\n")
     print(io, "    _alch_state.lambda_sterics = _lam\n")
     print(io, "    _alch_state.lambda_electrostatics = _lam\n")

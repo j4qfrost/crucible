@@ -360,6 +360,25 @@ end
     end
 end
 
+@testset "cmd_health prints validate + lint + coverage panels" begin
+    fixture = joinpath(@__DIR__, "fixtures", "known_good_spec.json")
+    original_stdout = stdout
+    rd, wr = redirect_stdout()
+    rc = nothing
+    try
+        rc = CLI.main(String["health", fixture])
+    finally
+        redirect_stdout(original_stdout)
+        close(wr)
+    end
+    @test rc == 0
+    out = read(rd, String)
+    @test occursin("Validation:", out)
+    @test occursin("Lint:", out)
+    @test occursin("Provenance:", out)
+    @test occursin("Verdict:", out)
+end
+
 @testset "cmd_diff --intent classifies FF swap" begin
     a_path = tempname() * ".json"
     b_path = tempname() * ".json"

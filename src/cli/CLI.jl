@@ -32,6 +32,7 @@ Usage:
   crucible parameterize  <smiles> --out <dir> [--ff openff_sage_2_2_0]
                                               [--python python] [--name LIG]
   crucible verify        <spec.json> [--backend openmm|molly]   # gates 1-3 + render
+  crucible health        <spec.json> [--backend openmm|molly]   # validate + lint + coverage
   crucible run           <spec.json> [--workdir path] [--platform X] [--precision P]
                                      [--seed N] [--resume] [--backend openmm]
                                      [--pre-run-hook 'cmd'] [--post-run-hook 'cmd']
@@ -290,9 +291,10 @@ function cmd_info(::Vector{String})
     println("Validation gates: 1) schema  2) semantic  3) loadability  4) preview  5) user-confirm")
     println()
     println("CLI subcommands: transpile validate render advise summarize diff walkthrough")
-    println("                 info parameterize verify serve doctor coverage lint templates")
-    println("                 snapshot restore fmt trajstat analyze upgrade bench cite explain")
-    println("                 export-jsonschema audit-transcripts import-jsonl run")
+    println("                 info parameterize verify health serve doctor coverage lint")
+    println("                 templates snapshot restore fmt trajstat analyze plot upgrade")
+    println("                 bench cite explain export-jsonschema audit-transcripts")
+    println("                 import-jsonl run")
     println()
     println("Ligand parameterizer:")
     avail = parameterizer_available()
@@ -421,6 +423,69 @@ function cmd_parameterize(args::Vector{String})
         println("$(rpad(k * ":", 14))$(v)")
     end
     0
+end
+
+function cmd_health(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: health <spec.json> [--backend openmm|molly]")
+    spec_json = read(pos[1], String)
+    spec = spec_from_json(spec_json)
+    backend = haskey(kw, "backend") ? _backend(kw["backend"]) :
+              route_backend(spec; available=[OpenMMBackend(), MollyBackend()]).backend
+    println("crucible health: $(pos[1])  (backend=$(Crucible.backend_name(backend)))")
+    println(repeat("=", 70))
+
+    # Validation block (gates 1-3)
+    println()
+    report = Crucible.run_validation(spec_json, spec, backend)
+    println("Validation:  ", report.ok ? "✓ PASS" : "✗ FAIL")
+    for e in report.errors;   println("  error: ",   e); end
+    for w in report.warnings; println("  warn:  ",   w); end
+
+    # Lint block
+    println()
+    lint_rep = Crucible.lint(spec)
+    if isempty(lint_rep)
+        println("Lint:        ✓ no advisories")
+    else
+        println("Lint:        $(length(lint_rep.findings)) finding(s)")
+        for f in lint_rep.findings
+            tag = f.severity == :warn      ? "warn  " :
+                  f.severity == :advisory  ? "advise" : "info  "
+            println("  [$(tag)] $(f.rule) @ $(f.path)")
+            println("            $(f.message)")
+        end
+    end
+
+    # Coverage block
+    println()
+    cov = Crucible.provenance_coverage(spec)
+    score = Crucible.coverage_score(cov)
+    pct = cov.total_numeric_fields == 0 ? 0.0 :
+          100 * cov.fields_with_provenance / cov.total_numeric_fields
+    println("Provenance:  $(cov.fields_with_provenance)/$(cov.total_numeric_fields) " *
+            "($(round(pct; digits=1))%)  score=$(round(score; digits=2))")
+    if !isempty(cov.by_source)
+        for (src, n) in sort(collect(cov.by_source); by = x -> -x[2])
+            println("    $(rpad(string(src) * ":", 18))$(n)")
+        end
+    end
+
+    # Single-line verdict
+    println()
+    n_warn = length(lint_rep.findings)
+    verdict = if !report.ok
+        "✗ broken — fix Gate errors before proceeding"
+    elseif score < 0.5
+        "⚠ thin — provenance score $(round(score; digits=2)) is below 0.5; re-extract"
+    elseif n_warn > 5
+        "⚠ noisy — $(n_warn) lint findings; consider tightening before a run"
+    else
+        "✓ ready"
+    end
+    println("Verdict:     $(verdict)")
+
+    report.ok ? 0 : 2
 end
 
 function cmd_run(args::Vector{String})
@@ -1652,6 +1717,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "info";        return cmd_info(rest)
         elseif cmd == "parameterize"; return cmd_parameterize(rest)
         elseif cmd == "verify";       return cmd_verify(rest)
+        elseif cmd == "health";       return cmd_health(rest)
         elseif cmd == "run";          return cmd_run(rest)
         elseif cmd == "serve";        return cmd_serve(rest)
         elseif cmd == "doctor";       return cmd_doctor(rest)

@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### v1.13.1 — health + migration smoke + per-stage seed + runner Dockerfile (2026-04-28)
+
+Four small wins, all unblocked.
+
+- **`crucible health <spec>`** — bundles validate + lint + coverage
+  into one panel with a single-line verdict (`✓ ready` / `⚠ thin` /
+  `⚠ noisy` / `✗ broken`). Triages a spec without three separate
+  invocations.
+- **Per-stage seed override**: `CRUCIBLE_SEED_STAGE_<i>` takes
+  priority over `CRUCIBLE_SEED` for stage `<i>`. Useful when the user
+  wants different randomization between equilibration and production
+  for statistical independence across replicates. Renderer plumbs
+  through every existing seeded callsite (`MinimizeStage`,
+  `DynamicsStage`, `FEPStage`, `MetadynamicsStage`).
+- **`tools/migration_smoke.jl`** — round-trips every fixture through
+  every registered migration version + asserts Gate 1 still passes.
+  Catches schema-bump drift before it reaches users. Currently 4/4
+  pass.
+- **`tools/runner.Dockerfile` + `runner-entrypoint.sh`** — containerized
+  self-hosted GitHub Actions runner. Lets the user spin up the
+  runner with `docker run -d --gpus all -e GHA_RUNNER_TOKEN=…
+  crucible-runner` rather than installing the runner binary on the
+  host. Token is read at container start (single-use, ~1 hour
+  lifetime); SIGTERM gracefully deregisters.
+- CLI 29 → 30 subcommands.
+- Tests: 741/741 pass on Julia 1.10.
+
 ### v1.13 — unblocked-list cleanup (2026-04-28)
 
 Six items off the "in-scope but not done" list, batched.

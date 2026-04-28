@@ -167,6 +167,9 @@ end
     @test occursin("CheckpointReporter", script)
     @test occursin("CRUCIBLE_RESUME_FROM", script)
     @test occursin("loadCheckpoint", script)
+    # Per-stage seed override.
+    @test occursin("CRUCIBLE_SEED_STAGE_", script)
+    @test occursin("_crucible_stage_seed", script)
 end
 
 @testset "MollyBackend renderer" begin
