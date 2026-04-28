@@ -27,13 +27,14 @@ Usage:
   crucible render        <spec.json> --backend openmm|molly --out <script>
   crucible advise        <spec.json> [--budget-hours N] [--backend openmm|molly]
   crucible summarize     <spec.json>                # Markdown summary of MDSpec
-  crucible diff          <spec-a.json> <spec-b.json>   # Markdown diff
+  crucible diff          <spec-a.json> <spec-b.json> [--intent]   # Markdown diff
   crucible info                                       # capability surface
   crucible parameterize  <smiles> --out <dir> [--ff openff_sage_2_2_0]
                                               [--python python] [--name LIG]
   crucible verify        <spec.json> [--backend openmm|molly]   # gates 1-3 + render
   crucible run           <spec.json> [--workdir path] [--platform X] [--precision P]
-                                     [--seed N] [--resume] [--backend openmm]   # render + execute
+                                     [--seed N] [--resume] [--backend openmm]
+                                     [--pre-run-hook 'cmd'] [--post-run-hook 'cmd']
   crucible serve         [--host 0.0.0.0] [--port 8080]         # HTTP web frontend
   crucible doctor                                                 # diagnose Python / OpenMM / OpenFF deps
   crucible coverage      <spec.json>                              # provenance coverage report
@@ -44,6 +45,7 @@ Usage:
   crucible fmt           <spec.json> [--in-place]                # pretty-print spec
   crucible trajstat      <workdir>                                # walk + classify artifacts
   crucible analyze       <workdir> [--format text|markdown|json]  # summarize observables
+  crucible plot          <workdir> [--out-dir path] [--python python]  # PNGs of CSVs (matplotlib)
   crucible upgrade       <spec.json> [--out path] [--target ver]  # forward-migrate schema
   crucible bench         [--format text|json] [--repeat N]
                          [--save baseline.json] [--baseline base.json] [--threshold 20]
@@ -299,12 +301,88 @@ function cmd_info(::Vector{String})
 end
 
 function cmd_diff(args::Vector{String})
-    pos, _ = _parse_kw_args(args)
-    length(pos) < 2 && error("usage: diff <spec-a.json> <spec-b.json>")
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 2 && error("usage: diff <spec-a.json> <spec-b.json> [--intent]")
     a = spec_from_json(read(pos[1], String))
     b = spec_from_json(read(pos[2], String))
-    print(render(MarkdownRenderer(), diff_specs(a, b)))
-    isempty(diff_specs(a, b)) ? 0 : 4
+    d = diff_specs(a, b)
+    if haskey(kw, "intent")
+        # Intent-aware header: classify the diff into recognizable
+        # buckets (FF swap, stage added/removed, parameter retune, etc.)
+        # before the field-level dump. Useful for the option-3 corpus's
+        # human-review pass — reviewers can skip pure-noise diffs.
+        intents = _classify_intent(a, b, d)
+        println("## Intent\n")
+        if isempty(intents)
+            println("- (no intent-bucket fired; see field-level diff below)\n")
+        else
+            for tag in intents
+                println("- ", tag)
+            end
+            println()
+        end
+    end
+    print(render(MarkdownRenderer(), d))
+    isempty(d) ? 0 : 4
+end
+
+"""
+    _classify_intent(a, b, d) -> Vector{String}
+
+Coarse classification of how `b` differs from `a` for human triage.
+Returns a list of human-readable tags. Empty list = no recognizable
+intent (the user should look at the field-level diff).
+"""
+function _classify_intent(a::MDSpec, b::MDSpec, d::SpecDiff)::Vector{String}
+    tags = String[]
+    # FF swaps
+    if a.force_field.protein != b.force_field.protein
+        push!(tags, "**FF swap (protein)**: `$(a.force_field.protein)` → `$(b.force_field.protein)`")
+    end
+    if a.force_field.water != b.force_field.water
+        push!(tags, "**FF swap (water)**: `$(a.force_field.water)` → `$(b.force_field.water)`")
+    end
+    if a.force_field.ligand != b.force_field.ligand
+        push!(tags, "**FF swap (ligand)**: `$(a.force_field.ligand)` → `$(b.force_field.ligand)`")
+    end
+    if a.force_field.lipid != b.force_field.lipid
+        push!(tags, "**FF swap (lipid)**: `$(a.force_field.lipid)` → `$(b.force_field.lipid)`")
+    end
+    # Source migration
+    if a.system.source.type != b.system.source.type
+        push!(tags, "**source change**: `$(a.system.source.type)` → `$(b.system.source.type)`")
+    end
+    # Stage changes
+    if length(a.protocol) != length(b.protocol)
+        push!(tags, "**protocol resized**: $(length(a.protocol)) → $(length(b.protocol)) stages")
+    else
+        for (i, (sa, sb)) in enumerate(zip(a.protocol, b.protocol))
+            if typeof(sa) != typeof(sb)
+                push!(tags, "**stage[$i] kind**: $(nameof(typeof(sa))) → $(nameof(typeof(sb)))")
+            elseif sa isa DynamicsStage && sb isa DynamicsStage
+                if sa.ensemble != sb.ensemble
+                    push!(tags, "**stage[$i] ensemble**: $(sa.ensemble) → $(sb.ensemble)")
+                end
+                if sa.role != sb.role
+                    push!(tags, "**stage[$i] role**: $(sa.role) → $(sb.role)")
+                end
+            end
+        end
+    end
+    # Solvent / membrane change
+    if a.system.solvent.model != b.system.solvent.model
+        push!(tags, "**solvent model change**: `$(a.system.solvent.model)` → `$(b.system.solvent.model)`")
+    end
+    a_mem = a.system.solvent.membrane === nothing
+    b_mem = b.system.solvent.membrane === nothing
+    if a_mem != b_mem
+        push!(tags, b_mem ? "**membrane removed**" : "**membrane added**")
+    end
+    # Pure parameter retune (no structural change but field-level diff non-empty)
+    if isempty(tags) && !isempty(d.changed)
+        push!(tags, "**parameter retune** ($(length(d.changed)) field(s))")
+    end
+    tags
 end
 
 function cmd_summarize(args::Vector{String})
@@ -405,6 +483,29 @@ function cmd_run(args::Vector{String})
     println("env overrides:  ",
             join((string(k, "=", v) for (k, v) in env if startswith(k, "CRUCIBLE_") && haskey(kw, lowercase(replace(k, "CRUCIBLE_" => "")))),
                  ", "))
+    # Hooks: --pre-run-hook 'cmd' / --post-run-hook 'cmd' or
+    # CRUCIBLE_PRE_RUN / CRUCIBLE_POST_RUN env vars. Both are shell
+    # strings; CRUCIBLE_WORKDIR is exported into the hook env so the
+    # hook can reach the workdir without us having to pass it in args.
+    # Trade-off: shell exec means the hook author owns escaping. We
+    # don't sanitize; if you put untrusted strings in here that's on
+    # you (the same as `bash -c 'whatever'`).
+    pre_hook  = get(kw, "pre-run-hook",  get(ENV, "CRUCIBLE_PRE_RUN",  ""))
+    post_hook = get(kw, "post-run-hook", get(ENV, "CRUCIBLE_POST_RUN", ""))
+    hook_env = copy(env)
+    hook_env["CRUCIBLE_WORKDIR"] = workdir
+    hook_env["CRUCIBLE_SPEC"]    = pos[1]
+
+    if !isempty(pre_hook)
+        println("pre-run hook:   $(pre_hook)")
+        try
+            run(pipeline(setenv(`bash -c $pre_hook`, hook_env)); wait=true)
+        catch err
+            println(stderr, "pre-run hook failed: $(err)")
+            return 5
+        end
+    end
+
     println("---- script stdout ----")
     cmd = setenv(`$py $(job.script_path)`, env)
     rc = try
@@ -419,6 +520,21 @@ function cmd_run(args::Vector{String})
         end
     end
     println("---- exit $(rc) ----")
+
+    if !isempty(post_hook)
+        println("post-run hook:  $(post_hook)")
+        # Post-hook runs even when the python rc is non-zero — that's
+        # the point of "post" (alerting on failure, cleanup, upload, …).
+        # The hook gets CRUCIBLE_RUN_RC in its env so it can branch.
+        hook_env["CRUCIBLE_RUN_RC"] = string(rc)
+        try
+            run(pipeline(setenv(`bash -c $post_hook`, hook_env)); wait=true)
+        catch err
+            println(stderr, "post-run hook failed: $(err)")
+            # Don't override the python rc; the post-hook fault doesn't
+            # cancel a successful simulation.
+        end
+    end
     rc
 end
 
@@ -1102,6 +1218,92 @@ function _pretty_json(v; indent=0, step=2)
     end
 end
 
+function cmd_plot(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: plot <workdir> [--out-dir path] [--python python]")
+    workdir = pos[1]
+    isdir(workdir) || error("plot: not a directory: $(workdir)")
+    out_dir = get(kw, "out-dir", joinpath(workdir, "plots"))
+    py = get(kw, "python",
+             Sys.which("python") !== nothing ? "python" :
+             Sys.which("python3") !== nothing ? "python3" : "")
+    isempty(py) && error("plot: no python on PATH; install matplotlib + pandas")
+
+    mkpath(out_dir)
+    csvs = filter(f -> endswith(f, ".csv"), readdir(workdir; join=false))
+    if isempty(csvs)
+        println("plot: no CSVs in $(workdir)")
+        return 0
+    end
+
+    # Build a tiny matplotlib script. Trade-off: we shell to python rather
+    # than depending on PyPlot.jl, matching the renderer's
+    # subprocess-over-PythonCall precedent. Skips cleanly when matplotlib
+    # is missing; emits one PNG per CSV.
+    script_path = joinpath(out_dir, "_plot.py")
+    open(script_path, "w") do io
+        print(io, """
+        import sys, os, csv as _csv
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+        except ImportError:
+            print('plot: matplotlib not installed; install via: pip install matplotlib')
+            sys.exit(2)
+
+        def _plot(path, out_png):
+            with open(path) as f:
+                rdr = list(_csv.reader(f))
+            if len(rdr) < 2:
+                print(f'plot: {path} has <2 rows; skipping')
+                return
+            header = rdr[0]
+            xs, ys = [], []
+            for row in rdr[1:]:
+                if len(row) < 2: continue
+                try:
+                    xs.append(float(row[0]))
+                    ys.append(float(row[1]))
+                except ValueError:
+                    continue
+            if not ys:
+                print(f'plot: {path} had no numeric rows')
+                return
+            fig, ax = plt.subplots(figsize=(7, 4))
+            ax.plot(xs, ys, lw=1.0)
+            ax.set_xlabel(header[0])
+            ax.set_ylabel(header[1] if len(header) > 1 else 'value')
+            ax.set_title(os.path.basename(path))
+            ax.grid(alpha=0.3)
+            fig.tight_layout()
+            fig.savefig(out_png, dpi=120)
+            plt.close(fig)
+            print(f'wrote {out_png}')
+
+        for arg in sys.argv[1:]:
+            csv_path, out_png = arg.split('::', 1)
+            _plot(csv_path, out_png)
+        """)
+    end
+    pairs = String[]
+    for csv in csvs
+        png = joinpath(out_dir, replace(csv, r"\.csv$" => ".png"))
+        push!(pairs, joinpath(workdir, csv) * "::" * png)
+    end
+    cmd = `$py $script_path $(pairs)`
+    try
+        run(cmd; wait=true)
+        rm(script_path; force=true)
+        println("plotted: $(length(csvs)) CSV(s) → $(out_dir)/")
+        return 0
+    catch err
+        rm(script_path; force=true)
+        println(stderr, "plot failed: $(err)")
+        return 1
+    end
+end
+
 function cmd_analyze(args::Vector{String})
     pos, kw = _parse_kw_args(args)
     length(pos) < 1 && error("usage: analyze <workdir> [--format text|markdown|json]")
@@ -1308,9 +1510,21 @@ function cmd_templates(args::Vector{String})
     if sub == "list"
         names = list_templates()
         println("Templates ($(length(names))):")
+        println("  ", rpad("name", 22), rpad("score", 7), rpad("findings", 9),
+                rpad("stages", 7), "notes")
+        println("  ", repeat("-", 76))
         for n in names
             spec = get_template(n)
-            println("  ", rpad(string(n), 22), strip(spec.notes))
+            cov = Crucible.provenance_coverage(spec)
+            score = round(Crucible.coverage_score(cov); digits=2)
+            lint_rep = Crucible.lint(spec)
+            n_find = length(lint_rep.findings)
+            n_stages = length(spec.protocol)
+            println("  ", rpad(string(n), 22),
+                    rpad(string(score), 7),
+                    rpad(string(n_find), 9),
+                    rpad(string(n_stages), 7),
+                    strip(spec.notes))
         end
         return 0
     elseif sub == "show"
@@ -1449,6 +1663,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "fmt";          return cmd_fmt(rest)
         elseif cmd == "trajstat";     return cmd_trajstat(rest)
         elseif cmd == "analyze";      return cmd_analyze(rest)
+        elseif cmd == "plot";         return cmd_plot(rest)
         elseif cmd == "upgrade";      return cmd_upgrade(rest)
         elseif cmd == "bench";        return cmd_bench(rest)
         elseif cmd == "cite";         return cmd_cite(rest)

@@ -59,6 +59,38 @@ end
     @test occursin("from openmm", String(obj.script))
 end
 
+@testset "router /api/transpile rejects empty payload" begin
+    body = JSON3.write(Dict("provider" => Dict("kind" => "recorded")))
+    res = Crucible._router(_req("POST", "/api/transpile", body))
+    @test res.status == 400
+    obj = JSON3.read(String(res.body))
+    @test obj.ok == false
+    @test occursin("required", obj.error)
+end
+
+@testset "router /api/transpile accepts paper_pdf_b64 (PDF upload)" begin
+    # Use the bundled tiny PDF fixture if present; otherwise skip.
+    pdf_fixture = joinpath(@__DIR__, "fixtures", "sample_methods.pdf")
+    isfile(pdf_fixture) || (@info "no sample_methods.pdf; skipping PDF upload test"; @test true; return)
+    if Sys.which("pdftotext") === nothing
+        @info "pdftotext not on PATH; skipping PDF upload test"
+        @test true
+        return
+    end
+    import Base64
+    pdf_b64 = Base64.base64encode(read(pdf_fixture))
+    fixture = joinpath(@__DIR__, "fixtures", "recorded_anthropic_spec.json")
+    body = JSON3.write(Dict(
+        "paper_pdf_b64" => pdf_b64,
+        "provider"      => Dict("kind" => "recorded", "fixture" => fixture),
+    ))
+    res = Crucible._router(_req("POST", "/api/transpile", body))
+    @test res.status == 200
+    obj = JSON3.read(String(res.body))
+    @test obj.ok == true
+    @test obj.paper_chars > 0
+end
+
 @testset "router /api/transpile via recorded provider" begin
     fixture = joinpath(@__DIR__, "fixtures", "recorded_anthropic_spec.json")
     body = JSON3.write(Dict(

@@ -360,6 +360,118 @@ end
     end
 end
 
+@testset "cmd_diff --intent classifies FF swap" begin
+    a_path = tempname() * ".json"
+    b_path = tempname() * ".json"
+    a = get_template(:vanilla)
+    b_obj = JSON3.read(Crucible.spec_to_json(a), Dict)
+    b_obj["force_field"]["protein"] = "amber99sb_ildn"   # was amber14sb
+    write(a_path, Crucible.spec_to_json(a))
+    write(b_path, JSON3.write(b_obj))
+    try
+        original_stdout = stdout
+        rd, wr = redirect_stdout()
+        rc = nothing
+        try
+            rc = CLI.main(String["diff", a_path, b_path, "--intent"])
+        finally
+            redirect_stdout(original_stdout)
+            close(wr)
+        end
+        @test rc == 4    # diff is non-empty
+        out = read(rd, String)
+        @test occursin("## Intent", out)
+        @test occursin("FF swap (protein)", out)
+        @test occursin("amber14sb", out)
+        @test occursin("amber99sb_ildn", out)
+    finally
+        rm(a_path; force=true)
+        rm(b_path; force=true)
+    end
+end
+
+@testset "cmd_diff --intent classifies parameter retune" begin
+    a_path = tempname() * ".json"
+    b_path = tempname() * ".json"
+    a = get_template(:vanilla)
+    b_obj = JSON3.read(Crucible.spec_to_json(a), Dict)
+    b_obj["protocol"][2]["temperature_K"] = 310.0    # was 300.0
+    write(a_path, Crucible.spec_to_json(a))
+    write(b_path, JSON3.write(b_obj))
+    try
+        original_stdout = stdout
+        rd, wr = redirect_stdout()
+        rc = nothing
+        try
+            rc = CLI.main(String["diff", a_path, b_path, "--intent"])
+        finally
+            redirect_stdout(original_stdout)
+            close(wr)
+        end
+        @test rc == 4
+        out = read(rd, String)
+        @test occursin("parameter retune", out)
+    finally
+        rm(a_path; force=true)
+        rm(b_path; force=true)
+    end
+end
+
+@testset "cmd_templates list shows score + findings + stages" begin
+    original_stdout = stdout
+    rd, wr = redirect_stdout()
+    rc = nothing
+    try
+        rc = CLI.main(String["templates", "list"])
+    finally
+        redirect_stdout(original_stdout)
+        close(wr)
+    end
+    @test rc == 0
+    out = read(rd, String)
+    @test occursin("score", out)
+    @test occursin("findings", out)
+    @test occursin("stages", out)
+    @test occursin("vanilla", out)
+end
+
+@testset "cmd_run pre/post hooks fire" begin
+    if Sys.which("python") === nothing && Sys.which("python3") === nothing
+        @info "no python; skipping hooks test"
+        @test true
+        return
+    end
+    spec = get_template(:vanilla)
+    tmp_spec = tempname() * ".json"
+    write(tmp_spec, Crucible.spec_to_json(spec))
+    workdir = mktempdir(prefix="crucible-hooks-")
+    try
+        # Pre-hook touches a file; post-hook touches another. Both should
+        # exist after `run` completes regardless of python rc.
+        pre_marker  = joinpath(workdir, ".pre_fired")
+        post_marker = joinpath(workdir, ".post_fired")
+        original_stdout = stdout
+        original_stderr = stderr
+        rd_o, wr_o = redirect_stdout()
+        rd_e, wr_e = redirect_stderr()
+        try
+            CLI.main(String["run", tmp_spec, "--workdir", workdir,
+                            "--platform", "Reference",
+                            "--pre-run-hook",  "touch \"\$CRUCIBLE_WORKDIR/.pre_fired\"",
+                            "--post-run-hook", "touch \"\$CRUCIBLE_WORKDIR/.post_fired\""])
+        finally
+            redirect_stdout(original_stdout)
+            redirect_stderr(original_stderr)
+            close(wr_o); close(wr_e)
+        end
+        @test isfile(pre_marker)
+        @test isfile(post_marker)
+    finally
+        rm(tmp_spec; force=true)
+        rm(workdir; recursive=true, force=true)
+    end
+end
+
 @testset "cmd_export_jsonschema prints the schema" begin
     original_stdout = stdout
     rd, wr = redirect_stdout()

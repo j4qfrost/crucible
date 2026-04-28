@@ -16,6 +16,7 @@
 #
 # Errors return {"ok":false, "error":"..."} with HTTP 4xx/5xx as appropriate.
 
+using Base64
 using HTTP
 using JSON3
 
@@ -268,8 +269,26 @@ end
 function _handle_transpile(req::HTTP.Request)
     try
         body = _read_json(req)
+        # Either `paper_text` (existing path) OR `paper_pdf_b64` (new
+        # PDF upload). When both are given, pdf_b64 wins after extraction.
+        # Trade-off: base64 inflates payload ~33% but keeps the endpoint
+        # JSON-only — no multipart parsing in Crucible.
         paper_text = String(get(body, "paper_text", ""))
-        isempty(paper_text) && return _bad("paper_text is required")
+        pdf_b64 = String(get(body, "paper_pdf_b64", ""))
+        if !isempty(pdf_b64)
+            tmp = tempname() * ".pdf"
+            try
+                bytes = Base64.base64decode(pdf_b64)
+                write(tmp, bytes)
+                paper = ingest(PDFAdapter(), tmp)
+                paper_text = paper.body_text
+            catch err
+                return _bad("paper_pdf_b64 decode/ingest failed: $(err)")
+            finally
+                rm(tmp; force=true)
+            end
+        end
+        isempty(paper_text) && return _bad("paper_text or paper_pdf_b64 is required")
         provider = _provider_from_payload(get(body, "provider", nothing))
         result = transpile(provider, paper_text)
         if result.spec === nothing
@@ -280,6 +299,7 @@ function _handle_transpile(req::HTTP.Request)
             "provider"      => String(result.provider_name),
             "spec_json"     => result.spec_json,
             "raw_response"  => result.raw_response,
+            "paper_chars"   => length(paper_text),
         ))
     catch err
         _bad("transpile failed: $(err)"; status=500)

@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+### v1.13 — unblocked-list cleanup (2026-04-28)
+
+Six items off the "in-scope but not done" list, batched.
+
+- **Real `MollyBackend.preview_run`**. The renderer plumbs
+  `CRUCIBLE_PREVIEW_STEPS` through the rendered Julia script (mirroring
+  OpenMMBackend's pattern); the backend's `preview_run` shells out to
+  julia with the env set + tails stdout for finite-energy assertions.
+  Same shape as OpenMMBackend, no new deps. (`run!` was already a real
+  shell-out — no change there.)
+- **Web `POST /api/transpile` accepts `paper_pdf_b64`**. Decodes the
+  base64-encoded PDF to a tempfile, ingests via `PDFAdapter` (uses
+  `pdftotext` if present), then runs the same transpile path as the
+  text variant. Trade-off: base64 inflates payload ~33% but keeps the
+  endpoint JSON-only — no multipart parser in Crucible. New
+  `paper_chars` field in the response.
+- **`crucible plot <workdir>`** — emits PNG plots (one per CSV) via a
+  matplotlib subprocess. Skips cleanly when matplotlib isn't installed.
+  Same subprocess-over-PythonCall precedent as the rest of the
+  pipeline. Output goes to `<workdir>/plots/` by default.
+- **`crucible run --pre-run-hook 'cmd' --post-run-hook 'cmd'`** (also
+  via `CRUCIBLE_PRE_RUN` / `CRUCIBLE_POST_RUN` env vars) — shell hooks
+  that fire before / after the python subprocess. Hook env includes
+  `CRUCIBLE_WORKDIR`, `CRUCIBLE_SPEC`, and (post-hook only)
+  `CRUCIBLE_RUN_RC` so hooks can branch on success/failure. Trade-off:
+  hooks are shell strings; the author owns escaping.
+- **`crucible templates list`** now surfaces per-template
+  `coverage_score` + lint findings count + stage count. Sortable at a
+  glance.
+- **`crucible diff --intent`** — adds an "Intent" header to the
+  Markdown diff that buckets the change as FF swap / source change /
+  protocol resize / parameter retune / etc. Useful for the
+  option-3 corpus's human-review pass.
+- **`CONTRIBUTING.md`** — human-facing equivalent of `AGENTS.md`. Same
+  hard rules + workflow patterns, longer-form prose. Setup, common
+  workflows (adding stages / FFs / parameterizers / schema bumps),
+  CI conventions, "not currently accepted" list.
+- `Base64` added to `Project.toml` (was implicit; now a declared dep
+  for Julia 1.10's stricter precompilation).
+- Tests: 733/733 pass on Julia 1.10 (offline; +5 with
+  `CRUCIBLE_RUN_OPENMM=1`).
+
 ### v1.12 — GPU CI smoke + quantum-MD outlook (2026-04-27)
 
 - **`.github/workflows/gpu-smoke.yml`** — closes the live-OpenMM-on-

@@ -114,7 +114,12 @@ function render_script(::MollyBackend, spec::MDSpec; output_dir::AbstractString)
             print(io, "    temp   = TemperatureLogger(typeof(1.0u\"K\"), 1000),\n")
             print(io, ")\n")
             print(io, "sys = System(sys; loggers=logger)\n")
-            print(io, "Molly.simulate!(sys, sim, ", n_steps, "; n_threads=Threads.nthreads())\n")
+            # Honor CRUCIBLE_PREVIEW_STEPS so preview_run can cap the
+            # protocol (matching OpenMMBackend's behavior). When unset,
+            # the full step count runs.
+            print(io, "_preview_cap = parse(Int, get(ENV, \"CRUCIBLE_PREVIEW_STEPS\", \"-1\"))\n")
+            print(io, "_n_steps = _preview_cap > 0 ? min(", n_steps, ", _preview_cap) : ", n_steps, "\n")
+            print(io, "Molly.simulate!(sys, sim, _n_steps; n_threads=Threads.nthreads())\n")
             print(io, "# trajectory writeout for stage ", stage_tag, " is a v0.5 task\n\n")
         end
     end
@@ -148,9 +153,33 @@ function prepare(b::MollyBackend, spec::MDSpec, workdir::AbstractString)::Prepar
         Dict{String,Any}("script_size_bytes" => filesize(script_path)))
 end
 
-function preview_run(::MollyBackend, ::PreparedJob; n_steps::Int=100)::PreviewReport
-    PreviewReport(true, true, nothing, nothing,
-        ["MollyBackend preview_run is a v0 stub — wire Molly + a tiny test fixture to enable"])
+function preview_run(::MollyBackend, job::PreparedJob; n_steps::Int=100)::PreviewReport
+    # Shell out to julia with CRUCIBLE_PREVIEW_STEPS set; the rendered
+    # script honors the cap. Same pattern as OpenMMBackend.preview_run.
+    isfile(job.script_path) ||
+        return PreviewReport(false, false, nothing, nothing,
+            ["preview_run: script not prepared"])
+    log_path = joinpath(job.workdir, "molly_preview_stdout.log")
+    project = something(Base.active_project(), ".")
+    env = copy(ENV)
+    env["CRUCIBLE_PREVIEW_STEPS"] = string(n_steps)
+    cmd = pipeline(setenv(`julia --project=$(project) $(job.script_path)`, env);
+                   stdout=log_path, stderr=log_path)
+    ok = false
+    log_text = ""
+    try
+        proc = run(cmd; wait=true)
+        ok = proc.exitcode == 0
+    catch err
+        log_text = "preview run failed: $(err)\n"
+    end
+    if isfile(log_path)
+        log_text *= read(log_path, String)
+    end
+    energies_finite = !occursin(r"NaN|Inf|-?[0-9]+\.0e\+30"i, log_text)
+    PreviewReport(ok && energies_finite, energies_finite, nothing, nothing,
+        ok ? ["Molly preview completed in ≤$(n_steps) steps per dynamics stage"] :
+             ["Molly preview failed; see $(log_path)"])
 end
 
 function run!(b::MollyBackend, job::PreparedJob; on_progress=identity)::SimResult
