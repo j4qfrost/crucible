@@ -46,7 +46,8 @@ Usage:
   crucible fmt           <spec.json> [--in-place]                # pretty-print spec
   crucible trajstat      <workdir>                                # walk + classify artifacts
   crucible analyze       <workdir> [--format text|markdown|json]  # summarize observables
-  crucible plot          <workdir> [--out-dir path] [--python python]  # PNGs of CSVs (matplotlib)
+  crucible plot          <workdir> [--out-dir path] [--python python] [--annotate]  # PNGs of CSVs (matplotlib)
+  crucible events        <workdir> [--format text|json|markdown]   # critical-moment detection
   crucible upgrade       <spec.json> [--out path] [--target ver]  # forward-migrate schema
   crucible bench         [--format text|json] [--repeat N]
                          [--save baseline.json] [--baseline base.json] [--threshold 20]
@@ -1338,10 +1339,24 @@ function cmd_plot(args::Vector{String})
         return 0
     end
 
+    # Optional --annotate: detect events and pass per-CSV frame lists to
+    # the plotter so it can overlay vertical lines.
+    annotations = Dict{String,Vector{Int}}()
+    if haskey(kw, "annotate")
+        for ev in Crucible.detect_events(workdir)
+            push!(get!(annotations, ev.observable, Int[]), ev.frame)
+        end
+        println("annotate: $(sum(length(v) for v in values(annotations); init=0)) event(s) across $(length(annotations)) observable(s)")
+    end
+
     # Build a tiny matplotlib script. Trade-off: we shell to python rather
     # than depending on PyPlot.jl, matching the renderer's
     # subprocess-over-PythonCall precedent. Skips cleanly when matplotlib
     # is missing; emits one PNG per CSV.
+    #
+    # Argument format: "csv_path::out_png[::frame1,frame2,…]" — third
+    # field is optional comma-separated frame indices to overlay as
+    # red vertical lines (annotated events).
     script_path = joinpath(out_dir, "_plot.py")
     open(script_path, "w") do io
         print(io, """
@@ -1354,7 +1369,7 @@ function cmd_plot(args::Vector{String})
             print('plot: matplotlib not installed; install via: pip install matplotlib')
             sys.exit(2)
 
-        def _plot(path, out_png):
+        def _plot(path, out_png, event_frames):
             with open(path) as f:
                 rdr = list(_csv.reader(f))
             if len(rdr) < 2:
@@ -1374,9 +1389,29 @@ function cmd_plot(args::Vector{String})
                 return
             fig, ax = plt.subplots(figsize=(7, 4))
             ax.plot(xs, ys, lw=1.0)
+            for f_idx in event_frames:
+                # Map the integer frame back to its x-axis value if the
+                # first column is itself a frame index. Otherwise we
+                # interpret the event's "frame" as a row position and
+                # look up xs[row].
+                xv = None
+                if 0 <= f_idx < len(xs):
+                    xv = xs[f_idx]
+                else:
+                    # Try matching xs literally (rmsd.csv uses frame as col 0)
+                    for cand_x in xs:
+                        if abs(cand_x - f_idx) < 0.5:
+                            xv = cand_x
+                            break
+                if xv is None:
+                    continue
+                ax.axvline(xv, color='red', alpha=0.5, lw=1.0)
             ax.set_xlabel(header[0])
             ax.set_ylabel(header[1] if len(header) > 1 else 'value')
-            ax.set_title(os.path.basename(path))
+            title = os.path.basename(path)
+            if event_frames:
+                title += f'  ({len(event_frames)} event(s) flagged)'
+            ax.set_title(title)
             ax.grid(alpha=0.3)
             fig.tight_layout()
             fig.savefig(out_png, dpi=120)
@@ -1384,14 +1419,20 @@ function cmd_plot(args::Vector{String})
             print(f'wrote {out_png}')
 
         for arg in sys.argv[1:]:
-            csv_path, out_png = arg.split('::', 1)
-            _plot(csv_path, out_png)
+            parts = arg.split('::')
+            csv_path, out_png = parts[0], parts[1]
+            ev_frames = []
+            if len(parts) > 2 and parts[2]:
+                ev_frames = [int(x) for x in parts[2].split(',') if x.strip()]
+            _plot(csv_path, out_png, ev_frames)
         """)
     end
     pairs = String[]
     for csv in csvs
         png = joinpath(out_dir, replace(csv, r"\.csv$" => ".png"))
-        push!(pairs, joinpath(workdir, csv) * "::" * png)
+        ev_frames = get(annotations, csv, Int[])
+        suffix = isempty(ev_frames) ? "" : "::" * join(string.(ev_frames), ",")
+        push!(pairs, joinpath(workdir, csv) * "::" * png * suffix)
     end
     cmd = `$py $script_path $(pairs)`
     try
@@ -1404,6 +1445,49 @@ function cmd_plot(args::Vector{String})
         println(stderr, "plot failed: $(err)")
         return 1
     end
+end
+
+function cmd_events(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    length(pos) < 1 && error("usage: events <workdir> [--format text|json|markdown]")
+    workdir = pos[1]
+    isdir(workdir) || error("events: not a directory: $(workdir)")
+    fmt = get(kw, "format", "text")
+    events = Crucible.detect_events(workdir)
+    if fmt == "json"
+        rows = [Dict("kind" => String(e.kind), "observable" => e.observable,
+                     "frame" => e.frame, "value" => e.value,
+                     "description" => e.description) for e in events]
+        println(JSON3.write(rows))
+    elseif fmt == "markdown"
+        println("# Crucible events: ", basename(rstrip(abspath(workdir), '/')))
+        println()
+        if isempty(events)
+            println("_(no critical moments detected — could be a clean run, or thresholds may need tuning)_")
+        else
+            println("$(length(events)) event(s):")
+            println()
+            println("| kind | observable | frame | value | description |")
+            println("|---|---|---:|---:|---|")
+            for e in events
+                println("| `$(e.kind)` | `$(e.observable)` | $(e.frame) | $(round(e.value; digits=4)) | $(e.description) |")
+            end
+        end
+    else
+        println("crucible events: $(workdir)")
+        println()
+        if isempty(events)
+            println("(no critical moments detected — could be a clean run,")
+            println(" or thresholds may need tuning. See docs/VISUALIZATION.md.)")
+        else
+            for e in events
+                println("[$(e.kind)] $(e.observable) frame $(e.frame): $(e.description)")
+            end
+            println()
+            println("$(length(events)) event(s) total")
+        end
+    end
+    0
 end
 
 function cmd_analyze(args::Vector{String})
@@ -1767,6 +1851,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "trajstat";     return cmd_trajstat(rest)
         elseif cmd == "analyze";      return cmd_analyze(rest)
         elseif cmd == "plot";         return cmd_plot(rest)
+        elseif cmd == "events";       return cmd_events(rest)
         elseif cmd == "upgrade";      return cmd_upgrade(rest)
         elseif cmd == "bench";        return cmd_bench(rest)
         elseif cmd == "cite";         return cmd_cite(rest)

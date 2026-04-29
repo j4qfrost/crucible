@@ -17,6 +17,7 @@ include("spec/Diff.jl")
 include("spec/Migrations.jl")
 include("spec/Observables.jl")
 include("spec/Coverage.jl")
+include("spec/Events.jl")
 include("spec/Templates.jl")
 include("spec/Snapshot.jl")
 
@@ -58,6 +59,7 @@ export MDSpec, SystemSpec, SystemSource, SolventSpec, LipidBilayer,
        read_observable_csv, summarize_observable,
        CoverageReport, LintFinding, LintReport,
        provenance_coverage, coverage_score, lint,
+       CrucibleEvent, detect_events,
        list_templates, get_template, register_template!,
        SnapshotManifest, snapshot, restore,
        SimBackend, MollyBackend, OpenMMBackend, KineticsBackend, route_backend,

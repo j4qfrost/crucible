@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### v1.19 — critical-moment detection + plot annotation + visualization doc (2026-04-29)
+
+Closest the project will get to "labels critical moments on a
+particle visualization." Honest scope: 2D summaries + flagged frames
+in JSON; 3D rendering happens in PyMOL/VMD/ChimeraX/NGL via the
+documented hand-off recipes.
+
+- **`crucible events <workdir> [--format text|json|markdown]`** —
+  heuristic critical-moment detection on observable CSVs:
+  `:rmsd_jump`, `:rg_expansion`, `:distance_crossing` (default
+  threshold 0.6 nm — covalent → nonbonded transition), `:hbond_drop`
+  (50% drop in 10-frame running mean), `:energy_spike` (z > 3.0 in
+  rolling 50-frame window on OpenMM StateDataReporter logs). Output
+  is a list of `CrucibleEvent` records or a paste-ready Markdown
+  table.
+- **`crucible plot --annotate`** — overlays detected events as red
+  vertical lines on the matplotlib PNGs. Composable with the
+  existing `--out-dir` + `--python` flags. Title shows event count.
+- **`docs/VISUALIZATION.md`** — honest scope doc + integration
+  recipes for PyMOL / VMD / ChimeraX / NGL (notebook). Explicitly
+  lists what's deliberately out of scope (embedded SPA viewer,
+  real-time animation during runs, animated tutorials) so a reader
+  knows whether their use case fits.
+- New `src/spec/Events.jl` module exporting `CrucibleEvent` +
+  `detect_events`. Pure Julia, no new deps.
+- Tests: 868/868 (+8 events-detection assertions).
+
 ### v1.18 — role-specific reading guides (2026-04-29)
 
 - **`docs/HOW_TO_READ.md`** — six role-specific reading guides in one

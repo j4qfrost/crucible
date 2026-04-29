@@ -225,6 +225,72 @@ end
     end
 end
 
+@testset "cmd_events flags an RMSD jump in a synthetic CSV" begin
+    workdir = mktempdir(prefix="crucible-events-")
+    try
+        # 100 frames of stable RMSD, then a sudden jump.
+        open(joinpath(workdir, "rmsd.csv"), "w") do io
+            println(io, "frame,rmsd_nm")
+            for i in 0:99
+                println(io, "$i,$(0.1 + 0.001 * i)")
+            end
+            println(io, "100,1.5")    # the jump
+        end
+        events = Crucible.detect_events(workdir)
+        @test !isempty(events)
+        @test any(e -> e.kind == :rmsd_jump, events)
+
+        original_stdout = stdout
+        rd, wr = redirect_stdout()
+        rc = nothing
+        try
+            rc = CLI.main(String["events", workdir, "--format", "markdown"])
+        finally
+            redirect_stdout(original_stdout)
+            close(wr)
+        end
+        @test rc == 0
+        out = read(rd, String)
+        @test occursin("# Crucible events", out)
+        @test occursin("rmsd_jump", out)
+    finally
+        rm(workdir; recursive=true, force=true)
+    end
+end
+
+@testset "cmd_events distance crossing detection" begin
+    workdir = mktempdir(prefix="crucible-events-dist-")
+    try
+        # Distance time-series that crosses 0.6 nm upward = unbinding.
+        open(joinpath(workdir, "distance.csv"), "w") do io
+            println(io, "frame,distance_nm")
+            # 50 frames bound (~0.4 nm), then unbinding spike.
+            for i in 0:49
+                println(io, "$i,$(0.4 + 0.001 * i)")
+            end
+            for i in 50:99
+                println(io, "$i,$(0.7 + 0.001 * (i - 50))")
+            end
+        end
+        events = Crucible.detect_events(workdir)
+        @test any(e -> e.kind == :distance_crossing, events)
+    finally
+        rm(workdir; recursive=true, force=true)
+    end
+end
+
+@testset "cmd_events on a real workdir with no observable CSVs returns 0 events" begin
+    workdir = mktempdir(prefix="crucible-events-empty-")
+    try
+        write(joinpath(workdir, "spec.json"),
+              Crucible.spec_to_json(get_template(:vanilla)))
+        events = Crucible.detect_events(workdir)
+        @test isempty(events)
+    finally
+        rm(workdir; recursive=true, force=true)
+    end
+end
+
 @testset "cmd_analyze handles empty workdir gracefully" begin
     workdir = mktempdir(prefix="crucible-analyze-empty-")
     try
