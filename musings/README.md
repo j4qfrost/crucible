@@ -54,6 +54,16 @@ fit `docs/` (spec/contributor reference) or `examples/` (runnable demos).
   Mojo-native MD engine, Mojo wins AI/ML standardization, Modular
   licensing shift.
 
+- [`ecosystem_alternatives.md`](ecosystem_alternatives.md) — the
+  broader version of the Mojo question: "is Julia the right
+  ecosystem at all?" Conclusion: Python is the only meaningful
+  alternative; everything else is worse on multiple axes. The
+  greenfield Julia-vs-Python decision today would be closer than
+  it was when Crucible started, but the right move forward is
+  Python *bindings* (Phase 2b in `docs/ADOPTION_PLAN.md`), not a
+  port. Three implementation paths analyzed in increasing cost
+  order; recommendation given.
+
 ## When to add a musing
 
 Add one when you've made an architectural decision that:

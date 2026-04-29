@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### v1.23 — ecosystem-alternatives musing (2026-04-29)
+
+- **`musings/ecosystem_alternatives.md`** — broader version of the
+  Mojo question (`why_not_mojo.md`): "is Julia the right ecosystem
+  at all?" Evaluates Python, Rust, Go, TypeScript, C++, Mojo, Nim,
+  and others against Crucible's actual workload. Conclusion:
+  Python is the only ecosystem that's a real alternative;
+  everything else is meaningfully worse on multiple axes. The
+  greenfield Julia-vs-Python decision today would be closer than
+  it was when the project started, but the right move forward is
+  Python *bindings* (Phase 2b in `docs/ADOPTION_PLAN.md`), not a
+  port. Three implementation paths for bindings analyzed in
+  increasing cost order:
+  1. **Subprocess-only client** (~2 weeks)
+  2. **PythonCall.jl bridge** (~6 weeks)
+  3. **Re-implement IR + validation in Python** (~8 weeks; recommended)
+  Polyglot architecture (IR in Rust, CLI in Go, …) considered
+  and rejected — multiplies contributor-onboarding cost without
+  improving any underlying tradeoff.
+- Tests: 868/868 (pure docs).
+
 ### v1.22 — why-not-mojo musing (2026-04-29)
 
 - **`musings/why_not_mojo.md`** — analytical record of the
