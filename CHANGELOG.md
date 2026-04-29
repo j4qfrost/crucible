@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### v1.26 — commercial-validation plan (salt-mines findings) (2026-04-29)
+
+- **`docs/COMMERCIAL_VALIDATION_PLAN.md`** — 180-day operational plan
+  that sits below the strategic 18-month `docs/ADOPTION_PLAN.md`.
+  Built directly on the salt-mines portfolio-evaluator verdict from
+  `~/Projects/salt-mines/reports/run-2026-04-28.md` (4-expert panel:
+  financial / risk / market / technical-feasibility). Captures:
+  source verdict (E=1.99×, p10=0.085, p50=0.96×, p90=8.25× — best
+  in the 7-project portfolio; modal outcome 45% stall on
+  zero-pipeline + 8-hrs/week bandwidth); 6-month commercial gate
+  (one signed LOI or paid pilot by 2026-10-29 or pivot to Phase
+  2a/2b academic/OSS path); $5K spend cap tranched into three
+  release gates; week-by-week Phase A (90-day commercial sprint —
+  outreach, 20-paper hallucination benchmark, conditional local-LLM
+  mode, GROMACS exporter scoping, pilot push); Phase B (90–180-day
+  pilot-conversion-or-pivot, parallel tracks); three explicit kill
+  criteria (no LOI, per-eval cost > $2, founder hours sustained
+  >12/week); honest list of what the plan *doesn't* do (no
+  fundraising, no hiring, no self-serve, no new IR features). The
+  pivot-to-OSS path is treated as the modal-30% scenario, not a
+  failure mode — the artifact remains citable regardless.
+- Tests: 868/868 unchanged (pure docs).
+
 ### v1.25 — why-not-protobuf musing (2026-04-29)
 
 - **`musings/why_not_protobuf.md`** — durable record of the
