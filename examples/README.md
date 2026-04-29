@@ -22,6 +22,7 @@ Each example is self-contained and runnable with `julia --project examples/<name
 | **Paper → MDSpec** | [`walkthrough.jl`](walkthrough.jl) | End-to-end demo using `RecordedProvider` (no API key required) |
 | **Pluto interactive** | [`walkthrough_notebook.jl`](walkthrough_notebook.jl) | Pluto notebook format — open via `Pluto.run(notebook=...)` |
 | **v1.5 method tour** | [`walkthrough_v15_methods.jl`](walkthrough_v15_methods.jl) | Pluto: pick a template (vanilla / smiles / fep / remd / membrane / metad) → IR + validation + cloud sizing + lint + rendered script in one flow. No Python deps needed. |
+| **Five-gate study** | [`study_validation_gates.jl`](study_validation_gates.jl) | Pluto: hands-on tour of the validation pipeline. Mutate fields, watch which gate fires. Ends in "you should be able to predict the gate from the mistake." |
 | **Option-3 flywheel** | [`lifecycle.jl`](lifecycle.jl) | Full flywheel: transpile → log → user-edit → diff → log → JSONL export |
 
 ## Required runtime deps

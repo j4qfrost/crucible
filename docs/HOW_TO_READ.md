@@ -22,6 +22,16 @@ an LLM into a structured intermediate representation (`MDSpec`), and
 renders that IR into a runnable OpenMM (or Molly) script with
 provenance, validation, and a cloud-sizing recommendation.**
 
+Two cross-cutting resources useful to every reader:
+
+- [`docs/GLOSSARY.md`](GLOSSARY.md) — definitions for every
+  domain-specific term used in the project (MD, drug-discovery,
+  materials, quantum, LLM, Crucible-internal).
+- [`examples/study_validation_gates.jl`](../examples/study_validation_gates.jl)
+  — Pluto notebook walking through the five-gate validation pipeline
+  hands-on. Pairs nicely with the "research software engineer" and
+  "new PhD student" guides.
+
 ---
 
 ## Wet-lab biologist

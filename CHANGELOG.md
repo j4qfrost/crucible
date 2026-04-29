@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### v1.20 — glossary + interactive five-gate study notebook (2026-04-29)
+
+Pedagogical surface filled in further. `HOW_TO_READ.md` (v1.18) +
+`USE_CASES.md` (v1.17) + `VISUALIZATION.md` (v1.19) give cross-field
+readers an entry point; this release adds the vocabulary lookup and
+a hands-on validation-pipeline walkthrough.
+
+- **`docs/GLOSSARY.md`** — cross-field vocabulary covering MD
+  (ensemble/timestep/PME/Rg/RMSD/FEP/REMD/CV/MBAR/checkpoint),
+  drug discovery (Kd/Ki/IC50/ΔG/ΔΔG/kinase/GPCR/RTK/PPI/paratope/
+  ADMET), materials (polymer/electrolyte/SEI/D/EAM/ReaxFF/QM-MM),
+  quantum (electronic structure/CCSD(T)/DFT/VQE/QPE/fault-tolerance/
+  ML-potentials), LLM tooling (structured output/provenance/
+  hallucination/JSON Schema/fine-tuning/few-shot), and
+  Crucible-internal terms (MDSpec/Stage/SystemSource/five gates/
+  flywheel/v2 IR scaffolding/the five hard rules).
+- **`examples/study_validation_gates.jl`** — Pluto notebook walking
+  through the five-gate validation pipeline interactively. Three
+  guided mutations (bad FF name → Gate 1, NPT without barostat →
+  Gate 2, ligand without topology → Gate 3) plus a "whole pipeline
+  at once" section showing the fail-fast invariant. Ends with a
+  "what you've learned" checklist.
+- `HOW_TO_READ.md` cross-links both above. Examples README adds
+  the study notebook to its index.
+- Tests: 868/868 (no code changes — pure documentation +
+  notebook).
+
 ### v1.19 — critical-moment detection + plot annotation + visualization doc (2026-04-29)
 
 Closest the project will get to "labels critical moments on a
