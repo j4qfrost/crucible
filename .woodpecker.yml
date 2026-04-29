@@ -27,6 +27,33 @@ steps:
       - pdftotext -v 2>&1 | head -1 || echo "pdftotext not found — PDF tests will skip"
       - julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 
+  # Hygiene: every-fixture × every-migration round-trip + Gate 1 check.
+  migration-smoke:
+    image: julia:${JULIA_VERSION}
+    environment:
+      JULIA_DEPOT_PATH: /woodpecker/depot
+    commands:
+      - julia --project -e 'using Pkg; Pkg.instantiate()'
+      - julia --project tools/migration_smoke.jl
+    depends_on:
+      - test
+
+  # Hygiene: docs/IR.md must be in sync with schema.json.
+  ir-md-drift:
+    image: julia:${JULIA_VERSION}
+    environment:
+      JULIA_DEPOT_PATH: /woodpecker/depot
+    commands:
+      - julia --project -e 'using Pkg; Pkg.instantiate()'
+      - cp docs/IR.md /tmp/IR.md.before
+      - julia --project tools/regenerate_docs.jl
+      - diff -u /tmp/IR.md.before docs/IR.md || (echo "docs/IR.md is stale — run julia --project tools/regenerate_docs.jl" && exit 1)
+    depends_on:
+      - test
+    when:
+      matrix:
+        JULIA_VERSION: "1.10"
+
   # NOTE: live Anthropic LLM smoke is run via the openmm-smoke step when both
   # ANTHROPIC_API_KEY and CRUCIBLE_RUN_ANTHROPIC are set in the Woodpecker repo
   # secrets. To enable: in the Woodpecker UI, add a repo secret named

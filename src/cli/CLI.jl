@@ -28,13 +28,13 @@ Usage:
   crucible advise        <spec.json> [--budget-hours N] [--backend openmm|molly]
   crucible summarize     <spec.json>                # Markdown summary of MDSpec
   crucible diff          <spec-a.json> <spec-b.json> [--intent]   # Markdown diff
-  crucible info                                       # capability surface
+  crucible info          [--format text|json]        # capability surface
   crucible parameterize  <smiles> --out <dir> [--ff openff_sage_2_2_0]
                                               [--python python] [--name LIG]
   crucible verify        <spec.json> [--backend openmm|molly]   # gates 1-3 + render
   crucible health        <spec.json> [--backend openmm|molly]   # validate + lint + coverage
   crucible run           <spec.json> [--workdir path] [--platform X] [--precision P]
-                                     [--seed N] [--resume] [--backend openmm]
+                                     [--seed N] [--resume] [--backend openmm] [--quiet]
                                      [--pre-run-hook 'cmd'] [--post-run-hook 'cmd']
   crucible serve         [--host 0.0.0.0] [--port 8080]         # HTTP web frontend
   crucible doctor                                                 # diagnose Python / OpenMM / OpenFF deps
@@ -233,7 +233,43 @@ function cmd_advise(args::Vector{String})
     rec.requires_confirmation ? 3 : 0
 end
 
-function cmd_info(::Vector{String})
+function _cmd_info_json()
+    backends = Dict{String,Any}()
+    for (name, b) in (("MollyBackend", MollyBackend()),
+                      ("OpenMMBackend", OpenMMBackend()),
+                      ("KineticsBackend", KineticsBackend()))
+        backends[name] = sort(string.(collect(Crucible.supported_features(b))))
+    end
+    obj = Dict{String,Any}(
+        "schema_version"     => "0.3.0",
+        "stage_types"        => ["MinimizeStage", "DynamicsStage",
+                                 "FEPStage", "REMDStage", "MetadynamicsStage"],
+        "source_types"       => ["user_supplied", "pdb_id", "pdb_fetch",
+                                 "smiles", "protein_ligand"],
+        "observable_types"   => ["rmsd", "rmsf", "energy", "trajectory",
+                                 "rg", "sasa", "distance", "hbonds"],
+        "force_fields"       => Dict(
+            "protein" => string.(collect(Crucible.PROTEIN_FF_ALLOWLIST)),
+            "water"   => string.(collect(Crucible.WATER_MODEL_ALLOWLIST)),
+            "ligand"  => string.(collect(Crucible.LIGAND_FF_ALLOWLIST)),
+            "lipid"   => string.(collect(Crucible.LIPID_FF_ALLOWLIST)),
+        ),
+        "backends"           => backends,
+        "templates"          => string.(list_templates()),
+        "openff_available"   => parameterizer_available(),
+        "subcommands"        => [m.captures[1] for m in
+            (match(r"^\s+crucible\s+([\w-]+)", line) for line in eachline(IOBuffer(HELP_TEXT)))
+            if m !== nothing],
+    )
+    println(JSON3.write(obj))
+    0
+end
+
+function cmd_info(args::Vector{String})
+    _, kw = _parse_kw_args(args)
+    if get(kw, "format", "text") == "json"
+        return _cmd_info_json()
+    end
     println("crucible — capability surface (schema v0.3.0)")
     println()
     println("Schema version:   0.3.0")
@@ -515,8 +551,9 @@ function cmd_run(args::Vector{String})
     # Persist the spec next to the rendered script for reproducibility.
     write(joinpath(workdir, "spec.json"), spec_json)
     job = Crucible.prepare(backend, spec, workdir)
-    println("workdir:        $(workdir)")
-    println("script:         $(job.script_path) ($(filesize(job.script_path)) bytes)")
+    quiet = haskey(kw, "quiet")
+    quiet || println("workdir:        $(workdir)")
+    quiet || println("script:         $(job.script_path) ($(filesize(job.script_path)) bytes)")
 
     # Find a python.
     py = haskey(kw, "python") ? kw["python"] :
@@ -541,11 +578,11 @@ function cmd_run(args::Vector{String})
         # Sort by mtime, take latest.
         latest = argmax(c -> stat(joinpath(workdir, c)).mtime, chks)
         env["CRUCIBLE_RESUME_FROM"] = joinpath(workdir, latest)
-        println("resume from:    $(env["CRUCIBLE_RESUME_FROM"])")
+        quiet || println("resume from:    $(env["CRUCIBLE_RESUME_FROM"])")
     end
 
-    println("python:         $(py)")
-    println("env overrides:  ",
+    quiet || println("python:         $(py)")
+    quiet || println("env overrides:  ",
             join((string(k, "=", v) for (k, v) in env if startswith(k, "CRUCIBLE_") && haskey(kw, lowercase(replace(k, "CRUCIBLE_" => "")))),
                  ", "))
     # Hooks: --pre-run-hook 'cmd' / --post-run-hook 'cmd' or
@@ -562,7 +599,7 @@ function cmd_run(args::Vector{String})
     hook_env["CRUCIBLE_SPEC"]    = pos[1]
 
     if !isempty(pre_hook)
-        println("pre-run hook:   $(pre_hook)")
+        quiet || println("pre-run hook:   $(pre_hook)")
         try
             run(pipeline(setenv(`bash -c $pre_hook`, hook_env)); wait=true)
         catch err
@@ -571,7 +608,7 @@ function cmd_run(args::Vector{String})
         end
     end
 
-    println("---- script stdout ----")
+    quiet || println("---- script stdout ----")
     cmd = setenv(`$py $(job.script_path)`, env)
     rc = try
         run(cmd; wait=true)
@@ -584,10 +621,10 @@ function cmd_run(args::Vector{String})
             127
         end
     end
-    println("---- exit $(rc) ----")
+    quiet || println("---- exit $(rc) ----")
 
     if !isempty(post_hook)
-        println("post-run hook:  $(post_hook)")
+        quiet || println("post-run hook:  $(post_hook)")
         # Post-hook runs even when the python rc is non-zero — that's
         # the point of "post" (alerting on failure, cleanup, upload, …).
         # The hook gets CRUCIBLE_RUN_RC in its env so it can branch.

@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+### v1.14 — SPA + info JSON + CI hygiene + architectural musings (2026-04-28)
+
+Three rounds of polish, all unblocked.
+
+- **SPA UI: PDF picker.** The `/` page now has a `<input
+  type="file" accept="application/pdf">` next to the textarea.
+  Selecting a PDF base64-encodes it client-side; clicking
+  Transpile sends `paper_pdf_b64` to the existing endpoint.
+  Closes the gap from v1.13's PDF-upload backend (which had no
+  UI affordance).
+- **`crucible info --format json`.** Machine-readable capability
+  surface for tooling integration: schema_version, stage_types,
+  source_types, observable_types, force_field allowlists per
+  axis, backend → features map, templates list,
+  openff_available, subcommand list (regex-extracted from
+  `HELP_TEXT`).
+- **`crucible run --quiet`.** Suppresses the framing output
+  (workdir/script/python lines, hook announcements, the `----`
+  separators, the exit line). Useful for piping into other
+  tooling. CRUCIBLE_QUIET env override is the natural next step
+  if a user requests it; flag-only for now.
+- **CI hygiene**: both pipelines (GitHub Actions +
+  Woodpecker) gain a "Migration smoke" step
+  (`tools/migration_smoke.jl` round-trips every fixture through
+  every registered migration target) and an "IR.md drift" step
+  (regenerates `docs/IR.md` and asserts no diff). Catches
+  schema-bump regressions that previously surfaced at review.
+- **Four architectural musings** in `musings/`:
+  - `why_subprocess_over_pythoncall.md` — the renderer's
+    subprocess design choice.
+  - `why_ir_as_contract.md` — why the LLM emits MDSpec JSON,
+    not runnable Python. The most-important call the project
+    has made.
+  - `why_dual_ci.md` — why both GH Actions and Woodpecker run
+    on every push.
+  - `why_no_genie.md` — why HTTP.jl is the right web framework
+    for Crucible's 8-endpoint surface.
+  - `musings/README.md` indexes them with a "when to add a
+    musing" guideline.
+- Tests: 741/741 pass on Julia 1.10.
+
 ### v1.13.1 — health + migration smoke + per-stage seed + runner Dockerfile (2026-04-28)
 
 Four small wins, all unblocked.

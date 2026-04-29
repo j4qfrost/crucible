@@ -139,7 +139,11 @@ pre{background:#f6f8fa;border-radius:4px;padding:0.6em 1em;overflow-x:auto;max-h
 <div class="row">
   <div class="col">
     <h3>1. Paper text</h3>
-    <textarea id="paper" placeholder="paste a Methods section, or click 'Use sample'"></textarea>
+    <textarea id="paper" placeholder="paste a Methods section, or click 'Use sample', or upload a PDF below"></textarea>
+    <p>
+      <input type="file" id="pdfFile" accept="application/pdf" onchange="loadPdf(this)">
+      <span id="pdfStatus" style="color:#666;font-size:12px;"></span>
+    </p>
     <p>
       provider:
       <select id="provider">
@@ -183,12 +187,37 @@ function show(label, ok, x){
   o.innerHTML = '<span class="'+cls+'">[' + (ok?'OK':'ERR') + '] ' + label + '</span>\\n' +
                 (typeof x === 'string' ? x : JSON.stringify(x, null, 2));
 }
+// Holds the base64 of the most recently selected PDF; cleared after a
+// transpile so the textarea path takes priority next time.
+let pendingPdfB64 = null;
+function loadPdf(input){
+  const f = input.files && input.files[0];
+  if (!f) { pendingPdfB64 = null; return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    // strip the "data:application/pdf;base64," prefix
+    const b64 = String(e.target.result).split(',', 2)[1] || '';
+    pendingPdfB64 = b64;
+    document.getElementById('pdfStatus').textContent =
+      'loaded ' + f.name + ' (' + (b64.length * 0.75 / 1024).toFixed(1) + ' KB) — click Transpile';
+  };
+  reader.readAsDataURL(f);
+}
 async function transpile(){
   const paper_text = document.getElementById('paper').value;
   const provider = document.getElementById('provider').value;
-  const [ok, res] = await call('/api/transpile', {paper_text, provider:{kind:provider}});
+  const body = {provider:{kind:provider}};
+  if (pendingPdfB64) {
+    body.paper_pdf_b64 = pendingPdfB64;
+  } else {
+    body.paper_text = paper_text;
+  }
+  const [ok, res] = await call('/api/transpile', body);
   if (ok && res.spec_json){ document.getElementById('spec').value = res.spec_json; }
   show('transpile', ok, res);
+  pendingPdfB64 = null;
+  document.getElementById('pdfStatus').textContent = '';
+  document.getElementById('pdfFile').value = '';
 }
 async function validate(){
   const spec_json = document.getElementById('spec').value;

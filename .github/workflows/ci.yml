@@ -39,6 +39,25 @@ jobs:
           julia --project -e 'using Pkg; Pkg.instantiate()'
           julia --project -e 'using Pkg; Pkg.test()'
 
+      # Hygiene: catches schema-bump drift before review. Round-trips
+      # every fixture through every registered migration target and
+      # asserts Gate 1 still passes.
+      - name: Migration smoke
+        run: julia --project tools/migration_smoke.jl
+
+      # Hygiene: docs/IR.md is auto-generated from schema.json. CI
+      # regenerates it and asserts the working copy matches what's
+      # checked in. Catches "I forgot to run regenerate_docs.jl" drift.
+      - name: IR.md drift check
+        run: |
+          cp docs/IR.md /tmp/IR.md.before
+          julia --project tools/regenerate_docs.jl
+          diff -u /tmp/IR.md.before docs/IR.md || {
+            echo
+            echo "::error::docs/IR.md is out of date — run \`julia --project tools/regenerate_docs.jl\` and commit"
+            exit 1
+          }
+
   # Live OpenMM + PDBFixer + mdtraj smoke. Installs OpenMM into a venv
   # and re-runs Pkg.test() with CRUCIBLE_RUN_OPENMM=1 so the
   # integration_test.jl live testset actually exercises OpenMM against
