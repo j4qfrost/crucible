@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### v1.16 — materials-science use cases (2026-04-28)
+
+A second flagship application area, alongside the cancer-MD templates
+shipped in v1.15. Materials science is much wider than what Crucible's
+organic-chemistry FF allowlist supports — this release ships what
+fits and is honest about what doesn't.
+
+- **`crucible templates init polymer_dynamics`** — PEG-in-water
+  20-mer in TIP3P solvent, NPT production with Rg + RMSD
+  observables. Generalizes to polyacrylic acid, polyelectrolytes,
+  drug-conjugate polymers (combines with the cancer kinase
+  templates), polymer gels.
+- **`crucible templates init battery_electrolyte`** — 1 M LiPF₆ in
+  ethylene carbonate (≈ 4,500 atoms), NPT equilibration → NVT
+  production at 1 fs. Observables include Li⁺ ↔ EC carbonyl distance
+  for coordination-shell analysis. NVT for production (not NPT) so
+  short-time MSD isn't biased by box-volume fluctuations. Generalizes
+  to LiTFSI, FSI, mixed-solvent electrolytes, Na/K-ion chemistries.
+- **`docs/MATERIALS_USE_CASES.md`** — application-area doc analogous
+  to `CANCER_USE_CASES.md`. At-a-glance template table, per-template
+  scientific question + caveats + when-to-pick-which, the recommended
+  workflow, and a candid "what's deferred" section covering metals
+  (EAM/MEAM), catalysis (ReaxFF / QM-MM), ceramics, DPD-style
+  coarse-grained models. Pointer at the ML-potentials lane
+  (ANI/MACE/Allegro) as the credible path forward for the deferred
+  regimes.
+- README "Flagship use case" section restructured into "Flagship
+  use cases" with cancer + materials side by side.
+- Tests: 826/826 (+34 from v1.15; the new templates are
+  auto-exercised by the existing per-template assertions).
+
 ### v1.15 — cancer drug-discovery use cases (2026-04-28)
 
 Crucible's flagship use case made explicit. Three cancer-research

@@ -416,6 +416,130 @@ function _gpcr_oncogene_membrane()
     _enrich_provenance!(spec, "gpcr_oncogene_membrane")
 end
 
+"""
+    _polymer_dynamics()
+
+Materials-science template. Models a single polymer chain in explicit
+solvent for chain-conformation sampling. The canonical question:
+"what's the radius of gyration of this polymer at this temperature
+and ionic strength, how does it scale with chain length?"
+
+System uses `:user_supplied` source — for real polymer work, build the
+chain + solvent box in CHARMM-GUI's Polymer Builder or PACKMOL, then
+point this template at the resulting `.parm7`/`.rst7`.
+
+Trade-off: long chains (>50 monomers) will saturate OpenFF's
+parameterization within reason; very long chains (>200) need
+specialized polymer-FF tooling beyond Crucible's scope.
+"""
+function _polymer_dynamics()
+    # PEG-in-water template. Ground-truth: 20-mer PEG in 5 nm cubic
+    # water box ≈ 2,800 atoms; build externally and point at it.
+    sys = SystemSpec(
+        SystemSource(type=:user_supplied,
+                     topology="peg20_water.parm7",
+                     coordinates="peg20_water.rst7"),
+        2_800, false,
+        SolventSpec(model=:TIP3P, ions_NaCl_mM=0.0))
+    ff = ForceFieldSpec(protein=:amber14sb, water=:TIP3P,
+                        ligand=:openff_sage_2_2_0)
+    proto = Stage[
+        MinimizeStage(max_iterations=1000),
+        DynamicsStage(role=:equilibrate, ensemble=:NVT, duration_ns=0.5,
+                      dt_fs=2.0, temperature_K=300.0,
+                      thermostat=:langevin, friction_ps=1.0,
+                      constraints=:h_bonds,
+                      restraints=RestraintSpec()),
+        DynamicsStage(role=:equilibrate, ensemble=:NPT, duration_ns=1.0,
+                      dt_fs=2.0, temperature_K=300.0, pressure_bar=1.0,
+                      thermostat=:langevin, barostat=:monte_carlo,
+                      friction_ps=1.0, constraints=:h_bonds,
+                      restraints=RestraintSpec()),
+        DynamicsStage(role=:production, ensemble=:NPT, duration_ns=20.0,
+                      dt_fs=2.0, temperature_K=300.0, pressure_bar=1.0,
+                      thermostat=:langevin, barostat=:monte_carlo,
+                      friction_ps=1.0, constraints=:h_bonds,
+                      restraints=RestraintSpec()),
+    ]
+    obs = Observable[
+        Observable(type=:trajectory, selection="all", stride_ps=20.0),
+        Observable(type=:rg, selection="resname PEG or resname OEG", stride_ps=20.0),
+        Observable(type=:rmsd, selection="resname PEG or resname OEG", stride_ps=20.0),
+    ]
+    prov = _default_provenance("polymer dynamics — PEG-in-water (20-mer)")
+    spec = MDSpec(system=sys, force_field=ff, protocol=proto, observables=obs,
+           provenance=prov,
+           warnings=String[
+               "Topology + coordinates are user-supplied: build the polymer + solvent box in CHARMM-GUI Polymer Builder or PACKMOL.",
+               "20 ns is a starter; polymer Rg convergence often needs 100+ ns for high-MW chains.",
+               "Long chains (>50 monomers) need OpenFF block-by-block parameterization; very long polymers (>200) need polymer-specialized FFs.",
+           ],
+           notes="Materials use case: polymer chain in solvent for Rg / end-to-end / " *
+                 "conformational sampling. Generalizes to PEG, polyacrylic acid, " *
+                 "polyelectrolytes (with NaCl), drug-delivery polymers.")
+    _enrich_provenance!(spec, "polymer_dynamics")
+end
+
+"""
+    _battery_electrolyte()
+
+Materials-science template for Li-ion battery electrolyte. Models
+Li⁺ + PF₆⁻ in ethylene carbonate (EC) — the standard organic
+electrolyte chemistry. Production focus: Li⁺ self-diffusion
+coefficient, ion-pair coordination geometry, EC solvation shell.
+
+Build the box externally via PACKMOL (e.g., 1 LiPF₆ pair per ~10 EC
+molecules ≈ 1 M concentration). The ions + EC are user_supplied
+because Crucible's `:smiles` source is single-molecule; multi-species
+electrolytes need pre-built topologies.
+"""
+function _battery_electrolyte()
+    sys = SystemSpec(
+        SystemSource(type=:user_supplied,
+                     topology="lipf6_ec.parm7",
+                     coordinates="lipf6_ec.rst7"),
+        4_500, false,
+        SolventSpec(model=:vacuum, ions_NaCl_mM=0.0))
+    ff = ForceFieldSpec(protein=:amber14sb, water=:vacuum,
+                        ligand=:openff_sage_2_2_0)
+    proto = Stage[
+        MinimizeStage(max_iterations=1000),
+        DynamicsStage(role=:equilibrate, ensemble=:NPT, duration_ns=2.0,
+                      dt_fs=1.0, temperature_K=300.0, pressure_bar=1.0,
+                      thermostat=:langevin, barostat=:monte_carlo,
+                      friction_ps=1.0, constraints=:h_bonds,
+                      restraints=RestraintSpec()),
+        DynamicsStage(role=:production, ensemble=:NVT, duration_ns=50.0,
+                      dt_fs=1.0, temperature_K=300.0,
+                      thermostat=:langevin, friction_ps=1.0,
+                      constraints=:h_bonds,
+                      restraints=RestraintSpec()),
+    ]
+    obs = Observable[
+        # NVT trajectory at long stride for Li+ MSD analysis.
+        Observable(type=:trajectory, selection="all", stride_ps=10.0),
+        Observable(type=:rmsd, selection="resname LI", stride_ps=10.0),
+        # Li-O coordination via distance to EC carbonyl oxygens.
+        Observable(type=:distance,
+                   selection="resname LI and name LI, resname EC and name O3",
+                   stride_ps=2.0),
+    ]
+    prov = _default_provenance("battery electrolyte — LiPF6 in EC (1 M)")
+    spec = MDSpec(system=sys, force_field=ff, protocol=proto, observables=obs,
+           provenance=prov,
+           warnings=String[
+               "Topology + coordinates are user-supplied: build via PACKMOL (1 LiPF6 per ~10 EC for ~1 M).",
+               "1 fs timestep + h_bonds constraints; halve dt for very high-density electrolytes.",
+               "50 ns is the lower bound for Li+ diffusion convergence (D ~ 10^-10 m^2/s); 200+ ns is typical.",
+               "Distance observable atom names ('LI', 'EC name O3') are PACKMOL-build conventions; adjust to match your topology.",
+               "OPLS-AA or polarizable FFs (AMOEBA) are sometimes preferred over GAFF/OpenFF for ionic liquids.",
+           ],
+           notes="Materials use case: Li-ion battery electrolyte sampling for " *
+                 "diffusion + coordination. LiPF6/EC is the canonical Li-ion chemistry; " *
+                 "swap salt + solvent for LiTFSI, FSI, propylene carbonate, EMC, etc.")
+    _enrich_provenance!(spec, "battery_electrolyte")
+end
+
 function _metadynamics_dihedral()
     cvs = CollectiveVariable[
         CollectiveVariable(kind=:dihedral, name="phi",
@@ -523,6 +647,9 @@ function __init_templates__()
     register_template!(:kinase_inhibitor_fep,    _kinase_inhibitor_fep)
     register_template!(:bcl2_ppi_inhibitor,      _bcl2_ppi_inhibitor)
     register_template!(:gpcr_oncogene_membrane,  _gpcr_oncogene_membrane)
+    # Materials-science templates. See docs/MATERIALS_USE_CASES.md.
+    register_template!(:polymer_dynamics,        _polymer_dynamics)
+    register_template!(:battery_electrolyte,     _battery_electrolyte)
 end
 
 __init_templates__()

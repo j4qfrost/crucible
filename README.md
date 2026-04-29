@@ -103,7 +103,9 @@ v1.5:
 The LLM never invents force-field parameters. The IR carries source attribution
 on every numeric field. The renderer is the only thing that converts units.
 
-## Flagship use case: cancer drug discovery
+## Flagship use cases
+
+### Cancer drug discovery
 
 Three cancer-research templates ship out of the box:
 
@@ -116,6 +118,20 @@ crucible templates init gpcr_oncogene_membrane  --out spec.json    # CXCR4-style
 Full walkthrough + when-to-pick-which guidance in
 [`docs/CANCER_USE_CASES.md`](docs/CANCER_USE_CASES.md). End-to-end Julia
 example at [`examples/kinase_inhibitor_walkthrough.jl`](examples/kinase_inhibitor_walkthrough.jl).
+
+### Materials science
+
+Two materials-science templates for what fits Crucible's organic-chemistry
+force-field allowlist:
+
+```bash
+crucible templates init polymer_dynamics    --out spec.json    # PEG-in-water chain conformation (Rg + RMSD)
+crucible templates init battery_electrolyte --out spec.json    # 1 M LiPF6 in ethylene carbonate (Li+ diffusion + coordination)
+```
+
+Honest scope notes (what fits, what's deferred to ML potentials, why
+metals/EAM and catalysis/QM-MM aren't in the IR today) in
+[`docs/MATERIALS_USE_CASES.md`](docs/MATERIALS_USE_CASES.md).
 
 ## GPU acceleration
 
