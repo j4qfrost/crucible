@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### v1.27 — 2026-Q2 advertising campaign (LinkedIn + GitHub-grounded targeting) (2026-04-29)
+
+- **`docs/CAMPAIGN_2026Q2.md`** — concrete creative + targeting plan
+  that operationalizes Phase A of `docs/COMMERCIAL_VALIDATION_PLAN.md`.
+  Covers: positioning (one sentence + one paragraph; wedge =
+  provenance + 5-gate validator, not "LLM that writes code"),
+  GitHub-grounded ecosystem snapshot (OpenMM 1.9k stars, Molly.jl
+  475, OpenFF Toolkit 392, openmmtools 319, all verified
+  2026-04-29), 3-tier key-figures map (10 academic OSS leads, 8
+  pharma CADD personas, 7 conference / community surfaces),
+  three-message stack (academic / pharma / founder-narrative),
+  10-asset deliverable matrix sized against 8 hr/week founder
+  bandwidth (Loom demo, hallucination benchmark page, X thread,
+  arXiv preprint, Practical Cheminformatics guest post, cold-email
+  templates, on-prem doc, ACS COMP submission, landing rewrite,
+  OSS hygiene release), week-by-week channel strategy aligned to
+  Phase A weeks 1–13, founder-fillable cold-email templates for
+  PI + CADD variants, honest constraints (no fabricated traction,
+  no paid ads, no spamming, on-prem mode is pharma prerequisite),
+  KPI dashboard for the week-13 review.
+- The doc identifies public-figure targeting **personas only**; no
+  contact info or email addresses listed. Founder assembles cold
+  lists from public surfaces.
+- Tests: 868/868 unchanged (pure docs).
+
 ### v1.26 — commercial-validation plan (salt-mines findings) (2026-04-29)
 
 - **`docs/COMMERCIAL_VALIDATION_PLAN.md`** — 180-day operational plan
