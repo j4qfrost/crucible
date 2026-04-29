@@ -64,6 +64,15 @@ fit `docs/` (spec/contributor reference) or `examples/` (runnable demos).
   port. Three implementation paths analyzed in increasing cost
   order; recommendation given.
 
+- [`why_not_protobuf.md`](why_not_protobuf.md) — should `MDSpec` be
+  defined in protobuf instead of JSON Schema? Conclusion: no for
+  the IR (LLM-friendliness, human readability, transcript
+  flywheel, hand-port advantage all favor JSON). Reserve protobuf
+  for the future RPC envelope if `crucible serve` ever fronts a
+  typed daemon protocol. For language bindings without a hand
+  port, run `quicktype` on `schema.json` rather than owning a
+  `.proto`. Triggers for revisiting documented.
+
 ## When to add a musing
 
 Add one when you've made an architectural decision that:

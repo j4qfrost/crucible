@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### v1.25 — why-not-protobuf musing (2026-04-29)
+
+- **`musings/why_not_protobuf.md`** — durable record of the
+  protobuf-instead-of-JSON-Schema question. Conclusion: no for the
+  IR. The single load-bearing axis is LLM-friendliness — Anthropic
+  tool-use binds JSON Schema as `input_schema`, and no major LLM
+  provider treats protobuf as a structured-output format. Other
+  losses: human-readable templates (`cat`-able), JSONL transcripts
+  (option-3 fine-tune flywheel runs on `jq`/`grep`), the sparse
+  `provenance` map's natural JSON shape, and the hand-port
+  advantage in both Python and Julia (codegen wouldn't replace
+  the validation/lint/migration/template layers anyway). Specs are
+  kb-scale, so wire-format compactness buys nothing the workload
+  notices. Two narrower places protobuf could legitimately land:
+  (1) the future RPC envelope if `crucible serve` ever fronts a
+  typed daemon, with the IR body still JSON; (2) `quicktype` from
+  `schema.json` covers the auto-generated-bindings case for
+  languages without a hand port — no `.proto` required. Four
+  triggers for revisiting documented (specs into MB range,
+  RPC daemon becomes load-bearing, LLM tooling shifts away from
+  JSON, protobuf-native scientific-computing community emerges).
+- Tests: 868/868 (pure docs).
+
 ### v1.24 — Python bindings (Phase 2b Path 3) + architecture diagrams + power-user docs (2026-04-29)
 
 - **`python/`** — pure-Python bindings. Phase 2b Path 3 from
