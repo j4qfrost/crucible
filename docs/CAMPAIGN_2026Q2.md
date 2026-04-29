@@ -230,6 +230,48 @@ Week 13  → status report against gate criteria
 >
 > — <signature>
 
+## AI-receptivity sub-ranking (highest-priority early targets)
+
+A separate cut at the persona list: of the named figures, which are
+**most likely to engage warmly with software that's mostly built by
+AI** (Crucible's actual provenance). Reasoning is from public posture
+— papers, blogs, employer signal, public talks — not from confirmed
+personal positions on AI-authored code. Ranking is best-guess.
+
+| Rank | Persona | Why they top this list | Use case |
+|---|---|---|---|
+| 1 | **Brooke Husic** (Princeton; formerly Anthropic) | Anthropic alumna — AI-built tooling is daily reality, not novelty. Will read the IR-as-contract design and structured-output binding as familiar craft. The rare audience that won't bounce on the AI-provenance angle. | Earliest critical-feedback target. Brief courteously; she will see this work field-wide regardless. |
+| 2 | **Frank Noé** (Microsoft AI for Science / FU Berlin) | His group is built around ML-MD; an AI-developed MD pipeline is on-thesis. Boltzmann generators, deep learning for sampling. Microsoft AI-for-Science context = daily AI tooling exposure. | Conceptual alignment is highest; expect substantive ML-MD framing in any reply. |
+| 3 | **Patrick Walters** (Relay; *Practical Cheminformatics*) | Most public-voice AI/ML-chemistry advocate in industry. Has written candidly about LLMs in chemistry. Discerning but not allergic. | Highest-leverage industry-CADD megaphone. A guest-post placement on his blog is the single best Tier-2 reach. |
+| 4 | **Tom Miller** (Iambic Therapeutics; formerly Caltech / OpenMM contributor) | Iambic is explicitly AI-driven drug discovery; Tom himself crossed from academic OpenMM to AI-bio. Speaks both languages natively. | Best strategic-bridge persona for warm intros into both academic OSS and AI-pharma. |
+
+**Honorable mentions:**
+
+- **Charlotte Deane** (Oxford OPIG, Recursion alumna) — heavy ML
+  output in antibody design; the `antibody_paratope_fep` template
+  speaks to her direct lane.
+- **Joe Greener** (MRC LMB) — differentiable MD is itself an
+  ML-adjacent paradigm; modern, GitHub-active, more likely
+  personally engaged with AI tooling than the median academic.
+- **Daphne Koller** (Insitro) — AI-first biotech founder. Too
+  senior/busy to be a direct outreach target; treat as ambient
+  narrative reach via Tier-3 surfaces.
+
+### The receptivity-discernment trade-off
+
+High-AI-fluency audiences are also the **most discerning** about
+LLM-written code. The same reader who recognizes Crucible's IR
+design as familiar craft will also catch any benchmark hand-waving,
+fabricated metrics, or claims that aren't backed by the public
+artifact. **Sequencing rule: reach out to this group only *after*
+the hallucination benchmark publishes (Phase A week 4).** Reaching
+out earlier risks burning the highest-leverage early audience on a
+weaker artifact than they'd respect.
+
+A corollary: AI-receptivity does *not* mean "low bar." It means
+"familiar enough to evaluate fairly." That's the audience Crucible
+should want.
+
 ## Honest constraints (do not compromise these)
 
 - **No fabricated traction.** Don't claim users, pilots, or

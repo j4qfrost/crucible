@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### v1.28 — campaign AI-receptivity sub-ranking (2026-04-29)
+
+- **`docs/CAMPAIGN_2026Q2.md`** — added a new section sub-ranking
+  the named personas by likely receptivity to *software that's
+  mostly built by AI* (Crucible's actual provenance). Ranking based
+  on public posture (papers, blogs, employer signal):
+  1. **Brooke Husic** (Princeton; formerly Anthropic) — earliest
+     critical-feedback target.
+  2. **Frank Noé** (Microsoft AI for Science / FU Berlin) — highest
+     conceptual alignment.
+  3. **Patrick Walters** (Relay; *Practical Cheminformatics*) —
+     highest-leverage industry-CADD megaphone.
+  4. **Tom Miller** (Iambic Therapeutics) — best strategic-bridge
+     persona.
+  Plus honorable mentions (Deane, Greener, Koller). Captures the
+  **receptivity-discernment trade-off**: high-AI-fluency audiences
+  are also the most discerning, so the sequencing rule is "reach
+  out *after* the hallucination benchmark publishes (Phase A week
+  4), not before." AI-receptivity ≠ low bar; it means "familiar
+  enough to evaluate fairly."
+- Tests: 868/868 unchanged (pure docs).
+
 ### v1.27 — 2026-Q2 advertising campaign (LinkedIn + GitHub-grounded targeting) (2026-04-29)
 
 - **`docs/CAMPAIGN_2026Q2.md`** — concrete creative + targeting plan
