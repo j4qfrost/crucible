@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### v1.22 — why-not-mojo musing (2026-04-29)
+
+- **`musings/why_not_mojo.md`** — analytical record of the
+  Julia → Mojo migration question. Conclusion: don't migrate
+  (performance argument doesn't apply since the hot path is the
+  OpenMM/Molly subprocess; Python-interop argument is moot since
+  the project deliberately uses subprocess per
+  `why_subprocess_over_pythoncall.md`; ecosystem cost is
+  substantial — Molly.jl, Pluto.jl, JSONSchema.jl, HTTP.jl, the
+  test suite + 868 tests). Three explicit triggers under which
+  the answer would change: a Mojo-native MD engine that beats
+  OpenMM, Mojo wins AI/ML standardization, Modular licensing
+  shift. The "partial adoption" question (could a Mojo backend
+  consume Crucible's IR?) gets a clean answer: yes — that's the
+  IR-as-contract bet working as designed; a Mojo-side renderer
+  is a separate tool, not a core migration.
+- Tests: 868/868 (pure docs).
+
 ### v1.21 — scaling musing + 18-month adoption plan (2026-04-29)
 
 Strategy doc surface. Two complementary artifacts: an analysis

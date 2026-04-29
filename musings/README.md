@@ -45,6 +45,15 @@ fit `docs/` (spec/contributor reference) or `examples/` (runnable demos).
   [`docs/ADOPTION_PLAN.md`](../docs/ADOPTION_PLAN.md), which is the
   operational version.
 
+- [`why_not_mojo.md`](why_not_mojo.md) — assessment of the
+  Julia → Mojo migration question. Conclusion: don't migrate
+  (performance argument doesn't apply since the hot path is
+  subprocesses, Python-interop argument is moot since the project
+  deliberately uses subprocess, ecosystem cost is substantial).
+  Three explicit triggers under which the answer would change:
+  Mojo-native MD engine, Mojo wins AI/ML standardization, Modular
+  licensing shift.
+
 ## When to add a musing
 
 Add one when you've made an architectural decision that:
