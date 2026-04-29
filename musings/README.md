@@ -36,6 +36,15 @@ fit `docs/` (spec/contributor reference) or `examples/` (runnable demos).
   without binding a port. Genie isn't wrong; it's just overkill for
   Crucible's web surface.
 
+- [`scaling_modes.md`](scaling_modes.md) — how Crucible scales as a
+  product across academia, private business, and open source. Three
+  distinct modes with different bottlenecks; cross-mode dynamics
+  (academia feeds OSS, OSS feeds business via open-core, etc.); the
+  honest take that the bottleneck is maintainer time, not
+  architecture or market. Companion to
+  [`docs/ADOPTION_PLAN.md`](../docs/ADOPTION_PLAN.md), which is the
+  operational version.
+
 ## When to add a musing
 
 Add one when you've made an architectural decision that:

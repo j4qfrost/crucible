@@ -187,7 +187,11 @@ step):
   reading guides (wet-lab biologist, comp chem, research software
   engineer, PI evaluating adoption, new PhD student, LLM-tooling
   engineer). Pick yours; ignore the rest.
-- [`docs/PLAN.md`](docs/PLAN.md) — architecture, rationale, roadmap
+- [`docs/PLAN.md`](docs/PLAN.md) — architecture, rationale, roadmap.
+- [`docs/ADOPTION_PLAN.md`](docs/ADOPTION_PLAN.md) — 18-month
+  go-to-market plan with phases + decision gates for academia / OSS
+  / business modes. Companion analysis at
+  [`musings/scaling_modes.md`](musings/scaling_modes.md).
 - [`docs/IR.md`](docs/IR.md) — auto-generated MDSpec field reference
 - [`AGENTS.md`](AGENTS.md) — contributor + Claude-Code guidance (hard rules,
   dev pattern, testing conventions, how to add backends/providers/adapters)

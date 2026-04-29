@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### v1.21 — scaling musing + 18-month adoption plan (2026-04-29)
+
+Strategy doc surface. Two complementary artifacts: an analysis
+(durable, ADR-shaped) and a plan (operational, with milestones).
+
+- **`musings/scaling_modes.md`** — analysis of how Crucible scales
+  in three modes: academia (PhD-student-led, citation-moat-bound,
+  Julia-friction-limited), private business (open-core + hosted
+  runtime, pharma-enterprise, vertical SaaS, consulting — each
+  with sketched ARR ceilings and named comparables), and open
+  source (architecture-friendly, maintainer-bus-factor-bound,
+  Julia-community-size-limited). Plus cross-mode dynamics
+  (academia → OSS feeder, OSS → business open-core funnel, etc.)
+  and the honest "the bottleneck is maintainer time, not
+  architecture or market" conclusion.
+- **`docs/ADOPTION_PLAN.md`** — operational 18-month plan with
+  three phases:
+  - **Phase 0 (0–3 months)**: stabilize. Tag v1.0.0, JuliaRegistry,
+    onboarding QA, MAINTAINER_RUNBOOK.md, bus-factor mitigation.
+  - **Phase 1 (3–9 months)**: citation moat. JOSS submission,
+    end-to-end case study, conference presence, Zenodo DOI.
+  - **Phase 2 (9–18 months)** branches based on what's working at
+    the 9-month gate: 2a (academic), 2b (OSS-vibrant), 2c
+    (business with co-founder + funding decision), or graceful
+    step-down if all three signals are weak.
+  Constraints: one full-time maintainer, no external funding
+  committed. Phases 0 and 1 are sequential and unconditional;
+  Phase 2 is decision-gate-driven.
+- README + musings/README cross-link both.
+- Tests: 868/868 (no code changes — pure documentation).
+
 ### v1.20 — glossary + interactive five-gate study notebook (2026-04-29)
 
 Pedagogical surface filled in further. `HOW_TO_READ.md` (v1.18) +
