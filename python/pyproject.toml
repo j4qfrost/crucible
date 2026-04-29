@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "crucible"
+version = "0.3.0"
+description = "Python bindings for Crucible — the LLM-driven molecular-dynamics paper-transpiler. Pure-Python IR + validation + lint + templates; the renderer + CLI + LLM transpile run via the Julia subprocess bridge."
+readme = "README.md"
+license = { file = "../LICENSE" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Crucible contributors" },
+]
+keywords = ["molecular-dynamics", "openmm", "molly", "openff", "drug-discovery", "ir", "transpiler", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+    "pydantic>=2.5",
+    "jsonschema>=4.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/j4qfrost/crucible"
+Issues   = "https://github.com/j4qfrost/crucible/issues"
+
+[project.scripts]
+crucible-py = "crucible.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["crucible"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"../src/spec/schema.json" = "crucible/_data/schema.json"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

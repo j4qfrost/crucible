@@ -2,6 +2,66 @@
 
 ## Unreleased
 
+### v1.24 — Python bindings (Phase 2b Path 3) + architecture diagrams + power-user docs (2026-04-29)
+
+- **`python/`** — pure-Python bindings. Phase 2b Path 3 from
+  `musings/ecosystem_alternatives.md`. Pydantic-typed `MDSpec` plus a
+  full port of validation gates 1+2, lint + provenance coverage,
+  schema migrations (0.1.0 → 0.2.0 → 0.3.0), and all 13 templates.
+  Heavy operations (render, run, serve, events, diff) shell out to
+  the Julia CLI via `crucible.cli_bridge`, extending the
+  subprocess-as-integration-boundary pattern from
+  `musings/why_subprocess_over_pythoncall.md` symmetrically in both
+  directions. Pure-Python users can build, mutate, validate, lint,
+  and round-trip MDSpecs without Julia installed. The canonical
+  `src/spec/schema.json` is loaded by both languages; cross-language
+  consistency is the load-bearing invariant.
+  - `python/pyproject.toml` — pydantic ≥ 2.5, jsonschema ≥ 4.20,
+    Python ≥ 3.10. `crucible-py` console script for module-mode CLI.
+  - `python/crucible/spec.py` — pydantic models with strict enums,
+    discriminated `Stage` union, `extra="forbid"` on every model so
+    unknown fields raise (mirrors Julia's reject-on-unknown).
+  - `python/crucible/validate.py` — Gate 1 (`jsonschema`) +
+    Gate 2 (17 semantic rules ported one-for-one).
+  - `python/crucible/coverage.py` — `provenance_coverage`,
+    `coverage_score`, `lint` with all 9 lint rules.
+  - `python/crucible/migrate.py` — registry-based forward migrations
+    matching Julia exactly.
+  - `python/crucible/templates.py` — 13 templates (vanilla, smiles,
+    protein_ligand_fep, remd, membrane, metadynamics + 3 cancer
+    + 2 materials + 2 protein-engineering) with the same provenance
+    enrichment as the Julia side.
+  - `python/crucible/cli_bridge.py` — subprocess wrapper for
+    render/run/health/events/diff/info/doctor; honors
+    `CRUCIBLE_BIN`, `CRUCIBLE_SEED`, `CRUCIBLE_PRECISION`, etc.
+  - `python/crucible/__init__.py` — top-level convenience API:
+    `crucible.validate(spec)`, `crucible.render(spec, "openmm")`,
+    `crucible.run(spec, workdir=…)`, `crucible.health(spec)`,
+    `crucible.events(workdir)`, `crucible.lint(spec)`,
+    `crucible.templates.init(name)`.
+  - `python/crucible/__main__.py` — `python -m crucible` for
+    pure-Python ops (validate / lint / templates / migrate).
+  - `python/tests/` — 50 pytest tests covering spec round-trip,
+    validate gates, lint, migrate, and the template registry. All 50
+    pass against the canonical schema.
+- **`docs/ARCHITECTURE.md`** — Mermaid systems diagrams (GitHub renders
+  natively): pipeline-at-a-glance, five-gate validation, IR-as-contract
+  cross-language layout, subprocess-boundary topology,
+  adoption-plan-phase mapping, and a single-timestep sequence diagram.
+  Visual companion to the existing musings + `docs/PLAN.md`.
+- **`docs/POWER_USERS.md`** — onboarding handbook for contributors who
+  need to extend Crucible: adding a stage type (9-step checklist
+  spanning IR + schema + migrations + gates + coverage + renderers +
+  Python port + templates + tests), adding a lint rule, adding a
+  template, bumping the schema, adding a CLI subcommand, custom LLM
+  providers, CI integration patterns (GitHub Actions / Woodpecker /
+  pre-commit hook), Python-bindings usage, and "what does the IR
+  look like?" — the question every new feature has to answer first.
+- Schema, gates, lint, migrations, and templates are now defined
+  identically in two languages with one canonical schema. A schema
+  bump becomes a coordinated PR across both ports.
+- Tests: Julia 868/868 unchanged; Python 50/50 pass on first run.
+
 ### v1.23 — ecosystem-alternatives musing (2026-04-29)
 
 - **`musings/ecosystem_alternatives.md`** — broader version of the
