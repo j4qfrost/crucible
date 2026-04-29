@@ -540,6 +540,146 @@ function _battery_electrolyte()
     _enrich_provenance!(spec, "battery_electrolyte")
 end
 
+"""
+    _enzyme_design_remd()
+
+Protein-engineering template. Models an enzyme design candidate (an
+AlphaFold-predicted or RFdiffusion-generated structure) with REMD to
+sample conformational ensembles before computing binding ΔG. The
+question this answers: "is this designed enzyme actually folded
+stably under physiological conditions?"
+
+System uses `:user_supplied` because design candidates start as
+predicted structures, not crystal structures. Build the AlphaFold/RFD
+output with PDBFixer + a TIP3P solvation pass first.
+
+Trade-off: 8-replica REMD across 300–408 K is the standard ladder
+for soluble proteins ≤ 200 residues. Larger enzymes need either
+finer ladder or hybrid REST2.
+"""
+function _enzyme_design_remd()
+    sys = SystemSpec(
+        SystemSource(type=:user_supplied,
+                     topology="design_candidate.parm7",
+                     coordinates="design_candidate.rst7"),
+        18_000, false,
+        SolventSpec(model=:TIP3P, ions_NaCl_mM=150.0))
+    ff = ForceFieldSpec(protein=:amber14sb, water=:TIP3P,
+                        ligand=:user_supplied)
+    proto = Stage[
+        MinimizeStage(max_iterations=2000),
+        DynamicsStage(role=:equilibrate, ensemble=:NVT, duration_ns=0.5,
+                      dt_fs=2.0, temperature_K=300.0,
+                      thermostat=:langevin, friction_ps=1.0,
+                      constraints=:h_bonds,
+                      restraints=RestraintSpec(selection=:heavy_atoms,
+                                               kind=:harmonic,
+                                               k_kj_mol_nm2=2000.0)),
+        DynamicsStage(role=:equilibrate, ensemble=:NPT, duration_ns=2.0,
+                      dt_fs=2.0, temperature_K=300.0, pressure_bar=1.0,
+                      thermostat=:langevin, barostat=:monte_carlo,
+                      friction_ps=1.0, constraints=:h_bonds,
+                      restraints=RestraintSpec(selection=:backbone,
+                                               kind=:harmonic,
+                                               k_kj_mol_nm2=500.0)),
+        REMDStage(temperature_ladder_K=[300.0, 313.0, 327.0, 342.0, 358.0, 374.0, 391.0, 408.0],
+                  duration_per_replica_ns=5.0,
+                  exchange_attempt_period_ps=2.0,
+                  ensemble=:NVT, thermostat=:langevin,
+                  friction_ps=1.0, constraints=:h_bonds),
+    ]
+    obs = Observable[
+        Observable(type=:trajectory, selection="all", stride_ps=20.0),
+        Observable(type=:rmsd, selection="protein and name CA", stride_ps=20.0),
+        Observable(type=:rmsf, selection="protein and name CA", stride_ps=20.0),
+        Observable(type=:rg,   selection="protein and name CA", stride_ps=20.0),
+    ]
+    prov = _default_provenance("enzyme design REMD — 8-replica T-ladder")
+    spec = MDSpec(system=sys, force_field=ff, protocol=proto, observables=obs,
+           provenance=prov,
+           warnings=String[
+               "Topology is user-supplied: feed in the AlphaFold/RFdiffusion output via PDBFixer + tleap (or CHARMM-GUI).",
+               "5 ns/replica is a starter; folding-stability work needs 50+ ns/replica.",
+               "REMD acceptance heuristic: rung-to-rung T-ratio ≤ 1.10 keeps acceptance > 25% for ≤ 200-residue proteins.",
+               "For larger designs (>300 residues), REST2 (replica exchange with solute tempering) is preferred over plain T-REMD.",
+           ],
+           notes="Protein engineering: enzyme design candidate stability via " *
+                 "T-REMD. Tests whether an AlphaFold/RFdiffusion-generated " *
+                 "structure stays folded; identifies mobile loops + " *
+                 "metastable conformations.")
+    _enrich_provenance!(spec, "enzyme_design_remd")
+end
+
+"""
+    _antibody_paratope_fep()
+
+Protein-engineering template for antibody affinity maturation. Models
+an antibody Fab fragment + antigen complex with decoupling FEP to
+predict ΔΔG of paratope mutations.
+
+Reference structure: PDB `4G6K` (anti-VEGF Fab + VEGF) is a common
+public-domain antibody-antigen co-crystal. Replace with your antibody
+of interest; the protocol is the same.
+
+Use case: scoring proposed CDR mutations before wet-lab synthesis.
+Predicted ΔΔG = ΔG(mutant) − ΔG(wildtype); positive = worse binding,
+negative = better.
+"""
+function _antibody_paratope_fep()
+    sys = SystemSpec(
+        SystemSource(type=:user_supplied,
+                     topology="fab_antigen.parm7",
+                     coordinates="fab_antigen.rst7"),
+        85_000, false,
+        SolventSpec(model=:TIP3P, ions_NaCl_mM=150.0))
+    ff = ForceFieldSpec(protein=:amber14sb, water=:TIP3P,
+                        ligand=:user_supplied)
+    proto = Stage[
+        MinimizeStage(max_iterations=2000),
+        DynamicsStage(role=:equilibrate, ensemble=:NVT, duration_ns=1.0,
+                      dt_fs=2.0, temperature_K=310.0,
+                      thermostat=:langevin, friction_ps=1.0,
+                      constraints=:h_bonds,
+                      restraints=RestraintSpec(selection=:heavy_atoms,
+                                               kind=:harmonic,
+                                               k_kj_mol_nm2=2000.0)),
+        DynamicsStage(role=:equilibrate, ensemble=:NPT, duration_ns=5.0,
+                      dt_fs=2.0, temperature_K=310.0, pressure_bar=1.0,
+                      thermostat=:langevin, barostat=:monte_carlo,
+                      friction_ps=1.0, constraints=:h_bonds,
+                      restraints=RestraintSpec(selection=:backbone,
+                                               kind=:harmonic,
+                                               k_kj_mol_nm2=500.0)),
+        # Annihilation FEP (vs. decoupling): used for protein-protein
+        # interfaces because we want to remove the entire side chain's
+        # contribution, not just decouple intermolecular interactions.
+        FEPStage(kind=:annihilate,
+                 target_selection="resname MUT",
+                 lambda_windows=collect(0.0:0.1:1.0),
+                 duration_per_window_ns=3.0,
+                 ensemble=:NPT, temperature_K=310.0, pressure_bar=1.0,
+                 thermostat=:langevin, friction_ps=1.0, constraints=:h_bonds),
+    ]
+    obs = Observable[
+        Observable(type=:trajectory, selection="all", stride_ps=50.0),
+        Observable(type=:rmsd, selection="protein and name CA", stride_ps=50.0),
+        Observable(type=:hbonds, selection="protein", stride_ps=50.0),
+    ]
+    prov = _default_provenance("antibody paratope FEP — Fab + antigen, ΔΔG of mutation")
+    spec = MDSpec(system=sys, force_field=ff, protocol=proto, observables=obs,
+           provenance=prov,
+           warnings=String[
+               "Topology is user-supplied: build the Fab+antigen complex with the mutated residue tagged as resname MUT.",
+               "Annihilation (not decoupling) is the right alchemy for protein-side mutations.",
+               "Run twice: once with mutant, once with WT; ΔΔG = ΔG(mutant) - ΔG(WT). Use `crucible diff --intent` to compare specs.",
+               "3 ns/window is a starter; convergent ΔΔG for protein-protein interfaces needs 5-10 ns/window plus error analysis (BAR + bootstrapping).",
+           ],
+           notes="Protein engineering: antibody affinity-maturation ΔΔG via " *
+                 "annihilation FEP. Generalizes to any protein-protein " *
+                 "interface mutation (TCR-pMHC, hormone-receptor, etc.).")
+    _enrich_provenance!(spec, "antibody_paratope_fep")
+end
+
 function _metadynamics_dihedral()
     cvs = CollectiveVariable[
         CollectiveVariable(kind=:dihedral, name="phi",
@@ -650,6 +790,9 @@ function __init_templates__()
     # Materials-science templates. See docs/MATERIALS_USE_CASES.md.
     register_template!(:polymer_dynamics,        _polymer_dynamics)
     register_template!(:battery_electrolyte,     _battery_electrolyte)
+    # Protein-engineering templates. See docs/PROTEIN_ENGINEERING_USE_CASES.md.
+    register_template!(:enzyme_design_remd,      _enzyme_design_remd)
+    register_template!(:antibody_paratope_fep,   _antibody_paratope_fep)
 end
 
 __init_templates__()

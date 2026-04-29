@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### v1.17 — protein-engineering + use-case index + bench baseline (2026-04-28)
+
+Third flagship application area + consolidation of the use-case
+docs into a single index + a saved bench baseline for CI regression
+detection.
+
+- **`crucible templates init enzyme_design_remd`** — 8-replica
+  T-REMD across 300–408 K for AlphaFold/RFdiffusion-style enzyme
+  design candidates. 5 ns/replica with 2 ps exchange period.
+  Tests whether a designed enzyme stays folded under physiological
+  conditions; identifies mobile loops and metastable states.
+- **`crucible templates init antibody_paratope_fep`** — annihilation
+  FEP for antibody paratope mutations (or any protein-protein
+  interface mutation). 11 λ × 3 ns. Run twice (WT + mutant), take
+  ΔΔG = ΔG(mutant) - ΔG(WT). Generalizes to TCR-pMHC,
+  hormone-receptor, enzyme-substrate.
+- **`docs/PROTEIN_ENGINEERING_USE_CASES.md`** — application-area
+  doc analogous to the cancer + materials docs. At-a-glance table,
+  per-template "use this when / don't use this for / caveats /
+  generalizes to" sections, the ΔΔG protocol pattern (run twice,
+  diff with `--intent`), what's deferred (computational design
+  loops, multi-state design, ms-scale folding).
+- **`docs/USE_CASES.md` — single index** linking cancer +
+  materials + protein engineering with a consolidated picking
+  guide ("if you're doing X, start from Y") and the common
+  workflow. README slimmed to one paragraph pointing at this index.
+- **`tools/baselines/v1.16.json`** — saved `crucible bench` snapshot
+  (n=30 per template, all 13 current templates). Future runs can
+  diff against this with `crucible bench --baseline tools/baselines/v1.16.json`
+  to detect renderer regressions.
+- Tests: 860/860 (+34 from v1.16; new templates auto-exercised).
+
 ### v1.16 — materials-science use cases (2026-04-28)
 
 A second flagship application area, alongside the cancer-MD templates
