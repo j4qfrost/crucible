@@ -4,6 +4,12 @@ Crucible covers three flagship application areas. Each ships canned
 templates, an in-depth doc explaining when to pick which, and an
 honest "what's deferred" section.
 
+> **First time here?** [`HOW_TO_READ.md`](HOW_TO_READ.md) has
+> role-specific reading guides — pick the one matching your background
+> (wet-lab biologist, computational chemist, research software
+> engineer, PI, PhD student, LLM-tooling engineer) for a curated path
+> through the project.
+
 | Domain | Doc | Templates | Question shape |
 |---|---|---|---|
 | **Cancer drug discovery** | [`CANCER_USE_CASES.md`](CANCER_USE_CASES.md) | `kinase_inhibitor_fep`, `bcl2_ppi_inhibitor`, `gpcr_oncogene_membrane` | "Will this candidate drug bind this oncogenic target?" |

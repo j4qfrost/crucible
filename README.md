@@ -183,6 +183,10 @@ step):
 
 ## Documentation
 
+- [`docs/HOW_TO_READ.md`](docs/HOW_TO_READ.md) — six role-specific
+  reading guides (wet-lab biologist, comp chem, research software
+  engineer, PI evaluating adoption, new PhD student, LLM-tooling
+  engineer). Pick yours; ignore the rest.
 - [`docs/PLAN.md`](docs/PLAN.md) — architecture, rationale, roadmap
 - [`docs/IR.md`](docs/IR.md) — auto-generated MDSpec field reference
 - [`AGENTS.md`](AGENTS.md) — contributor + Claude-Code guidance (hard rules,

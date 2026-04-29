@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### v1.18 — role-specific reading guides (2026-04-29)
+
+- **`docs/HOW_TO_READ.md`** — six role-specific reading guides in one
+  doc. Each section has the same shape: minimum prep, reading order,
+  hands-on exercises, "you've got it when…" checkpoint, and what to
+  read past the basics.
+  - **Wet-lab biologist** — uses Crucible as a tool, no coding required.
+  - **Computational chemist** — already knows OpenMM, wants the
+    architectural delta.
+  - **Research software engineer** — here for the IR-as-contract
+    pattern + the musings.
+  - **PI evaluating adoption** — adoption decision matrix +
+    sustainability questions.
+  - **New PhD student** — 3-week curriculum tying Crucible to
+    Frenkel & Smit + OpenMM docs.
+  - **LLM-tooling engineer** — patterns worth stealing
+    (structured-output as JSON Schema; provenance + lint + coverage
+    triple; three-provider abstraction; transcripts → DuckDB).
+- README's `## Documentation` section gains a pointer at the
+  reading guides.
+- `docs/USE_CASES.md` adds a "first time here?" callout pointing at
+  the reading guides.
+- Tests: 860/860 (no code changes).
+
 ### v1.17 — protein-engineering + use-case index + bench baseline (2026-04-28)
 
 Third flagship application area + consolidation of the use-case
