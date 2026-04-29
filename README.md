@@ -103,6 +103,20 @@ v1.5:
 The LLM never invents force-field parameters. The IR carries source attribution
 on every numeric field. The renderer is the only thing that converts units.
 
+## Flagship use case: cancer drug discovery
+
+Three cancer-research templates ship out of the box:
+
+```bash
+crucible templates init kinase_inhibitor_fep    --out spec.json    # Abl + Imatinib (PDB 2HYY) decoupling FEP
+crucible templates init bcl2_ppi_inhibitor      --out spec.json    # Bcl-2 + Venetoclax-like (PDB 6O0P) stability
+crucible templates init gpcr_oncogene_membrane  --out spec.json    # CXCR4-style GPCR in POPC (auto MonteCarloMembraneBarostat)
+```
+
+Full walkthrough + when-to-pick-which guidance in
+[`docs/CANCER_USE_CASES.md`](docs/CANCER_USE_CASES.md). End-to-end Julia
+example at [`examples/kinase_inhibitor_walkthrough.jl`](examples/kinase_inhibitor_walkthrough.jl).
+
 ## GPU acceleration
 
 The OpenMM renderer emits a platform-fallthrough block: when the script runs

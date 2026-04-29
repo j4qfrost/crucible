@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### v1.15 — cancer drug-discovery use cases (2026-04-28)
+
+Crucible's flagship use case made explicit. Three cancer-research
+templates that map to real, well-known oncology drug-discovery
+patterns, plus a docs page explaining when to pick which.
+
+- **`crucible templates init kinase_inhibitor_fep`** — Abl kinase +
+  Imatinib analog (PDB `2HYY`) with decoupling FEP across 11 λ
+  windows × 2 ns. Models the canonical kinase-inhibitor binding-ΔG
+  workflow that Imatinib (Gleevec) established as a clinical
+  paradigm.
+- **`crucible templates init bcl2_ppi_inhibitor`** — Bcl-2 +
+  Venetoclax-fragment (PDB `6O0P`) with 50 ns unbiased NPT
+  production. Tracks ligand-residue distance + H-bond count.
+  Generalizes to MDM2-p53, KRAS-G12C, MCL-1 — protein-protein
+  interaction inhibitors more broadly.
+- **`crucible templates init gpcr_oncogene_membrane`** — CXCR4-style
+  GPCR oncogene in a 200-lipid POPC bilayer. Renderer
+  auto-emits `MonteCarloMembraneBarostat` (XYIsotropic, ZFree).
+  Generalizes across the GPCR-oncogene family (S1PR2, GPR55,
+  EBI2, …) and to RTKs (EGFR/HER2/ALK) when the topology is
+  user-supplied.
+- **`docs/CANCER_USE_CASES.md`** — application-area doc with
+  at-a-glance template table, per-template scientific question +
+  caveats + when-to-pick-which guidance, recommended workflow,
+  hard rules specific to cancer-MD work (don't fabricate
+  experimental data, drug-likeness is downstream, the renderer
+  owns unit conversion).
+- **`examples/kinase_inhibitor_walkthrough.jl`** — end-to-end no-execute
+  walkthrough showing template → validate → lint → cloud sizing →
+  render → "what comes next." Runs in ~5 seconds, zero Python.
+- README gains a "Flagship use case: cancer drug discovery"
+  section pointing at the templates + docs.
+- Tests: 792/792 pass (the new templates are auto-exercised by the
+  existing per-template assertions). +51 from v1.14.
+
 ### v1.14 — SPA + info JSON + CI hygiene + architectural musings (2026-04-28)
 
 Three rounds of polish, all unblocked.

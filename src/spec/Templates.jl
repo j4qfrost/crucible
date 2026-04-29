@@ -221,6 +221,201 @@ function _membrane_protein()
     _enrich_provenance!(spec, "membrane")
 end
 
+"""
+    _kinase_inhibitor_fep()
+
+Cancer drug-discovery flagship template. Models the Abl-kinase–Imatinib
+pattern that established kinase-inhibitor MD as a discipline:
+
+  * 4-character PDB id `2HYY` is the canonical Abl + Imatinib crystal
+    structure. Most kinase-inhibitor papers cite or extend this.
+  * Imatinib-like SMILES is included as the ligand. Replace with your
+    own analog when running real prospective work.
+  * Decoupling FEP across 11 λ windows estimates ΔG_bind (the predicted
+    binding affinity).
+
+Trade-off documented in `docs/CANCER_USE_CASES.md`: Crucible's IR
+captures the protocol but you still need OpenFF-quality ligand
+parameters + experimental binding data for validation. Don't publish
+ΔG predictions without a literature cross-check.
+"""
+function _kinase_inhibitor_fep()
+    # Imatinib SMILES (Gleevec, the prototype targeted cancer drug).
+    sys = SystemSpec(
+        SystemSource(type=:protein_ligand, pdb_id="2HYY",
+                     ligand_smiles="Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1"),
+        45_000, true,
+        SolventSpec(model=:TIP3P, ions_NaCl_mM=150.0))
+    ff = ForceFieldSpec(protein=:amber14sb, water=:TIP3P,
+                        ligand=:openff_sage_2_2_0)
+    proto = Stage[
+        MinimizeStage(max_iterations=2000),
+        DynamicsStage(role=:equilibrate, ensemble=:NVT, duration_ns=0.5,
+                      dt_fs=2.0, temperature_K=310.0,
+                      thermostat=:langevin, friction_ps=1.0,
+                      constraints=:h_bonds,
+                      restraints=RestraintSpec(selection=:heavy_atoms,
+                                               kind=:harmonic,
+                                               k_kj_mol_nm2=2000.0)),
+        DynamicsStage(role=:equilibrate, ensemble=:NPT, duration_ns=2.0,
+                      dt_fs=2.0, temperature_K=310.0, pressure_bar=1.0,
+                      thermostat=:langevin, barostat=:monte_carlo,
+                      friction_ps=1.0, constraints=:h_bonds,
+                      restraints=RestraintSpec(selection=:backbone,
+                                               kind=:harmonic,
+                                               k_kj_mol_nm2=500.0)),
+        FEPStage(kind=:decouple,
+                 target_selection="resname LIG",
+                 lambda_windows=collect(0.0:0.1:1.0),
+                 duration_per_window_ns=2.0,
+                 ensemble=:NPT, temperature_K=310.0, pressure_bar=1.0,
+                 thermostat=:langevin, friction_ps=1.0, constraints=:h_bonds),
+    ]
+    obs = Observable[
+        Observable(type=:trajectory, selection="all", stride_ps=20.0),
+        Observable(type=:rmsd, selection="protein and name CA", stride_ps=20.0),
+    ]
+    prov = _default_provenance("kinase inhibitor FEP — Abl + Imatinib (PDB 2HYY)")
+    spec = MDSpec(system=sys, force_field=ff, protocol=proto, observables=obs,
+           provenance=prov,
+           warnings=String[
+               "Imatinib SMILES is a starter — replace with your own analog for prospective work.",
+               "ΔG predictions need experimental cross-check before publication.",
+               "FEP per-window 2 ns is the lower bound for kinase systems; consider 5+ ns.",
+           ],
+           notes="Cancer use case: kinase inhibitor binding ΔG via decoupling FEP. " *
+                 "Abl + Imatinib (PDB 2HYY) is the canonical kinase-inhibitor reference; " *
+                 "swap pdb_id + ligand_smiles for your kinase + analog.")
+    _enrich_provenance!(spec, "kinase_inhibitor_fep")
+end
+
+"""
+    _bcl2_ppi_inhibitor()
+
+Protein-protein-interaction inhibitor pattern, established by
+Venetoclax (Bcl-2 inhibitor, FDA-approved for CLL). Crucible models
+this as a small-molecule + protein-target binding-stability run rather
+than a full FEP, because PPI inhibitors typically need long
+conformational sampling first to find the right binding mode.
+
+PDB 6O0P is the Bcl-2 + Venetoclax-fragment structure. The ligand
+SMILES below is a Venetoclax-like fragment; the real molecule is too
+large for a 20 ns demo run (~1000 heavy atoms in solvent).
+"""
+function _bcl2_ppi_inhibitor()
+    sys = SystemSpec(
+        SystemSource(type=:protein_ligand, pdb_id="6O0P",
+                     ligand_smiles="O=C(NC1CCN(c2nc(N3CCN(C(C)=O)CC3)nc(C)c2)CC1)c1ccccc1"),
+        38_000, true,
+        SolventSpec(model=:TIP3P, ions_NaCl_mM=150.0))
+    ff = ForceFieldSpec(protein=:amber14sb, water=:TIP3P,
+                        ligand=:openff_sage_2_2_0)
+    proto = Stage[
+        MinimizeStage(max_iterations=2000),
+        DynamicsStage(role=:equilibrate, ensemble=:NVT, duration_ns=0.5,
+                      dt_fs=2.0, temperature_K=310.0,
+                      thermostat=:langevin, friction_ps=1.0,
+                      constraints=:h_bonds,
+                      restraints=RestraintSpec(selection=:heavy_atoms,
+                                               kind=:harmonic,
+                                               k_kj_mol_nm2=2000.0)),
+        DynamicsStage(role=:equilibrate, ensemble=:NPT, duration_ns=2.0,
+                      dt_fs=2.0, temperature_K=310.0, pressure_bar=1.0,
+                      thermostat=:langevin, barostat=:monte_carlo,
+                      friction_ps=1.0, constraints=:h_bonds,
+                      restraints=RestraintSpec(selection=:backbone,
+                                               kind=:harmonic,
+                                               k_kj_mol_nm2=500.0)),
+        DynamicsStage(role=:production, ensemble=:NPT, duration_ns=50.0,
+                      dt_fs=2.0, temperature_K=310.0, pressure_bar=1.0,
+                      thermostat=:langevin, barostat=:monte_carlo,
+                      friction_ps=1.0, constraints=:h_bonds,
+                      restraints=RestraintSpec()),
+    ]
+    obs = Observable[
+        Observable(type=:trajectory, selection="all", stride_ps=50.0),
+        Observable(type=:rmsd, selection="protein and name CA", stride_ps=50.0),
+        Observable(type=:distance,
+                   selection="resname LIG and name C1, protein and resid 145 and name CA",
+                   stride_ps=10.0),
+        Observable(type=:hbonds, selection="resname LIG or protein", stride_ps=50.0),
+    ]
+    prov = _default_provenance("PPI inhibitor stability — Bcl-2 + Venetoclax-like (PDB 6O0P)")
+    spec = MDSpec(system=sys, force_field=ff, protocol=proto, observables=obs,
+           provenance=prov,
+           warnings=String[
+               "Venetoclax-like SMILES is a fragment, not the full drug — full Venetoclax is ~700 g/mol.",
+               "Distance observable's atom indices are placeholders; pick real residue contacts.",
+               "50 ns production is the minimum for PPI conformational sampling; 200+ ns is typical for a paper.",
+           ],
+           notes="Cancer use case: protein-protein interaction inhibitor binding stability. " *
+                 "Bcl-2 + Venetoclax-fragment (PDB 6O0P) is a landmark targeted-cancer-therapy " *
+                 "structure; the workflow generalizes to MDM2-p53, KRAS-G12C, etc.")
+    _enrich_provenance!(spec, "bcl2_ppi_inhibitor")
+end
+
+"""
+    _gpcr_oncogene_membrane()
+
+Membrane-embedded GPCR oncogene template. CXCR4 (PDB 4RWS) is a
+chemokine receptor implicated in tumor metastasis (most cancer types).
+Crucible's MonteCarloMembraneBarostat path handles the bilayer
+correctly; the system is set up for ligand-binding-site stability
+rather than full FEP (membrane-embedded FEP is its own research
+program).
+"""
+function _gpcr_oncogene_membrane()
+    sys = SystemSpec(
+        SystemSource(type=:user_supplied,
+                     topology="cxcr4_in_popc.parm7",
+                     coordinates="cxcr4_in_popc.rst7"),
+        78_000, true,
+        SolventSpec(model=:TIP3P, ions_NaCl_mM=150.0,
+                    membrane=LipidBilayer(composition=:POPC, n_lipids=200,
+                                          chol_mol_fraction=0.0)))
+    ff = ForceFieldSpec(protein=:amber14sb, water=:TIP3P,
+                        ligand=:user_supplied, lipid=:lipid21)
+    proto = Stage[
+        MinimizeStage(max_iterations=3000),
+        DynamicsStage(role=:equilibrate, ensemble=:NVT, duration_ns=1.0,
+                      dt_fs=2.0, temperature_K=310.0,
+                      thermostat=:langevin, friction_ps=1.0,
+                      constraints=:h_bonds,
+                      restraints=RestraintSpec(selection=:heavy_atoms,
+                                               kind=:harmonic,
+                                               k_kj_mol_nm2=2000.0)),
+        DynamicsStage(role=:equilibrate, ensemble=:NPT, duration_ns=5.0,
+                      dt_fs=2.0, temperature_K=310.0, pressure_bar=1.0,
+                      thermostat=:langevin, barostat=:monte_carlo,
+                      friction_ps=1.0, constraints=:h_bonds,
+                      restraints=RestraintSpec(selection=:backbone,
+                                               kind=:harmonic,
+                                               k_kj_mol_nm2=500.0)),
+        DynamicsStage(role=:production, ensemble=:NPT, duration_ns=100.0,
+                      dt_fs=2.0, temperature_K=310.0, pressure_bar=1.0,
+                      thermostat=:langevin, barostat=:monte_carlo,
+                      friction_ps=1.0, constraints=:h_bonds,
+                      restraints=RestraintSpec()),
+    ]
+    obs = Observable[
+        Observable(type=:trajectory, selection="all", stride_ps=100.0),
+        Observable(type=:rmsd, selection="protein and name CA", stride_ps=100.0),
+        Observable(type=:rmsf, selection="protein and name CA", stride_ps=100.0),
+    ]
+    prov = _default_provenance("GPCR oncogene in POPC bilayer (CXCR4-style)")
+    spec = MDSpec(system=sys, force_field=ff, protocol=proto, observables=obs,
+           provenance=prov,
+           warnings=String[
+               "Topology + coordinates are user-supplied: build the protein+POPC system in CHARMM-GUI or PACKMOL first.",
+               "100 ns production is the lower bound for GPCR conformational sampling; receptor activation needs μs-scale.",
+               "MonteCarloMembraneBarostat semi-isotropic coupling is auto-emitted by the renderer — don't override.",
+           ],
+           notes="Cancer use case: GPCR oncogene (e.g. CXCR4 in metastasis) embedded in POPC. " *
+                 "Replace topology + coordinates with your CHARMM-GUI build; Crucible auto-uses " *
+                 "MonteCarloMembraneBarostat with XYIsotropic + ZFree coupling.")
+    _enrich_provenance!(spec, "gpcr_oncogene_membrane")
+end
+
 function _metadynamics_dihedral()
     cvs = CollectiveVariable[
         CollectiveVariable(kind=:dihedral, name="phi",
@@ -324,6 +519,10 @@ function __init_templates__()
     register_template!(:remd,               _remd_folding)
     register_template!(:membrane,           _membrane_protein)
     register_template!(:metadynamics,       _metadynamics_dihedral)
+    # Cancer-research flagship templates. See docs/CANCER_USE_CASES.md.
+    register_template!(:kinase_inhibitor_fep,    _kinase_inhibitor_fep)
+    register_template!(:bcl2_ppi_inhibitor,      _bcl2_ppi_inhibitor)
+    register_template!(:gpcr_oncogene_membrane,  _gpcr_oncogene_membrane)
 end
 
 __init_templates__()

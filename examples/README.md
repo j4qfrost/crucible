@@ -13,6 +13,7 @@ Each example is self-contained and runnable with `julia --project examples/<name
 | **Alchemical FEP** | [`protein_ligand_fep.jl`](protein_ligand_fep.jl) | `:protein_ligand` source + `FEPStage` decoupling λ-windowing (1ubq + p-cresol) |
 | **Replica exchange (REMD)** | [`remd_protein_folding.jl`](remd_protein_folding.jl) | 8-replica T-REMD via `openmmtools.multistate.ParallelTemperingSampler` |
 | **Membrane MD** | [`membrane_protein.jl`](membrane_protein.jl) | GPCR in POPC bilayer, automatic `MonteCarloMembraneBarostat` |
+| **Cancer drug discovery** | [`kinase_inhibitor_walkthrough.jl`](kinase_inhibitor_walkthrough.jl) | Abl + Imatinib decoupling FEP, end-to-end no-execute walkthrough. See `docs/CANCER_USE_CASES.md`. |
 
 ## By workflow stage (LLM loop)
 
