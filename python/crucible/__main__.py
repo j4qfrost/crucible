@@ -120,8 +120,22 @@ def main(argv: list[str] | None = None) -> int:
     pm.add_argument("--target", default="0.3.0")
     pm.set_defaults(func=_cmd_migrate)
 
+    # corpus subcommand — defers to crucible.corpus.cli for its own
+    # argparse tree so the corpus stays self-contained for a future
+    # standalone-app lift (see docs/CORPUS_DESIGN.md).
+    pc = sub.add_parser("corpus", help="fetch + index whitepapers by author",
+                        add_help=False)
+    pc.add_argument("rest", nargs=argparse.REMAINDER,
+                    help="passed to `python -m crucible.corpus`")
+    pc.set_defaults(func=_cmd_corpus)
+
     args = p.parse_args(argv)
     return args.func(args)
+
+
+def _cmd_corpus(args: argparse.Namespace) -> int:
+    from .corpus.cli import main as corpus_main
+    return corpus_main(args.rest)
 
 
 if __name__ == "__main__":

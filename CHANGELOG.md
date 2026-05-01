@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+### v1.29 — corpus feature (OpenAlex + DuckDB) + Streamlit GUI (2026-04-30)
+
+- **`docs/CORPUS_DESIGN.md`** — design + standalone-vs-integrated
+  evaluation. Recommends OpenAlex (primary) + Semantic Scholar
+  (secondary) for the data source, DuckDB with adjacency tables for
+  storage (rejects Neo4j / Memgraph / Apache AGE / Kuzu as overkill
+  for the corpus size), and **in-Crucible Phase 1 / standalone Phase
+  2 if it earns it** for the host. Module is designed
+  standalone-shaped from day 1 so the future `corpusquest` lift is
+  a `git mv` away. Trigger conditions for the lift documented.
+- **`python/crucible/corpus/`** — Phase-1 Python implementation:
+  - `openalex.py` — OpenAlexClient (urllib-based, polite pool via
+    `CRUCIBLE_OPENALEX_EMAIL`); `Author`, `Work`, `WorkAuthor`
+    dataclasses; abstract reconstruction from OpenAlex's inverted
+    index; concept resolution for filtering.
+  - `store.py` — DuckDB-backed `CorpusStore` with adjacency-table
+    schema (works, authors, work_authors, work_references, concepts,
+    work_concepts) and queries: `papers_by_author`, `coauthors`
+    (ranked by shared-work count), `papers_citing_author`,
+    concept-filter, `stats`.
+  - `cli.py` — subcommands `fetch`, `papers`, `coauthors`, `stats`,
+    `ui`. Wired into `python -m crucible corpus …` via the existing
+    bindings entry point.
+  - `ui.py` — **Streamlit GUI** (single file). Three tabs (Papers,
+    Coauthors, Citation neighborhood), sidebar with DB-path picker
+    + fetch-new-author form + live stats, JSONL export of the
+    current paper view, opt-in via `pip install crucible[corpus,ui]`.
+  - `schema.sql` — DuckDB schema (mirrored as Python statements in
+    `store.py` for runtime; the file is the source of truth for
+    documentation + future migrations).
+- **`python/pyproject.toml`** — adds two optional-dependency groups:
+  `corpus` (just duckdb) and `ui` (streamlit + duckdb). The base
+  `crucible` install stays lean.
+- **Tests** — `test_corpus_openalex.py` (mocked HTTP for the API
+  client), `test_corpus_store.py` (in-memory DuckDB for the schema
+  + queries), `test_corpus_cli.py` (CLI dispatcher). 72/72 pytest
+  tests pass (was 50; +22 for corpus + GUI surface).
+- The corpus directly unblocks Phase A weeks 2–3 of
+  `docs/COMMERCIAL_VALIDATION_PLAN.md` (the 20-paper hallucination
+  benchmark) and feeds per-persona paper lists for the Q2
+  campaign cold-email personalization.
+
 ### v1.28 — campaign AI-receptivity sub-ranking (2026-04-29)
 
 - **`docs/CAMPAIGN_2026Q2.md`** — added a new section sub-ranking
