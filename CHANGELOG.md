@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### v1.30 — python-for-app-layer musing (2026-04-30)
+
+- **`musings/python_for_app_layer.md`** — evaluation of Python on
+  two axes (performance + stall-avoidance):
+  - **Performance: neutral.** Hot paths are subprocesses (OpenMM
+    via rendered script) or C++/FFI (DuckDB, JSON Schema validators);
+    the orchestration-layer language barely moves the throughput
+    needle. Cold-start asymmetry favors Python (~50 ms vs Julia
+    TTFX), but Crucible's CLI uses PackageCompiler AOT to mostly
+    close that. Not a reason to use Python; not a reason against.
+  - **Stall-avoidance: Python materially wins.** Web hosting
+    (Streamlit Cloud / HF Spaces / Fly.io / Render), packaging
+    (`pip install` is path-of-least-resistance), error reporting
+    (Sentry SDK), telemetry (OpenTelemetry SDK), dashboard
+    frameworks (Streamlit / Gradio / Panel), and contributor
+    pipelines are all an order of magnitude more mature than the
+    Julia equivalents. The asymmetry is about deploy-ecosystem
+    maturity, not language quality.
+  - **Recommendation: formalize the split that's already
+    happening.** Library stays in Julia (IR, validation, renderers,
+    LLM transpile, scientific test suite); app / UI / deploy layer
+    drifts toward Python (v1.24 bindings, v1.29 corpus GUI as
+    empirical evidence). Subprocess is the seam, exactly as
+    `why_subprocess_over_pythoncall.md` argued. Adding new Python
+    services on top is purely additive; no Julia code changes.
+  - Three triggers for revisiting documented (Pluto cloud-deploy
+    lands, Julia web framework hits Streamlit ergonomics,
+    contributors prefer single-language ownership).
+  - Defended against the "slippery slope to Python for everything"
+    concern: the library's hard contract (IR + schema + 5 gates)
+    is language-symmetric by test; the app layer has no hard
+    contract beyond "consume the IR"; the subprocess seam is
+    mechanical, not discipline-based; the base `crucible` install
+    stays lean (extras are opt-in).
+- Tests: 868/868 Julia + 72/72 Python unchanged (pure docs).
+
 ### v1.29 — corpus feature (OpenAlex + DuckDB) + Streamlit GUI (2026-04-30)
 
 - **`docs/CORPUS_DESIGN.md`** — design + standalone-vs-integrated

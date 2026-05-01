@@ -73,6 +73,17 @@ fit `docs/` (spec/contributor reference) or `examples/` (runnable demos).
   port, run `quicktype` on `schema.json` rather than owning a
   `.proto`. Triggers for revisiting documented.
 
+- [`python_for_app_layer.md`](python_for_app_layer.md) — evaluation
+  of Python on two axes (performance + stall-avoidance). Performance
+  is neutral (hot paths are subprocesses or C++/FFI; orchestrator
+  language barely matters). Stall-avoidance is where Python
+  materially wins: web hosting, packaging, error reporting,
+  telemetry, dashboard frameworks, and contributor pipelines are an
+  order of magnitude more mature. Conclusion: **library stays Julia
+  (per `ecosystem_alternatives.md`); app / UI / deploy layer drifts
+  toward Python**. Subprocess is the seam. The v1.24 bindings and
+  v1.29 corpus GUI are the empirical evidence.
+
 ## When to add a musing
 
 Add one when you've made an architectural decision that:
