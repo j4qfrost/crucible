@@ -29,4 +29,8 @@ using Crucible
     include("martini_test.jl")
     include("cli_extras_test.jl")
     include("observables_v3_test.jl")
+    include("atproto/lexicon_test.jl")
+    include("atproto/records_test.jl")
+    include("atproto/client_test.jl")
+    include("atproto/publisher_test.jl")
 end

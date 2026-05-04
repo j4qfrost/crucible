@@ -15,6 +15,7 @@ module CLI
 using Crucible
 using Crucible: spec_to_json, spec_from_json
 import JSON3
+import Dates
 
 const HELP_TEXT = """
 crucible — Julia drug-discovery sim transpiler
@@ -57,6 +58,12 @@ Usage:
   crucible audit-transcripts <db.duckdb> [--threshold 0.5] [--format text|json]  # corpus quality
   crucible import-jsonl  <file.jsonl> [--db path]                  # load training pairs into TranscriptStore
   crucible walkthrough   <source-kind> <source>
+  crucible hekate        bootstrap-venue [--name N] [--lat L] [--lon L] [--capacity N]
+                                          [--rrule R] [--duration M] [--dry-run]
+                         create-slot [--start ISO8601] [--duration M]
+                         publish-event <spec.json> [--paper-title T] [--report-url U]
+                                                   [--workdir D] [--live]
+                         doctor                                  # AT Proto config + session check
 
 source-kind: notes | pdf | arxiv | biorxiv
 
@@ -623,6 +630,17 @@ function cmd_run(args::Vector{String})
         end
     end
     quiet || println("---- exit $(rc) ----")
+
+    if rc == 0 && !haskey(kw, "no-hekate") && get(ENV, "CRUCIBLE_HEKATE_DISABLE", "0") != "1"
+        try
+            Crucible.ATProto.publish_review_session_from_run(
+                spec_json, workdir,
+                get(kw, "paper-title", ""),
+                get(kw, "report-url", ""))
+        catch err
+            @warn "[hekate] publish hook errored at boundary" error=string(err)
+        end
+    end
 
     if !isempty(post_hook)
         quiet || println("post-run hook:  $(post_hook)")
@@ -1819,6 +1837,90 @@ function cmd_walkthrough(args::Vector{String})
     0
 end
 
+function cmd_hekate(args::Vector{String})
+    pos, kw = _parse_kw_args(args)
+    isempty(pos) && error("usage: hekate bootstrap-venue | create-slot | publish-event <spec.json> | doctor")
+    sub = pos[1]
+
+    if sub == "bootstrap-venue"
+        cfg = Crucible.ATProto.load_config()
+        dry_run = haskey(kw, "dry-run")
+        result = Crucible.ATProto.bootstrap_venue!(cfg;
+            name = get(kw, "name", "Crucible Lab"),
+            lat = parse(Float64, get(kw, "lat", "0")),
+            lon = parse(Float64, get(kw, "lon", "0")),
+            capacity = parse(Int, get(kw, "capacity", "20")),
+            rrule = get(kw, "rrule", "FREQ=WEEKLY;BYDAY=FR;BYHOUR=15;BYMINUTE=0"),
+            duration_min = parse(Int, get(kw, "duration", "60")),
+            dry_run = dry_run,
+        )
+        println("venue:      $(result.venue_uri)")
+        println("recurrence: $(result.recurrence_uri)")
+        dry_run || println("config:     $(cfg.config_path)")
+        return 0
+    elseif sub == "create-slot"
+        cfg = Crucible.ATProto.load_config()
+        start = if haskey(kw, "start")
+            try
+                Dates.DateTime(kw["start"], Dates.DateFormat("yyyy-mm-ddTHH:MM:SS"))
+            catch err
+                error("--start must be ISO8601 like 2026-05-01T15:00:00 (got $(kw["start"]): $(err))")
+            end
+        else
+            nothing
+        end
+        uri = Crucible.ATProto.create_slot!(cfg;
+            start = start,
+            duration_min = parse(Int, get(kw, "duration", "60")),
+        )
+        println("slot: $(uri)")
+        return 0
+    elseif sub == "publish-event"
+        length(pos) < 2 && error("usage: hekate publish-event <spec.json> [--paper-title ...] [--report-url ...] [--live]")
+        spec_path = pos[2]
+        spec_json = read(spec_path, String)
+        if haskey(kw, "live")
+            ENV["CRUCIBLE_HEKATE_PUBLISH_EVENTS"] = "1"
+        end
+        result = Crucible.ATProto.publish_review_session_from_run(
+            spec_json, get(kw, "workdir", dirname(spec_path)),
+            get(kw, "paper-title", ""),
+            get(kw, "report-url", ""))
+        println("mode:   $(result.mode)")
+        result.uri !== nothing && println("uri:    $(result.uri)")
+        if !isempty(result.errors)
+            println("errors:")
+            for e in result.errors; println("  - $(e)"); end
+        end
+        return 0
+    elseif sub == "doctor"
+        cfg = Crucible.ATProto.load_config()
+        println("config_path:        $(cfg.config_path)")
+        println("pds_url:            $(cfg.pds_url)")
+        println("handle:             $(isempty(cfg.handle) ? "(unset)" : cfg.handle)")
+        println("app_password:       $(isempty(cfg.app_password) ? "(unset)" : "(set, $(length(cfg.app_password)) chars)")")
+        println("publish_events:     $(cfg.publish_events)")
+        println("venue_at_uri:       $(cfg.venue_at_uri === nothing ? "(unset)" : cfg.venue_at_uri)")
+        println("recurrence_at_uri:  $(cfg.recurrence_at_uri === nothing ? "(unset)" : cfg.recurrence_at_uri)")
+        println("publish_ready:      $(Crucible.ATProto.is_publish_ready(cfg))")
+        if !isempty(cfg.handle) && !isempty(cfg.app_password)
+            print("session check:      ")
+            try
+                s = Crucible.ATProto.create_session(cfg)
+                println("ok (did=$(s.did))")
+            catch err
+                println("FAILED: $(err)")
+                return 2
+            end
+        else
+            println("session check:      skipped (handle/password not set)")
+        end
+        return 0
+    else
+        error("unknown hekate subcommand: $(sub) (expected bootstrap-venue|create-slot|publish-event|doctor)")
+    end
+end
+
 # -----------------------------------------------------------------------------
 # Dispatcher
 
@@ -1860,6 +1962,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "audit-transcripts"; return cmd_audit_transcripts(rest)
         elseif cmd == "import-jsonl"; return cmd_import_jsonl(rest)
         elseif cmd == "walkthrough"; return cmd_walkthrough(rest)
+        elseif cmd == "hekate";      return cmd_hekate(rest)
         else
             println(stderr, "unknown subcommand: $(cmd)")
             println(stderr, HELP_TEXT)

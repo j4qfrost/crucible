@@ -50,6 +50,8 @@ include("renderers/WebRenderer.jl")
 
 include("cloud/Advisor.jl")
 
+include("atproto/ATProto.jl")
+
 export MDSpec, SystemSpec, SystemSource, SolventSpec, LipidBilayer,
        ProtonationSpec, ForceFieldSpec,
        Stage, MinimizeStage, DynamicsStage, FEPStage, REMDStage,
@@ -74,6 +76,7 @@ export MDSpec, SystemSpec, SystemSource, SolventSpec, LipidBilayer,
        Renderer, PlutoRenderer, NotebookRenderer, MarkdownRenderer, WebRenderer, render,
        serve_http,
        advise,
-       run_validation
+       run_validation,
+       ATProto
 
 end # module Crucible
