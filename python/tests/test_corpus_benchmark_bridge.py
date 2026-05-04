@@ -100,3 +100,24 @@ def test_benchmark_cli_corpus_db_flag_in_parser():
     arg_names = {action.dest for action in run_parser._actions}
     assert "corpus_db" in arg_names
     assert "papers_dir" in arg_names
+
+
+def test_benchmark_cli_add_subcommand_exists():
+    from crucible.benchmark.cli import build_parser
+    p = build_parser()
+    sub_action = next(a for a in p._actions if hasattr(a, "choices") and a.choices)
+    assert "add" in sub_action.choices
+    add_parser = sub_action.choices["add"]
+    arg_names = {action.dest for action in add_parser._actions}
+    assert {"paper_id", "doi", "title"}.issubset(arg_names)
+
+
+def test_benchmark_cli_add_rejects_duplicate_paper_id(capsys):
+    """Trying to add an existing paper_id should fail cleanly without
+    mutating papers.py."""
+    from crucible.benchmark.cli import main
+    rc = main(["add", "--paper-id", "shaw_2010_bpti",
+               "--doi", "10.0000/dup", "--title", "duplicate"])
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "already in seed set" in captured.err

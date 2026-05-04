@@ -47,6 +47,46 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_add(args: argparse.Namespace) -> int:
+    """Append a `needs_verification` stub to papers.py.
+
+    Exists to lower the friction of adding a new benchmark entry —
+    rather than editing Python, the user runs one command and then
+    walks through `docs/HOW_TO_VERIFY_A_PAPER.md` to populate the
+    fields. The stub's ExpectedProtocol fields are all None until
+    a human reads the source.
+    """
+    if args.paper_id in {e.paper_id for e in list_entries()}:
+        print(f"paper_id {args.paper_id!r} already in seed set", file=sys.stderr)
+        return 1
+    papers_path = Path(__file__).resolve().parent / "papers.py"
+    text = papers_path.read_text()
+    sentinel = "]\n\n\ndef list_entries"
+    if sentinel not in text:
+        print(f"could not locate seed-set sentinel in {papers_path} — papers.py "
+              f"layout has drifted from the expected shape; add the entry by "
+              f"hand and update this CLI",
+              file=sys.stderr)
+        return 2
+    snippet = (
+        f"    BenchmarkEntry(\n"
+        f"        paper_id={args.paper_id!r},\n"
+        f"        doi={args.doi!r},\n"
+        f"        title={args.title!r},\n"
+        f"        expected=ExpectedProtocol(),  # all axes None until verified\n"
+        f"        status=\"needs_verification\",\n"
+        f"        notes=\"Stub appended via `crucible benchmark add`. "
+        f"Verify per docs/HOW_TO_VERIFY_A_PAPER.md before scoring.\",\n"
+        f"    ),\n"
+    )
+    new_text = text.replace(sentinel, snippet + sentinel)
+    papers_path.write_text(new_text)
+    print(f"appended stub for {args.paper_id!r} to papers.py")
+    print("next: open docs/HOW_TO_VERIFY_A_PAPER.md and walk through the procedure",
+          file=sys.stderr)
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     """Render a markdown report from a run-results JSONL file."""
     pairs = []
@@ -174,6 +214,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     pst = sub.add_parser("status", help="verification progress")
     pst.set_defaults(func=cmd_status)
+
+    pa = sub.add_parser("add", help="append a needs_verification stub to papers.py")
+    pa.add_argument("--paper-id", required=True,
+                    help="short slug, e.g. mobley_2007_alchemical")
+    pa.add_argument("--doi", required=True,
+                    help="canonical DOI (Crossref-verifiable)")
+    pa.add_argument("--title", required=True,
+                    help="paper title (single-line; can be long)")
+    pa.set_defaults(func=cmd_add)
 
     pr = sub.add_parser("run", help="run the transpile against the seed set")
     pr.add_argument("--mock", action="store_true",

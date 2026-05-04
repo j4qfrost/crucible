@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### v1.40 — verification guide + `benchmark add` CLI (2026-05-04)
+
+Lowers the friction on the highest-leverage paywall-gated punch-list
+item: verifying ≥1 benchmark seed entry against its source.
+
+- **`docs/HOW_TO_VERIFY_A_PAPER.md`** — step-by-step procedure for
+  flipping a `needs_verification` entry to `verified`. Covers
+  pre-flight (paywall workarounds), the 8 axes mapped to where in a
+  paper to look, the three rules (`None` is real, cite the section,
+  document allowlist gaps), the 7-step procedure (find → read → map
+  → edit → test → score → commit), and common pitfalls (atm vs bar,
+  ambiguous "AMBER", FF outside the allowlist, multi-system papers).
+  Time budget: 15-45 min per paper once the source is in hand.
+- **`python/crucible/benchmark/cli.py`** — new `add` subcommand:
+  ```
+  python -m crucible benchmark add \
+      --paper-id mobley_2007_alchemical \
+      --doi 10.1016/j.jmb.2007.06.002 \
+      --title "Predicting Absolute Ligand Binding Free Energies …"
+  ```
+  Appends a `needs_verification` stub to `papers.py` with all
+  `ExpectedProtocol` axes `None` until human-verified. Rejects
+  duplicate `paper_id`s; refuses to mutate if the file's layout
+  has drifted from the expected sentinel.
+- **`docs/PUNCHLIST.md`** — verification entry now references
+  `HOW_TO_VERIFY_A_PAPER.md` with the per-paper time budget.
+- 2 new tests; **97/97 pytest pass** (was 95).
+- 928/928 Julia tests unchanged.
+
 ### v1.39 — CI matrix adds Julia 1.12 + Manifest sync (2026-05-04)
 
 Closes the *Manifest.toml CI matrix decision* item from

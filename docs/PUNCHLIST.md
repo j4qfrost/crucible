@@ -40,6 +40,10 @@ Organized by what kind of action gates each item.
 
 ### Verify the 5 benchmark seed entries against their SI
 
+**Step-by-step procedure:** [`docs/HOW_TO_VERIFY_A_PAPER.md`](HOW_TO_VERIFY_A_PAPER.md)
+(15-45 min per paper once you have the source — the bottleneck is
+reading Methods, not editing the file).
+
 After v1.37 / v1.38, all five DOIs are Crossref-verified at the
 metadata level (title + authors + journal). The
 `ExpectedProtocol` field-level values are still
