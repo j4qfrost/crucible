@@ -20,6 +20,7 @@ include("spec/Coverage.jl")
 include("spec/Events.jl")
 include("spec/Templates.jl")
 include("spec/Snapshot.jl")
+include("spec/Explain.jl")
 
 include("backends/SimBackend.jl")
 include("ligand/Parameterizer.jl")

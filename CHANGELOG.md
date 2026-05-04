@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### v1.36 — `_explain_spec` lifted to shared module + Manifest repair tool (2026-05-04)
+
+- **`src/spec/Explain.jl`** — new shared module hosting
+  `_explain_spec` and `_stage_one_liner`. Lifted verbatim from
+  `src/cli/CLI.jl`. Reason: `src/atproto/HekatePublisher.jl:130`
+  was calling `Crucible._explain_spec`, but the function lived in
+  `Crucible.CLI`, not `Crucible` — so the `try/catch` around the
+  call silently fell back to the placeholder summary `"Crucible
+  run."` for every published `app.hekate.*` review-session record.
+- **`src/cli/CLI.jl`** — removed the duplicate definitions.
+  `cmd_explain` now calls `Crucible._explain_spec(spec)`.
+- **`src/Crucible.jl`** — `include("spec/Explain.jl")` after the
+  rest of `spec/`. No new exports (`_explain_spec` is intentionally
+  underscored — prose, not API).
+- **`tools/repair_manifest.sh`** — idempotent script that fixes
+  ownership on `Manifest.toml` (sudo chown if root-owned) then
+  regenerates against the local Julia. Unblocks running the full
+  Julia test suite locally — including the v1.33 atproto tests
+  that currently only run in an isolated env.
+- **Follow-up:** with the namespace bug fixed, the silent
+  `catch` in `HekatePublisher.publish_review_session_from_run`
+  remains as defense in depth, but the prose summary will now
+  populate cleanly for every published record.
+- **Tests:** no new tests; this is a pure refactor + ops script.
+  Behavior change is observable only at runtime (atproto records
+  carry the real summary instead of the fallback).
+
 ### v1.35 — Loom demo assets + GROMACS scoping + GROMACSBackend skeleton (2026-05-04)
 
 - **`examples/loom_demo/`** — zero-pre-work record kit for campaign
