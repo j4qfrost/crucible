@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### v1.39 — CI matrix adds Julia 1.12 + Manifest sync (2026-05-04)
+
+Closes the *Manifest.toml CI matrix decision* item from
+`docs/PUNCHLIST.md` per the recommended option (1): bump CI to
+include 1.12 and commit the regenerated Manifest. Costs one extra
+CI cell per PR; eliminates the local-vs-tracked Manifest drift that
+`tools/repair_manifest.sh` was leaving in `git status`.
+
+- **`.github/workflows/ci.yml`** — `julia-version` matrix expanded
+  from `["1.10", "1.11"]` to `["1.10", "1.11", "1.12"]`. Live OpenMM
+  smoke job stays pinned to 1.10 to keep total build time reasonable.
+- **`Manifest.toml`** — regenerated under Julia 1.12.5 (manifest_format
+  2.0). The format is forward-compatible with Julia 1.7+, so the 1.10
+  and 1.11 cells should resolve cleanly; if they don't, fall-back is
+  option 2 (drop 1.10, reduce the compatibility claim).
+- **`docs/PUNCHLIST.md`** — *Manifest.toml CI matrix decision* entry
+  removed per the file's "punch list, not history" convention.
+- 928/928 Julia tests pass on 1.12.5 locally; 1.10 / 1.11 validate on
+  first CI run after this commit.
+
 ### v1.38 — fix Mobley 2007 fabricated DOI + Salomon-Ferrer subtitle (2026-05-04)
 
 - **`python/crucible/benchmark/papers.py`** — second pass of

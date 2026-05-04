@@ -110,34 +110,6 @@ cargo-culted from secondary literature.
 - **Cadence:** the campaign doc has the per-Tier weekly send
   cadence; respect it.
 
-## Workspace-policy gated
-
-### Manifest.toml CI matrix decision
-
-- **Status today:** `Manifest.toml` is *tracked* in git, pinned to
-  `julia_version = "1.10.11"`. Local workdir was regenerated
-  against Julia 1.12.5 by `tools/repair_manifest.sh` and now
-  diverges from the tracked version. **The local change is
-  intentionally unstaged** — committing it would break CI (matrix
-  is `[1.10, 1.11]`).
-- **Two ways to resolve, plus a do-nothing option:**
-  1. **Bump CI to include 1.12** (`.github/workflows/ci.yml:22`)
-     and commit the regenerated Manifest. Most reproducible.
-     Costs an extra CI cell per PR.
-  2. **Drop 1.10 from the matrix** (Julia LTS will move forward
-     anyway), keep `[1.11, 1.12]`, commit the new Manifest.
-     Slimmer CI, narrower compatibility claim.
-  3. **Do nothing.** Workdir Manifest stays unstaged; future
-     local regens use `tools/repair_manifest.sh`. CI continues on
-     1.10/1.11 against the tracked Manifest. Simple, but the
-     local-vs-tracked drift will keep showing up in
-     `git status` and is a footgun.
-- **Recommendation:** option 1. Costs one CI cell; eliminates the
-  drift; matches `tools/repair_manifest.sh`'s assumption that
-  "the local Julia is the source of truth."
-- **Plan reference:** `docs/PLAN.md` v0.3 task #14 ("Decide on
-  Manifest.toml policy").
-
 ## How to use this file
 
 When you're between tasks and looking for unblocking work, scan
