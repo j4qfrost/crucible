@@ -1,0 +1,26 @@
+Demo Methods text (for the Loom recording — swap with a real paper before publication)
+=======================================================================================
+
+The system was prepared from PDB 2HYY (Abelson tyrosine kinase in complex with imatinib).
+Hydrogens were added at pH 7.4 using PDBFixer; missing side chains were modeled with
+default rotamers. The complex was solvated in a cubic box of TIP3P water with a 12 Å
+buffer between the solute and the periodic box edge, and neutralized with 150 mM NaCl
+(38 Na+ / 41 Cl- counter-ions). Final system size was approximately 45,000 atoms.
+
+Force-field parameters were assigned from AMBER ff14SB for the protein and Open Force
+Field 2.2.0 ("Sage") for the imatinib ligand, generated with the OpenFF Toolkit.
+
+Energy minimization (steepest descent, 2,000 iterations, 10 kJ/mol/nm tolerance) was
+followed by NVT equilibration at 310 K for 500 ps with heavy-atom positional restraints
+(2,000 kJ/mol/nm^2). NPT equilibration at 310 K and 1 bar was performed for 2 ns with
+backbone restraints (500 kJ/mol/nm^2) using a Monte Carlo barostat. The production
+ensemble was NPT at 310 K and 1 bar, integrated with the Langevin middle integrator at
+1 ps^-1 friction and a 2 fs timestep, with hydrogen bonds constrained via SHAKE.
+
+Binding free energy was estimated by alchemical decoupling FEP across 11 lambda windows
+(0.0, 0.1, 0.2, ..., 1.0) of 2 ns each, with samples written every 10 ps. Trajectories
+were recorded every 20 ps for the production phase. RMSD of the protein C-alpha atoms
+was tracked at 20 ps stride for monitoring conformational stability.
+
+OpenMM 8.5 was used as the simulation engine, running on a single A100 GPU at mixed
+precision.

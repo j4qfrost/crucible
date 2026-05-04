@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### v1.35 — Loom demo assets + GROMACS scoping + GROMACSBackend skeleton (2026-05-04)
+
+- **`examples/loom_demo/`** — zero-pre-work record kit for campaign
+  asset #1:
+  - `methods.txt` — synthesized representative Methods paragraph
+    (Abl + imatinib FEP). Clearly marked as a demo input; swap with
+    a real paper's Methods before publishing the Loom.
+  - `record_session.sh` — exact terminal invocations per the
+    scene-by-scene script in `docs/LOOM_DEMO_SCRIPT.md`. Pre-flight
+    hint included for warming the JIT.
+  - `README.md` — recording checklist, real-paper substitution
+    guide (cross-references the `HALLUCINATION_BENCHMARK.md` seed
+    set), and the apps-stall rationale for shipping the synthesized
+    file at all.
+- **`docs/GROMACS_SCOPING.md`** — Phase A weeks 7-9 deliverable
+  from the commercial-validation plan. Walks through what the
+  GROMACS input deck actually is (`.top` + `.gro` + `.mdp` + `.ndx`
+  + shell driver), an MVP coverage map (~70% of published-paper
+  protocols, 1:1 IR mappings for the 8 axes), Phase 2 scope
+  (membranes, REMD via `mdrun -multidir`), explicitly-deferred
+  pieces (alchemical FEP — its own dialect; metadynamics — needs
+  GROMACS-PLUMED compile; CpHMD — moving target), and structural
+  incompatibilities (Molly autodiff). Closes the TAM-cap argument
+  flagged in the salt-mines verdict by Tier-2 personas.
+- **`src/backends/GROMACSBackend.jl`** — scaffolding only. Implements
+  `supported_features`, `validate_spec` (rejects out-of-MVP specs
+  with clear "use OpenMM" / "deferred to Phase 2" messages), and
+  `estimate_resources`. `render_script` / `prepare` / `preview_run`
+  / `run!` raise "not yet implemented" pointing at the scoping doc.
+  Wired into `Crucible.jl` includes + exports. Renderer body lands
+  alongside the first pilot that asks for it.
+- Tier-2 cold-email template upgrades from "Crucible's deliverable
+  is OpenMM" to "OpenMM primary; GROMACS scoped, lands with the
+  first pilot that asks for it" — a meaningful pharma-conversation
+  upgrade that ties scope expansion to pilot pull rather than
+  speculative build.
+- Tests: 95/95 Python unchanged. Julia full-suite still blocked on
+  the pre-existing Manifest.toml ownership/version mismatch (v1.33
+  follow-up). GROMACSBackend syntax-checked via `Meta.parseall`.
+
 ### v1.34 — Loom demo script + ON_PREM.md (2026-05-04)
 
 Two campaign assets shipped, both gating Phase A outreach in

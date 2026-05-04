@@ -25,6 +25,7 @@ include("backends/SimBackend.jl")
 include("ligand/Parameterizer.jl")
 include("backends/OpenMMBackend.jl")
 include("backends/MollyBackend.jl")
+include("backends/GROMACSBackend.jl")
 include("backends/KineticsBackend.jl")
 include("backends/Router.jl")
 
@@ -64,7 +65,7 @@ export MDSpec, SystemSpec, SystemSource, SolventSpec, LipidBilayer,
        CrucibleEvent, detect_events,
        list_templates, get_template, register_template!,
        SnapshotManifest, snapshot, restore,
-       SimBackend, MollyBackend, OpenMMBackend, KineticsBackend, route_backend,
+       SimBackend, MollyBackend, OpenMMBackend, GROMACSBackend, KineticsBackend, route_backend,
        KineticsSpec, Species, Reaction,
        LigandParameterizer, OpenFFParameterizer, ParameterizedLigand, parameterize,
        parameterizer_available,
