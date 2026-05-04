@@ -104,8 +104,10 @@ The demo only works if the artifacts on screen are real. Check each:
 - [ ] One real paper PDF or arXiv link to use as the source. Pick one
       from the `docs/HALLUCINATION_BENCHMARK.md` seed set so the demo
       and the benchmark land the same wedge. **Recommended**:
-      Lindorff-Larsen 2010 (DOI `10.1126/science.1187409`) — high
-      visibility, clear Methods section.
+      Shaw 2010 Anton BPTI 1ms (DOI `10.1126/science.1187409`) — high
+      visibility; the abstract is public so the demo is paywall-safe.
+      A pre-extracted abstract-only methods file is shipped at
+      `examples/loom_demo/methods_underspecified.txt`.
 - [ ] `methods.txt` — extracted Methods paragraphs from the chosen
       paper. Saves cycle time on screen.
 - [ ] A live `ANTHROPIC_API_KEY` (or local LLM via Ollama) so the
