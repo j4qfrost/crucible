@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+### v1.33 — hekate AT Protocol integration (2026-05-04)
+
+- **`src/atproto/`** — new `Crucible.ATProto` module: an AT-Protocol
+  record-authoring layer scoped to `app.hekate.*` records (paper-review
+  session announcements). Surface includes a HekateConfig (env +
+  `~/.config/crucible/hekate.toml` overlay), an XRPC client
+  (createSession + create/get/list/deleteRecord with one-time 401 retry
+  and an injectable HTTP transport for tests), a hand-rolled validator
+  against four vendored Hekate lexicons (venue / slot / recurrence /
+  event), typed builders (`build_venue` / `build_slot` /
+  `build_recurrence` / `build_event`) that validate before returning, a
+  one-time bootstrap (`bootstrap_venue!` + `create_slot!`), and a
+  `publish_review_session_from_run` hook wired into `cmd_run` so a
+  successful simulation can announce a review session over AT Protocol.
+- **CLI**: new `crucible hekate {bootstrap-venue, create-slot,
+  publish-event, doctor}` subcommand. HELP_TEXT updated.
+- **`tools/sync-lexicons.jl`** — vendor `app.hekate.*` lexicons from
+  `~/Projects/hekate/lexicons/app/hekate/` into `src/atproto/schemas/`,
+  with sha256 receipts that catch local edits. (Agent fixed a bug
+  where the receipt comparator was comparing `<hex>  <name>` against
+  bare hex and always tripping the local-edit guard.)
+- **Live publishing is double-gated.** Default is dry-run (no network
+  side effects). To publish: set `CRUCIBLE_HEKATE_PUBLISH_EVENTS=1`
+  AND have a cached venue+recurrence URI from a prior bootstrap.
+- 47 atproto-specific tests pass in an isolated environment that
+  mounts `src/atproto/` against a stub `Crucible` module.
+- **Known issues (deferred to v1.34):**
+  - `Manifest.toml` is root-owned and pinned to Julia 1.10.11; the
+    local toolchain is Julia 1.12.5 and `Pkg.instantiate` fails
+    resolving `Statistics 1.10`. **Pre-existing**, unrelated to this
+    feature, but the full Crucible test suite can't run on this
+    machine until the manifest is regenerated. Run
+    `sudo chown frosty Manifest.toml && rm Manifest.toml && julia --project -e 'using Pkg; Pkg.instantiate()'`
+    to fix.
+  - `HekatePublisher.publish_review_session_from_run` references
+    `Crucible._explain_spec`, but `_explain_spec` is defined in
+    `Crucible.CLI` (`src/cli/CLI.jl:1073`), not `Crucible`. The call
+    is wrapped in try/catch so the description silently falls back
+    to "Crucible run." Follow-up fix: lift `_explain_spec` (and
+    `_stage_one_liner`) out of CLI.jl into a shared `src/spec/Explain.jl`
+    that both CLI and atproto can import.
+- Tests: 868 + 47 atproto Julia (the latter run in isolation only,
+  pending manifest fix); 95/95 Python unchanged.
+
 ### v1.32 — corpus ↔ benchmark bridge (2026-05-04)
 
 - **`python/crucible/corpus/store.py`** — adds `find_by_doi(doi)` and
