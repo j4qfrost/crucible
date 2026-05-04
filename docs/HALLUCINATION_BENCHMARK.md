@@ -75,15 +75,15 @@ Full scoring code:
 
 The starting set covers the methodological core of MD as a discipline:
 
-1. **Lindorff-Larsen et al. 2010** — `ff99SB-ILDN` introduction.
+1. **Shaw et al. 2010** — Anton BPTI 1ms long-MD characterization.
    [10.1126/science.1187409](https://doi.org/10.1126/science.1187409)
-2. **Mobley, Chodera, Dill 2007** — alchemical FEP reference.
-   [10.1021/jp067192x](https://doi.org/10.1021/jp067192x)
+2. **Mobley et al. 2007** — alchemical FEP reference (J. Mol. Biol.).
+   [10.1016/j.jmb.2007.06.002](https://doi.org/10.1016/j.jmb.2007.06.002)
 3. **Sugita & Okamoto 1999** — REMD foundational paper.
    [10.1016/S0009-2614(99)01123-9](https://doi.org/10.1016/S0009-2614(99)01123-9)
 4. **Wang et al. 2015** — FEP+ landmark.
    [10.1021/ja512751q](https://doi.org/10.1021/ja512751q)
-5. **Salomon-Ferrer et al. 2013** — AMBER on GPUs.
+5. **Salomon-Ferrer et al. 2013** — AMBER on GPUs (part 2, PME).
    [10.1021/ct400314y](https://doi.org/10.1021/ct400314y)
 
 Coverage: 1 methodology, 1 alchemical FEP, 1 REMD, 1 modern FEP+, 1

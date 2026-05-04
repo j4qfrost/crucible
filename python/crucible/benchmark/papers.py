@@ -102,9 +102,9 @@ _SEED_ENTRIES: list[BenchmarkEntry] = [
     ),
     BenchmarkEntry(
         paper_id="mobley_2007_alchemical_binding",
-        doi="10.1021/jp067192x",
-        title="Predicting absolute ligand binding free energies to a simple model site "
-              "(Mobley, Chodera, Dill, 2007)",
+        doi="10.1016/j.jmb.2007.06.002",
+        title="Predicting Absolute Ligand Binding Free Energies to a Simple Model Site "
+              "(Mobley, Graves, Chodera, McReynolds, Shoichet, Dill, 2007 — J. Mol. Biol. 371:1118)",
         expected=ExpectedProtocol(
             protein_ff="amber99sb_ildn",
             water_model="TIP3P",
@@ -115,8 +115,11 @@ _SEED_ENTRIES: list[BenchmarkEntry] = [
             pressure_bar=1.0,
             fep_lambda_count=None,           # paper uses ~12-22 windows; verify exact count
         ),
-        notes="Reference FEP paper. Lambda window count varies by system; pick one "
-              "system from the paper and lock the count for scoring.",
+        notes="Reference FEP paper. DOI corrected from a fabricated "
+              "`10.1021/jp067192x` (404 on Crossref and doi.org) to the real "
+              "JMB DOI confirmed via Crossref bibliographic search. Six "
+              "authors, not three. Lambda window count varies by system; "
+              "pick one system from the paper and lock the count for scoring.",
     ),
     BenchmarkEntry(
         paper_id="sugita_okamoto_1999_remd",
@@ -160,8 +163,9 @@ _SEED_ENTRIES: list[BenchmarkEntry] = [
     BenchmarkEntry(
         paper_id="salomon_ferrer_2013_amber_gpu",
         doi="10.1021/ct400314y",
-        title="Routine microsecond molecular dynamics simulations with AMBER on GPUs "
-              "(Salomon-Ferrer et al., 2013)",
+        title="Routine Microsecond Molecular Dynamics Simulations with AMBER on GPUs. "
+              "2. Explicit Solvent Particle Mesh Ewald "
+              "(Salomon-Ferrer, Götz, Poole, Le Grand, Walker, 2013)",
         expected=ExpectedProtocol(
             protein_ff="amber14sb",          # commonly ff14SB or close; verify per system
             water_model="TIP3P",

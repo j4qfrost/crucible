@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### v1.38 — fix Mobley 2007 fabricated DOI + Salomon-Ferrer subtitle (2026-05-04)
+
+- **`python/crucible/benchmark/papers.py`** — second pass of
+  Crossref-driven DOI verification (the v1.37 pattern, applied to
+  the remaining 4 entries):
+  - **Mobley 2007**: DOI `10.1021/jp067192x` was **fabricated** —
+    404 on both Crossref API and doi.org. The real paper is in
+    *J. Mol. Biol.* (not *J. Phys. Chem. B*) at
+    `10.1016/j.jmb.2007.06.002`. Corrected. Author list
+    expanded from 3 → 6 (added Graves, McReynolds, Shoichet).
+  - **Salomon-Ferrer 2013**: title was missing the "2. Explicit
+    Solvent Particle Mesh Ewald" subtitle (the paper is part 2 of
+    a series). Title corrected; full author list added.
+  - Sugita-Okamoto 1999, Wang 2015, Salomon-Ferrer 2013 DOIs all
+    verified correct against Crossref bibliographic metadata.
+- **`docs/HALLUCINATION_BENCHMARK.md`** — seed-set list updated to
+  match (Shaw not Lindorff-Larsen as #1; Mobley DOI corrected; SF
+  series-2 noted).
+- **`examples/loom_demo/README.md`** — Mobley DOI updated.
+- **Tests:** Python benchmark + bridge suite still 23/23.
+
 ### v1.37 — benchmark seed slug correction + Loom under-specified variant (2026-05-04)
 
 - **`python/crucible/benchmark/papers.py`** — corrected the

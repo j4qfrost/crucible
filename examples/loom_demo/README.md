@@ -46,7 +46,7 @@ seed-set entries — that way the Loom and the benchmark land the same
 paper. Seed-set DOIs:
 
 - `10.1126/science.1187409` — Shaw 2010 (Anton BPTI 1ms)
-- `10.1021/jp067192x` — Mobley/Chodera/Dill 2007 (alchemical FEP)
+- `10.1016/j.jmb.2007.06.002` — Mobley et al. 2007 (alchemical FEP, JMB)
 - `10.1016/S0009-2614(99)01123-9` — Sugita & Okamoto 1999 (REMD)
 - `10.1021/ja512751q` — Wang 2015 (FEP+)
 - `10.1021/ct400314y` — Salomon-Ferrer 2013 (AMBER on GPUs)
