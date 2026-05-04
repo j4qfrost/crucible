@@ -129,6 +129,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="passed to `python -m crucible.corpus`")
     pc.set_defaults(func=_cmd_corpus)
 
+    # benchmark subcommand — same pattern; defers to crucible.benchmark.cli.
+    pb = sub.add_parser("benchmark", help="hallucination benchmark",
+                        add_help=False)
+    pb.add_argument("rest", nargs=argparse.REMAINDER)
+    pb.set_defaults(func=_cmd_benchmark)
+
     args = p.parse_args(argv)
     return args.func(args)
 
@@ -136,6 +142,11 @@ def main(argv: list[str] | None = None) -> int:
 def _cmd_corpus(args: argparse.Namespace) -> int:
     from .corpus.cli import main as corpus_main
     return corpus_main(args.rest)
+
+
+def _cmd_benchmark(args: argparse.Namespace) -> int:
+    from .benchmark.cli import main as benchmark_main
+    return benchmark_main(args.rest)
 
 
 if __name__ == "__main__":

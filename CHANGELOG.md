@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+### v1.31 — hallucination benchmark framework (2026-05-04)
+
+- **`python/crucible/benchmark/`** — Phase A weeks 2-3 deliverable
+  from `docs/COMMERCIAL_VALIDATION_PLAN.md`. End-to-end framework for
+  measuring LLM protocol-extraction accuracy:
+  - `papers.py` — `BenchmarkEntry` + `ExpectedProtocol` dataclasses;
+    seed set of 5 canonical MD papers (Lindorff-Larsen 2010,
+    Mobley/Chodera/Dill 2007, Sugita & Okamoto 1999, Wang 2015 FEP+,
+    Salomon-Ferrer 2013), all marked `needs_verification` until a
+    human reads the source. The framework refuses to score unverified
+    entries unless `allow_unverified=True` is passed — fabricated
+    ground truth is the worst possible failure mode (per the
+    technical-feasibility expert in the salt-mines verdict).
+  - `scorer.py` — 8 binary axes (protein FF, water model, ensemble,
+    dt, T, duration, pressure, FEP λ-count). No partial credit.
+    `None` ground truth drops the axis from both numerator and
+    denominator.
+  - `runner.py` — transpile-callback agnostic; pass any
+    `(text) -> MDSpec` callable. Defaults to subprocess via
+    `cli_bridge.transpile`; tests inject a mock so CI doesn't pay
+    for live LLM tokens.
+  - `reporter.py` — markdown report generator suitable for
+    `docs/HALLUCINATION_BENCHMARK.md` or direct paste into a blog
+    post / arXiv preprint (campaign asset #2 + #4 in
+    `docs/CAMPAIGN_2026Q2.md`).
+  - `cli.py` — `python -m crucible benchmark {list,status,run,report}`
+    subcommands. Wired into the top-level dispatcher.
+  - 15 new pytest tests covering scorer correctness, runner error
+    handling, reporter rendering. **87/87 total pytest pass** (was 72).
+- **`docs/HALLUCINATION_BENCHMARK.md`** — public landing page for
+  the benchmark. Methodology, scope, honesty constraints (no
+  fabricated ground truth, no cherry-picking, flag pretrained-on-the-
+  paper effects), seed-set list, reproduce instructions,
+  add-a-paper checklist.
+- The benchmark **deliberately ships with seed entries marked
+  `needs_verification`** so the first published numbers are the
+  human-verified ones. Smoke runs with mock transpile work
+  end-to-end; real LLM runs unblock as soon as the verification
+  pass completes (Phase A weeks 2-3).
+- Tests: 87/87 Python (was 72; +15); 868/868 Julia unchanged.
+
 ### v1.30 — python-for-app-layer musing (2026-04-30)
 
 - **`musings/python_for_app_layer.md`** — evaluation of Python on
