@@ -97,14 +97,25 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     entries = load_seed_set(verified_only=args.verified_only)
 
+    # Open the corpus DB once if --corpus-db was passed; reuse for every entry.
+    corpus_store = None
+    if args.corpus_db:
+        from ..corpus.store import CorpusStore
+        corpus_store = CorpusStore.open(args.corpus_db)
+
     def paper_text_fn(entry):
-        # MVP: read text from a sidecar file at args.papers_dir/<paper_id>.txt
-        # if present; otherwise return the title (worst-case input). Enhance
-        # by integrating with the corpus module when full-text fetch lands.
+        # Resolution order:
+        #   1. <papers_dir>/<paper_id>.txt  — Methods-section sidecar (best signal)
+        #   2. corpus DB by DOI            — title + abstract (medium signal)
+        #   3. entry.title                 — worst-case fallback
         if args.papers_dir:
             p = Path(args.papers_dir) / f"{entry.paper_id}.txt"
             if p.exists():
                 return p.read_text()
+        if corpus_store is not None and entry.doi:
+            text = corpus_store.paper_text_for_doi(entry.doi)
+            if text:
+                return text
         return entry.title
 
     if args.mock:
@@ -168,7 +179,9 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--mock", action="store_true",
                     help="use a deterministic mock transpile (smoke test)")
     pr.add_argument("--papers-dir", default=None,
-                    help="dir containing <paper_id>.txt sidecar files")
+                    help="dir containing <paper_id>.txt sidecar files (best signal)")
+    pr.add_argument("--corpus-db", default=None,
+                    help="path to a corpus DuckDB (title+abstract by DOI)")
     pr.add_argument("--out", default=None, help="output JSONL path")
     pr.add_argument("--verified-only", action="store_true")
     pr.add_argument("--allow-unverified", action="store_true",

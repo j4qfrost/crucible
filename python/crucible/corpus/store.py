@@ -246,6 +246,54 @@ class CorpusStore:
     # ------------------------------------------------------------------
     # Queries
 
+    def find_by_doi(self, doi: str) -> Optional[dict]:
+        """Look up a single work by DOI. Accepts either the bare DOI
+        (`10.1000/foo`) or the canonical URL form (`https://doi.org/10.1000/foo`).
+        Returns the row dict or None.
+        """
+        normalized = doi.strip().lower()
+        # Strip the URL prefix if present.
+        for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix):]
+                break
+        # OpenAlex stores DOIs as the URL form; query both shapes.
+        candidates = [normalized, f"https://doi.org/{normalized}"]
+        cur = self._conn.execute(
+            """
+            SELECT work_id, doi, title, abstract, publication_year, venue,
+                   cited_by_count, is_oa, pdf_url
+            FROM works
+            WHERE LOWER(doi) IN ({})
+            LIMIT 1
+            """.format(",".join("?" * len(candidates))),
+            candidates,
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        return dict(zip([d[0] for d in cur.description], row))
+
+    def paper_text_for_doi(self, doi: str) -> Optional[str]:
+        """Return a best-effort `(title + abstract)` blob for benchmarking.
+
+        Used by `crucible.benchmark.runner` to feed the LLM transpile when
+        no full-text source is wired up. Abstract-only is meaningfully
+        worse than Methods-section input for protocol extraction —
+        Methods-level fidelity is on the GROMACS/full-text-fetch roadmap.
+        """
+        row = self.find_by_doi(doi)
+        if row is None:
+            return None
+        parts: list[str] = []
+        if row.get("title"):
+            parts.append(str(row["title"]))
+        if row.get("abstract"):
+            parts.append(str(row["abstract"]))
+        if not parts:
+            return None
+        return "\n\n".join(parts)
+
     def papers_by_author(
         self,
         author_id: str,

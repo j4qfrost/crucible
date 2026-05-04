@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### v1.32 — corpus ↔ benchmark bridge (2026-05-04)
+
+- **`python/crucible/corpus/store.py`** — adds `find_by_doi(doi)` and
+  `paper_text_for_doi(doi)` accessors. `find_by_doi` accepts both bare
+  (`10.1000/x`) and URL-form (`https://doi.org/10.1000/x`) DOIs and
+  matches case-insensitively. `paper_text_for_doi` returns
+  `title + abstract` for benchmark feeding.
+- **`python/crucible/benchmark/cli.py`** — `benchmark run` now accepts
+  `--corpus-db <path>`. Resolution order for paper text:
+  1. `<papers-dir>/<paper_id>.txt` sidecar (Methods-section, best signal)
+  2. corpus DB by DOI (title + abstract, medium signal)
+  3. `entry.title` (worst-case fallback)
+- **End-to-end smoke verified.** Seeding the corpus with one of the
+  benchmark seed-set DOIs + abstract, then running the benchmark with
+  `--corpus-db`, produces a real JSONL output where the LLM (mock
+  transpile against the vanilla template) is scored against the
+  expected protocol on 6 of 8 axes. Pipeline ready for live LLM input
+  the moment the seed-set entries are human-verified.
+- Tests: 95/95 Python (was 87; +8 covering DOI normalization,
+  title-only fallback, parser arg presence, end-to-end seed-set
+  compatibility); 868/868 Julia unchanged.
+
 ### v1.31 — hallucination benchmark framework (2026-05-04)
 
 - **`python/crucible/benchmark/`** — Phase A weeks 2-3 deliverable
