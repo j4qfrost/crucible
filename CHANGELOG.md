@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### v1.34 — Loom demo script + ON_PREM.md (2026-05-04)
+
+Two campaign assets shipped, both gating Phase A outreach in
+`docs/COMMERCIAL_VALIDATION_PLAN.md`.
+
+- **`docs/LOOM_DEMO_SCRIPT.md`** — 60-second demo script for
+  campaign asset #1. Scene-by-scene narration + visual cues, asset
+  checklist (real paper PDF, methods.txt sidecar, terminal theme,
+  mic), re-record triggers (CLI surface change, benchmark publishes,
+  on-prem ships), and three tier-aware variants (60s default, 75s
+  for pharma, 50s for academic). Distribution map covers cold-email
+  embed (asset #6), Twitter/X (asset #3), landing page (asset #9),
+  Practical Cheminformatics guest post (asset #5), ACS COMP
+  submission (asset #8). Recording is the user's job; the script is
+  the gate.
+- **`docs/ON_PREM.md`** — campaign-grade documentation of
+  on-prem mode. Phase A weeks 4-6 deliverable; the doc that
+  unblocks the pharma IP-policy conversation. Quickstarts for
+  Ollama, vLLM, and llama.cpp; model-selection guide
+  (Qwen2.5-Coder 7B → 32B, Llama 3.1 70B); explicit hard
+  guarantees (no third-party API call, no telemetry, deterministic
+  rendered scripts, no auto-update phone-home); explicit
+  *non*-guarantees (model-weight provenance, OpenMM-conda updates,
+  per-server LLM logging); a network-policy preflight script
+  pharma security teams can hand to their auditors; 30-day POC
+  scope ($5K-$15K, fixed fee, written eval).
+- **No code changes.** `LocalProvider` (`src/llm/LocalProvider.jl`,
+  ~95 lines) was already shipped — turns out Phase A weeks 4-6 was
+  blocked on the *doc*, not the code.
+- Tests: 95/95 Python + 868/868 Julia unchanged (pure docs).
+
 ### v1.33 — hekate AT Protocol integration (2026-05-04)
 
 - **`src/atproto/`** — new `Crucible.ATProto` module: an AT-Protocol
