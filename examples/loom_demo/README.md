@@ -10,6 +10,14 @@ Hands-off setup for the 60-second Loom record session described in
   contains all the protocol details a real paper would. Swap with a
   real paper's Methods section before publishing the Loom (asset
   attribution matters; the demo is a marketing artifact).
+- **`methods_underspecified.txt`** — a real-paper variant grounded
+  ONLY in the public abstract of Shaw 2010 (Anton BPTI 1ms,
+  DOI 10.1126/science.1187409). Deliberately omits protocol details
+  that are in the paywalled SI. Use this to record the
+  *under-specification handling* angle: the LLM should flag missing
+  fields rather than hallucinate them, which is also what the
+  hallucination benchmark grades for. Attribution is real; no
+  fabricated values.
 - **`record_session.sh`** — the exact terminal invocations the
   scene-by-scene script in `docs/LOOM_DEMO_SCRIPT.md` calls. Reads
   cleanly on screen at 16pt + dark theme.
@@ -37,14 +45,15 @@ Recommended: paraphrase a Methods section from one of the
 seed-set entries — that way the Loom and the benchmark land the same
 paper. Seed-set DOIs:
 
-- `10.1126/science.1187409` — Lindorff-Larsen 2010 (general MD)
+- `10.1126/science.1187409` — Shaw 2010 (Anton BPTI 1ms)
 - `10.1021/jp067192x` — Mobley/Chodera/Dill 2007 (alchemical FEP)
 - `10.1016/S0009-2614(99)01123-9` — Sugita & Okamoto 1999 (REMD)
 - `10.1021/ja512751q` — Wang 2015 (FEP+)
 - `10.1021/ct400314y` — Salomon-Ferrer 2013 (AMBER on GPUs)
 
 Pick the one closest to your audience: pharma-leaning → Mobley 2007
-or Wang 2015; methods-leaning → Lindorff-Larsen 2010.
+or Wang 2015; methods-leaning → Shaw 2010 (already shipped as
+`methods_underspecified.txt` in the abstract-only variant).
 
 ## Why a synthesized methods.txt at all?
 

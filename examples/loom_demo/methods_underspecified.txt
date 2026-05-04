@@ -1,0 +1,37 @@
+Demo Methods text — under-specified variant (Shaw et al. 2010 BPTI, abstract-only).
+=================================================================================
+
+Source attribution
+------------------
+This is a deliberately under-specified Methods paragraph derived ONLY from the
+PUBLIC abstract of:
+
+  D. E. Shaw, P. Maragakis, K. Lindorff-Larsen, S. Piana, R. O. Dror,
+  M. P. Eastwood, J. A. Bank, J. M. Jumper, J. K. Salmon, Y. Shan, W. Wriggers.
+  "Atomic-Level Characterization of the Structural Dynamics of Proteins."
+  Science 330, 341–346 (2010). DOI: 10.1126/science.1187409.
+
+The full Methods are in the Supplementary Information, which is paywalled and
+has not been read for this file. As a result this paragraph deliberately
+omits the protein force field, water model, integrator timestep, temperature,
+ensemble, and pressure — exactly the kind of under-specification the LLM
+transpile path encounters with real-world papers.
+
+Why this exists
+---------------
+The companion `methods.txt` file in this directory is a synthetic full-detail
+Methods paragraph (Abl+imatinib FEP) that exercises the happy path. This
+under-specified variant is what real MD methods sections often look like and
+shows the transpiler's behavior when the LLM has to flag missing protocol
+fields. Cross-reference: docs/HALLUCINATION_BENCHMARK.md (entry
+`shaw_2010_bpti`).
+
+Methods (paraphrased from the Shaw 2010 abstract)
+-------------------------------------------------
+We performed an atomic-level all-atom molecular dynamics simulation of bovine
+pancreatic trypsin inhibitor (BPTI) in explicit solvent on a special-purpose
+machine. The simulation duration was 1 millisecond — the longest single
+trajectory of a folded protein reported at the time. The simulation revealed
+multiple distinct long-lived conformational states of BPTI; transitions
+between these states occurred on timescales roughly three orders of magnitude
+slower than local atomic relaxations.

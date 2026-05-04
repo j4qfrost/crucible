@@ -53,7 +53,7 @@ class ExpectedProtocol:
 @dataclass
 class BenchmarkEntry:
     """One paper in the benchmark."""
-    paper_id: str                            # short slug, e.g. "lindorff_2010_bpti"
+    paper_id: str                            # short slug, e.g. "shaw_2010_bpti"
     doi: str                                 # canonical DOI
     title: str
     expected: ExpectedProtocol
@@ -72,22 +72,33 @@ class BenchmarkEntry:
 
 _SEED_ENTRIES: list[BenchmarkEntry] = [
     BenchmarkEntry(
-        paper_id="lindorff_2010_bpti",
+        paper_id="shaw_2010_bpti",
         doi="10.1126/science.1187409",
-        title="Improved side-chain torsion potentials for the Amber ff99SB protein force field "
-              "(Lindorff-Larsen et al., 2010)",
+        title="Atomic-Level Characterization of the Structural Dynamics of Proteins "
+              "(Shaw et al., 2010)",
         expected=ExpectedProtocol(
-            protein_ff="amber99sb_ildn",
-            water_model="TIP3P",
-            ensemble="NPT",
-            dt_fs=2.0,
-            temperature_K=300.0,
-            duration_ns=None,                # paper covers many systems; verify before scoring
-            pressure_bar=1.0,
+            # The Anton BPTI 1ms run. Only `duration_ns` is verified from the
+            # abstract (PubMed PMID 20947758): "a 1-millisecond simulation".
+            # The remaining fields below are commonly-cited in secondary
+            # literature but the SI is paywalled and has not been read by a
+            # human. Status stays `needs_verification` until SI confirms.
+            protein_ff="amber99sb_ildn",     # widely cited; SI verification required
+            water_model="TIP3P",             # widely cited; SI verification required
+            ensemble="NPT",                  # widely cited; SI verification required
+            dt_fs=2.5,                       # Anton typical; SI verification required
+            temperature_K=300.0,             # widely cited; SI verification required
+            duration_ns=1_000_000.0,         # ✓ verified from abstract (1 ms)
+            pressure_bar=1.0,                # widely cited; SI verification required
             fep_lambda_count=None,
         ),
-        notes="Methodology paper. The protocol fields above are typical defaults across "
-              "the test systems; verify against the paper's Methods table before counting.",
+        notes="Anton BPTI 1ms benchmark. DOI corrected from a previous "
+              "title-mismatch (slug formerly cited as 'lindorff_2010_bpti'; "
+              "Lindorff-Larsen is co-author #3, not first). Only "
+              "`duration_ns=1_000_000` is evidence-backed (PubMed abstract); "
+              "the FF/water/ensemble/dt/T/pressure values shown are the "
+              "values commonly cited in subsequent MD literature, but the "
+              "Science SI is paywalled and has not been confirmed by a "
+              "human. Mark verified only after SI inspection.",
     ),
     BenchmarkEntry(
         paper_id="mobley_2007_alchemical_binding",

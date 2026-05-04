@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### v1.37 — benchmark seed slug correction + Loom under-specified variant (2026-05-04)
+
+- **`python/crucible/benchmark/papers.py`** — corrected the
+  `lindorff_2010_bpti` entry. DOI `10.1126/science.1187409`
+  resolves to Shaw et al. 2010, *Science* 330, 341 — *Atomic-Level
+  Characterization of the Structural Dynamics of Proteins* (the
+  Anton BPTI 1ms paper) — NOT the ff99SB-ILDN force-field paper as
+  the prior title claimed. Lindorff-Larsen is co-author #3, not
+  first.
+  - Slug renamed: `lindorff_2010_bpti` → `shaw_2010_bpti`.
+  - Title corrected.
+  - `duration_ns = 1_000_000.0` — ✓ verified from PubMed abstract
+    PMID 20947758 ("a 1-millisecond simulation").
+  - All other `ExpectedProtocol` fields stay `needs_verification`:
+    they are widely cited in secondary literature but the Science
+    SI is paywalled and has not been read by a human. The notes
+    field flags exactly which axes are evidence-backed vs.
+    cargo-culted.
+- **`examples/loom_demo/methods_underspecified.txt`** — new file.
+  A Methods paragraph derived ONLY from the Shaw 2010 public
+  abstract. Demonstrates the LLM's behavior on under-specified
+  Methods sections (the realistic case for many MD papers) and
+  ties the Loom recording to a real, attributed DOI without
+  fabricating SI-level detail. Pairs with the existing
+  `methods.txt` (synthetic Abl+imatinib FEP, full detail) — pick
+  one based on the audience.
+- **`examples/loom_demo/README.md`** — documents both Methods
+  files and updates the seed-set DOI list to reflect the Shaw
+  2010 correction.
+- **Tests:** Python benchmark + bridge suite still passes (23/23).
+  Julia full suite passes 928/928 (no Julia changes in this slice).
+
 ### v1.36 — `_explain_spec` lifted to shared module + Manifest repair tool (2026-05-04)
 
 - **`src/spec/Explain.jl`** — new shared module hosting
