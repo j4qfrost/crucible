@@ -81,7 +81,7 @@ Default DB: `~/.local/share/crucible/corpus.duckdb` (override with `--db PATH`).
 
 ## Tier 3 — `python -m crucible benchmark`
 
-Hallucination benchmark + longitudinal data layer. v1.31 → v1.74.
+Hallucination benchmark + longitudinal data layer. v1.31 → v1.76.
 
 | Subcommand | One-line |
 |---|---|
@@ -97,6 +97,7 @@ Hallucination benchmark + longitudinal data layer. v1.31 → v1.74.
 | `crucible benchmark export-jsonl RUNS.db [--out X] [--include-paper-text] [--since DATE] [--paper-id X] [--provider X]` | JSONL dump (option-3 flywheel feeder) |
 | `crucible benchmark compare LEFT.db RIGHT.db` | Per-paper accuracy delta |
 | `crucible benchmark watch RUNS.db [--interval N]` | Live tail (poll for new rows) |
+| `crucible benchmark ui [--runs-db X] [--port N] [--headless]` | Streamlit dashboard (opt-in `[ui]` extra) |
 
 ## Tier 4 — workspace tools
 

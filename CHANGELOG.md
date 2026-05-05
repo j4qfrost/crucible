@@ -24,8 +24,9 @@ longitudinal data the runs store has been collecting since v1.45.
   import-guard fails with a clear remediation hint when missing.
 - Read-only — mutations go through `benchmark run` /
   `benchmark publish` from the CLI.
-- 193/193 pytest unchanged (UI is glue; corpus/store +
-  benchmark/runs_store are tested independently).
+- 194/194 pytest (+1 smoke test for the missing-streamlit error
+  path; UI body is glue and tested via the corpus/store +
+  runs_store suites it queries).
 
 ### v1.75 — `docs/QUICK_REFERENCE.md` (single-page CLI cheatsheet) (2026-05-05)
 

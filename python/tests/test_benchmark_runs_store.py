@@ -331,6 +331,17 @@ def test_benchmark_cli_watch_rejects_bad_since(tmp_path, capsys):
     assert "ISO format" in capsys.readouterr().err
 
 
+def test_benchmark_cli_ui_reports_missing_streamlit(monkeypatch, capsys):
+    """v1.76 `ui` returns rc=2 with an install hint when streamlit is
+    not on PATH. Cheap argparse-wiring + error-path smoke."""
+    import shutil
+    from crucible.benchmark.cli import main
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    rc = main(["ui"])
+    assert rc == 2
+    assert "streamlit" in capsys.readouterr().err.lower()
+
+
 def test_export_jsonl_filters_by_since(tmp_path):
     """The export_jsonl `since=` filter is exposed via CLI in v1.64."""
     from datetime import datetime, timedelta, timezone
