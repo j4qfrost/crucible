@@ -395,6 +395,22 @@ def cmd_run(args: argparse.Namespace) -> int:
     out_path = Path(args.out) if args.out else None
     if out_path:
         out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Open the longitudinal runs store if --runs-db was passed, OR reuse
+    # the corpus DB by default if --corpus-db was passed (single shared
+    # DuckDB file is the friction-minimum config).
+    runs_store = None
+    runs_db_path = args.runs_db or args.corpus_db
+    run_id = None
+    if runs_db_path:
+        from .runs_store import open_runs_store, new_run_id
+        runs_store = open_runs_store(runs_db_path)
+        run_id = new_run_id()
+
+    llm_provider = "mock" if args.mock else "cli_bridge"
+    llm_model = args.llm_model
+
+    from ..spec import SCHEMA_VERSION
     rows: list[str] = []
     for outcome in run_benchmark(entries, paper_text_fn, transpile_fn,
                                  allow_unverified=args.allow_unverified):
@@ -417,9 +433,49 @@ def cmd_run(args: argparse.Namespace) -> int:
         rows.append(line)
         if out_path is None:
             print(line)
+
+        if runs_store is not None and run_id is not None:
+            from .runs_store import insert_outcome
+            insert_outcome(
+                runs_store,
+                run_id=run_id,
+                outcome=outcome,
+                llm_provider=llm_provider,
+                llm_model=llm_model,
+                schema_version=SCHEMA_VERSION,
+            )
+    if runs_store is not None:
+        runs_store.close()
+        print(f"recorded run {run_id!r} → {runs_db_path}", file=sys.stderr)
     if out_path is not None:
         out_path.write_text("\n".join(rows) + "\n")
         print(f"wrote {len(rows)} outcomes → {out_path}", file=sys.stderr)
+    return 0
+
+
+def cmd_trends(args: argparse.Namespace) -> int:
+    """Per-paper accuracy rollup from the longitudinal runs store."""
+    from .runs_store import open_runs_store, stats, trends
+    conn = open_runs_store(args.runs_db)
+    if args.paper_id:
+        rows = list(trends(conn, paper_id=args.paper_id))
+    else:
+        rows = list(trends(conn))
+    out = {
+        "stats": stats(conn),
+        "trends": [
+            {
+                "paper_id": r.paper_id,
+                "n_runs": r.n_runs,
+                "avg_pct": round(r.avg_pct, 3),
+                "last_run_at": r.last_run_at,
+                "providers": r.providers,
+            }
+            for r in rows
+        ],
+    }
+    print(json.dumps(out, indent=2))
+    conn.close()
     return 0
 
 
@@ -446,6 +502,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="paper title (single-line; can be long)")
     pa.set_defaults(func=cmd_add)
 
+    pt = sub.add_parser("trends", help="per-paper accuracy rollup from runs DB")
+    pt.add_argument("runs_db", help="path to the DuckDB with benchmark_runs table")
+    pt.add_argument("--paper-id", default=None, help="filter to one paper")
+    pt.set_defaults(func=cmd_trends)
+
     pv = sub.add_parser("verify",
                         help="interactive axis-by-axis verification of one entry")
     pv.add_argument("--paper-id", required=True,
@@ -470,6 +531,12 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--full-text-cache", default=None,
                     help="directory to cache extracted PDF text "
                          "(default: $XDG_CACHE_HOME/crucible/corpus_full_text)")
+    pr.add_argument("--runs-db", default=None,
+                    help="path to a DuckDB to record this run's outcomes "
+                         "(default: reuses --corpus-db if set)")
+    pr.add_argument("--llm-model", default=None,
+                    help="model name to record alongside the run "
+                         "(e.g. claude-opus-4-7, qwen2.5-coder-7b)")
     pr.add_argument("--out", default=None, help="output JSONL path")
     pr.add_argument("--verified-only", action="store_true")
     pr.add_argument("--allow-unverified", action="store_true",

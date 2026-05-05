@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### v1.45 — benchmark runs store + recorded-fixture cross-lang test (2026-05-04)
+
+Two slices in one. Together they upgrade the benchmark from a one-shot
+report into a longitudinal data layer (the option-3 fine-tune
+flywheel substrate, `docs/ADOPTION_PLAN.md` Phase 4) and pin the
+recorded-transcript round-trip across both languages.
+
+- **`python/crucible/benchmark/runs_store.py`** — DuckDB-backed store
+  for benchmark outcomes. Schema:
+  `benchmark_runs(run_id, paper_id, run_at, llm_provider, llm_model,
+  ok, elapsed_s, total, max_score, per_axis, error, schema_version,
+  crucible_version)`. PK `(run_id, paper_id)` so re-running a paper
+  in the same invocation is idempotent.
+- **`python -m crucible benchmark run`** — new flags:
+  `--runs-db <path>` (or reuses `--corpus-db`), `--llm-model <name>`.
+  Every outcome appends one row tagged with the IR `schema_version`.
+- **`python -m crucible benchmark trends [--paper-id X] <runs.db>`**
+  — per-paper rollup (`avg_pct`, `n_runs`, `last_run_at`, distinct
+  providers). The longitudinal view that lets us answer "did Crucible
+  get better at Mobley 2007 between v1.42 and v1.45?".
+- **`python/tests/test_cross_language_consistency.py`** —
+  parametrized with `recorded_anthropic_spec` + `known_good_spec`
+  fixtures. Python pydantic-validates → Julia round-trips → parsed-
+  as-dict equality holds. Catches the failure mode where a
+  transcript stored under one schema version silently fails to load
+  on the other side.
+- 10 new pytest tests (8 runs-store unit + 2 recorded-fixture
+  cross-lang). **123/123 pytest pass** (was 113).
+- 928/928 Julia unchanged.
+
 ### v1.44 — schema 0.4.0: solvent_padding_nm + 9th benchmark axis (2026-05-04)
 
 First real schema bump in this session. Adds

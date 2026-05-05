@@ -129,3 +129,49 @@ def test_julia_preserves_stage_kind_discriminator(roundtripped):
             f"{name}: stage kinds diverged.\n"
             f"python: {python_kinds}\njulia:  {julia_kinds}"
         )
+
+
+# -----------------------------------------------------------------------------
+# Recorded-transcript round-trip — exercises the actual fixture the
+# RecordedProvider replays. If this drifts, every transcript in the
+# transcript store risks failing to load on one side.
+
+_RECORDED_FIXTURES = (
+    "recorded_anthropic_spec",
+    "known_good_spec",
+)
+
+
+@pytest.mark.parametrize("fixture", _RECORDED_FIXTURES)
+def test_julia_can_parse_python_validated_recorded_fixture(fixture):
+    """Python pydantic validates the recorded fixture; pipe it through
+    Julia's spec_from_json + spec_to_json and the result still round-
+    trips through Python."""
+    fixture_path = REPO_ROOT / "test" / "fixtures" / f"{fixture}.json"
+    if not fixture_path.is_file():
+        pytest.skip(f"fixture missing at {fixture_path}")
+    raw = fixture_path.read_text()
+    # Python parse + emit. Pydantic validates the schema along the way.
+    from crucible import MDSpec
+    py_spec = MDSpec.from_json(raw)
+    py_emitted = py_spec.to_json()
+    # Julia parse + emit through the cross_lang_roundtrip script.
+    proc = subprocess.run(
+        ["julia", f"--project={REPO_ROOT}", str(ROUNDTRIP_SCRIPT)],
+        input=py_emitted + "\n",
+        capture_output=True, text=True, timeout=120,
+    )
+    assert proc.returncode == 0, (
+        f"julia roundtrip failed for {fixture}:\nstderr:\n{proc.stderr}"
+    )
+    julia_emitted = proc.stdout.strip()
+    assert julia_emitted, f"julia produced no output for {fixture}"
+    # Final invariant: parsed-as-dict equality between Python emit and
+    # Julia emit. (Key order is not contractual; values must match.)
+    py_obj = json.loads(py_emitted)
+    julia_obj = json.loads(julia_emitted)
+    assert _normalize_for_compare(py_obj) == _normalize_for_compare(julia_obj), (
+        f"{fixture}: Python ↔ Julia divergence on recorded fixture.\n"
+        f"py:    {json.dumps(py_obj, sort_keys=True)[:600]}\n"
+        f"julia: {json.dumps(julia_obj, sort_keys=True)[:600]}"
+    )
