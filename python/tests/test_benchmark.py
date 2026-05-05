@@ -215,3 +215,38 @@ def test_render_report_marks_unverified_entries():
     md = render_report([(entry, outcome)])
     assert "needs_verification" in md
     assert "no paper text" in md
+
+
+def test_render_report_includes_trend_section_when_runs_db_passed(tmp_path):
+    """Optional `trends_db=` parameter pulls in the longitudinal table."""
+    duckdb = pytest.importorskip("duckdb")
+    from crucible.benchmark.runs_store import (
+        open_runs_store, insert_outcome, new_run_id,
+    )
+    from crucible.benchmark.scorer import ScoreAxis, ScoreResult
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    rid = new_run_id()
+    sr = ScoreResult(paper_id="x",
+                     per_axis={ax: True for ax in ScoreAxis},
+                     total=9, max_score=9, notes=[])
+    insert_outcome(conn, run_id=rid,
+                   outcome=RunOutcome(paper_id="x", ok=True,
+                                      elapsed_s=1.0, score_result=sr),
+                   llm_provider="anthropic", llm_model="claude-opus-4-7",
+                   schema_version="0.4.0")
+    md = render_report([], trends_db=conn)
+    assert "Longitudinal trends" in md
+    assert "anthropic" in md
+    assert "100%" in md
+    conn.close()
+
+
+def test_render_report_omits_trend_section_when_runs_db_empty(tmp_path):
+    duckdb = pytest.importorskip("duckdb")
+    from crucible.benchmark.runs_store import open_runs_store
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    md = render_report([], trends_db=conn)
+    assert "Longitudinal trends" not in md
+    conn.close()

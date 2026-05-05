@@ -48,6 +48,47 @@ def test_schema_version_constant():
     assert SCHEMA_VERSION == "0.4.0"
 
 
+def test_python_schema_version_matches_canonical_schema_json():
+    """Pydantic SCHEMA_VERSION must match the const in src/spec/schema.json.
+    A schema bump that touches one but not the other is the regression
+    class this test exists to catch."""
+    import json
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    schema_path = repo_root / "src" / "spec" / "schema.json"
+    if not schema_path.is_file():
+        pytest.skip(f"canonical schema.json missing at {schema_path}")
+    schema = json.loads(schema_path.read_text())
+    canonical = schema["properties"]["schema_version"]["const"]
+    assert SCHEMA_VERSION == canonical, (
+        f"SCHEMA_VERSION ({SCHEMA_VERSION!r}) drifts from "
+        f"src/spec/schema.json const ({canonical!r}). "
+        f"Update both halves of the bump together."
+    )
+
+
+def test_python_schema_version_matches_julia_mdspec_default():
+    """Bumping SCHEMA_VERSION on the Python side requires a matching bump
+    in src/spec/MDSpec.jl's MDSpec keyword default. Catches the third
+    place a schema bump can drift."""
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    mdspec_path = repo_root / "src" / "spec" / "MDSpec.jl"
+    if not mdspec_path.is_file():
+        pytest.skip(f"MDSpec.jl missing at {mdspec_path}")
+    text = mdspec_path.read_text()
+    # `MDSpec(; schema_version="0.4.0", ...)` is the canonical kwarg
+    # default in src/spec/MDSpec.jl. Match the literal.
+    import re
+    m = re.search(r'schema_version\s*=\s*"(\d+\.\d+\.\d+)"', text)
+    assert m is not None, "could not find `schema_version=\"…\"` in MDSpec.jl"
+    julia_default = m.group(1)
+    assert SCHEMA_VERSION == julia_default, (
+        f"SCHEMA_VERSION ({SCHEMA_VERSION!r}) drifts from MDSpec.jl "
+        f"default ({julia_default!r}). Update both halves together."
+    )
+
+
 def test_round_trip_minimal():
     spec = _minimal_spec()
     text = spec.to_json()

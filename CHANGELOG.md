@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### v1.46 — schema-version guards + trend reporter (2026-05-04)
+
+Two slices that close around the v1.44 schema bump experience: pin
+schema-version drift across files at test time, and surface the
+longitudinal runs-DB data in the canonical markdown report.
+
+- **`python/tests/test_spec.py`** — two new guard tests:
+  `SCHEMA_VERSION` (Python pydantic) must equal both
+  `src/spec/schema.json:properties.schema_version.const` AND the
+  default `schema_version="…"` keyword in `src/spec/MDSpec.jl`. The
+  v1.44 bump touched 3 places that needed coordinated updates;
+  these tests catch the partial-bump regression class.
+- **`python/crucible/benchmark/reporter.py`** — new
+  `render_trend_section(runs_db)` that emits a markdown table of
+  per-paper avg-accuracy + n-runs + last-run-at + distinct
+  providers. `render_report(..., trends_db=conn)` injects the
+  section above the methodology footer. Empty when the runs table
+  is empty (so unconditional callers don't get a header with no
+  body).
+- **`python -m crucible benchmark report --trends-db <path>`** —
+  optional flag to include the longitudinal table.
+- End-to-end smoke verified: `benchmark run --corpus-db X` records
+  to DuckDB; `benchmark report --trends-db X` pulls the trends
+  back into the published markdown.
+- 4 new tests; **127/127 pytest** (was 123).
+
 ### v1.45 — benchmark runs store + recorded-fixture cross-lang test (2026-05-04)
 
 Two slices in one. Together they upgrade the benchmark from a one-shot

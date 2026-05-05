@@ -340,7 +340,13 @@ def cmd_report(args: argparse.Namespace) -> int:
                 error=obj.get("error"),
             )
             pairs.append((entry, outcome))
-    md = render_report(pairs, intro=args.intro)
+    trends_conn = None
+    if args.trends_db:
+        from .runs_store import open_runs_store
+        trends_conn = open_runs_store(args.trends_db)
+    md = render_report(pairs, intro=args.intro, trends_db=trends_conn)
+    if trends_conn is not None:
+        trends_conn.close()
     if args.out:
         Path(args.out).write_text(md)
         print(f"wrote {args.out}", file=sys.stderr)
@@ -547,6 +553,8 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("runs", help="path to JSONL produced by `benchmark run`")
     pp.add_argument("--out", default=None, help="output .md path (default: stdout)")
     pp.add_argument("--intro", default=None, help="optional intro paragraph")
+    pp.add_argument("--trends-db", default=None,
+                    help="path to a runs DuckDB to include a trends section")
     pp.set_defaults(func=cmd_report)
 
     return p

@@ -10,9 +10,42 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Iterable
 
+from typing import Any, Optional
+
 from .papers import BenchmarkEntry
 from .runner import RunOutcome
 from .scorer import ScoreAxis
+
+
+def render_trend_section(runs_db: Any) -> str:
+    """Markdown section showing per-paper accuracy trends from the runs DB.
+
+    `runs_db` is a DuckDB connection produced by
+    `runs_store.open_runs_store(path)`. Returns an empty string when the
+    table is empty, so the caller can unconditionally interpolate it.
+    """
+    from .runs_store import stats, trends
+
+    rows = list(trends(runs_db))
+    if not rows:
+        return ""
+    s = stats(runs_db)
+    lines: list[str] = ["## Longitudinal trends", ""]
+    lines.append(
+        f"_{s['rows']} outcome row(s) across {s['runs']} run(s) on "
+        f"{s['papers_touched']} distinct paper(s)._"
+    )
+    lines.append("")
+    lines.append("| Paper | Runs | Avg accuracy | Last run | Providers |")
+    lines.append("|---|---:|---:|---|---|")
+    for r in rows:
+        providers = ", ".join(sorted(r.providers))
+        lines.append(
+            f"| `{r.paper_id}` | {r.n_runs} | {r.avg_pct:.0%} | "
+            f"{r.last_run_at} | {providers} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
 
 
 def render_report(
@@ -21,6 +54,7 @@ def render_report(
     title: str = "Hallucination benchmark",
     intro: str | None = None,
     timestamp: datetime | None = None,
+    trends_db: Any = None,
 ) -> str:
     pairs = list(pairs)
     ts = (timestamp or datetime.now(timezone.utc)).strftime("%Y-%m-%d %H:%M UTC")
@@ -114,6 +148,14 @@ def render_report(
             lines.append("")
             lines.append(f"> {entry.notes}")
         lines.append("")
+
+    # Optional trends section (from the longitudinal runs DB).
+    if trends_db is not None:
+        trend_md = render_trend_section(trends_db)
+        if trend_md:
+            lines.append("---")
+            lines.append("")
+            lines.append(trend_md)
 
     # Methodology footer
     lines.append("---")
