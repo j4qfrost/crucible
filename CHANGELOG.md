@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### v1.64 — `benchmark compare` + `export-jsonl --since` (2026-05-04)
+
+Two longitudinal-tracking improvements on the v1.45 runs DB layer.
+
+- **`benchmark export-jsonl --since YYYY-MM-DD`** — the underlying
+  `export_jsonl(since=…)` was already in v1.50; this exposes the
+  filter via CLI. Useful for incremental exports to a fine-tune
+  pipeline ("only rows since the last export"). Validates ISO-format
+  parse before opening the DB; fails with exit 2 + a clear message
+  if the date is malformed.
+- **`benchmark compare <left.db> <right.db>`** — diff two runs DB
+  snapshots. Output JSON: `common_papers`, `only_in_left`,
+  `only_in_right`, and a per-paper `deltas` array sorted by
+  delta-percentage-point descending. Useful for tracking drift
+  across schema bumps, model swaps, prompt refinements, or simply
+  "did Crucible improve between these two release tags?". Uses the
+  trends accessor; consistent with the existing avg-pct
+  computation.
+- 2 new tests (since-filter behavior, end-to-end compare).
+  **161/161 pytest** (was 159).
+
 ### v1.63 — end-to-end benchmark integration tests (2026-05-04)
 
 Per-module unit tests cover the building blocks; this file covers

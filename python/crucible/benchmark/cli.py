@@ -517,6 +517,16 @@ def cmd_export(args: argparse.Namespace) -> int:
     """Dump the runs table to JSONL — option-3 fine-tune flywheel feeder."""
     from .runs_store import export_jsonl, open_runs_store
     conn = open_runs_store(args.runs_db)
+    since_dt = None
+    if args.since:
+        from datetime import datetime
+        try:
+            since_dt = datetime.fromisoformat(args.since)
+        except ValueError:
+            print(f"--since must be ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS); got {args.since!r}",
+                  file=sys.stderr)
+            conn.close()
+            return 2
     sink = open(args.out, "w") if args.out else sys.stdout
     n = 0
     try:
@@ -524,6 +534,7 @@ def cmd_export(args: argparse.Namespace) -> int:
             conn,
             paper_id=args.paper_id,
             llm_provider=args.provider,
+            since=since_dt,
         ):
             sink.write(line + "\n")
             n += 1
@@ -533,6 +544,49 @@ def cmd_export(args: argparse.Namespace) -> int:
     print(f"exported {n} row(s)" + (f" → {args.out}" if args.out else ""),
           file=sys.stderr)
     conn.close()
+    return 0
+
+
+def cmd_compare(args: argparse.Namespace) -> int:
+    """Diff two runs DB snapshots — show per-paper accuracy delta.
+
+    Useful for tracking improvement across schema bumps, model swaps,
+    or prompt refinements. Shows: papers in both DBs (with delta),
+    papers only in A, papers only in B.
+    """
+    from .runs_store import open_runs_store, trends
+    conn_a = open_runs_store(args.left)
+    conn_b = open_runs_store(args.right)
+    by_paper_a = {r.paper_id: r for r in trends(conn_a)}
+    by_paper_b = {r.paper_id: r for r in trends(conn_b)}
+    only_a = sorted(set(by_paper_a) - set(by_paper_b))
+    only_b = sorted(set(by_paper_b) - set(by_paper_a))
+    common = sorted(set(by_paper_a) & set(by_paper_b))
+
+    deltas = []
+    for pid in common:
+        a, b = by_paper_a[pid], by_paper_b[pid]
+        deltas.append({
+            "paper_id": pid,
+            "avg_pct_left": round(a.avg_pct, 3),
+            "avg_pct_right": round(b.avg_pct, 3),
+            "delta_pp": round((b.avg_pct - a.avg_pct) * 100, 1),
+            "n_runs_left": a.n_runs,
+            "n_runs_right": b.n_runs,
+        })
+    deltas.sort(key=lambda d: d["delta_pp"], reverse=True)
+
+    out = {
+        "left_db": str(args.left),
+        "right_db": str(args.right),
+        "common_papers": len(common),
+        "only_in_left": only_a,
+        "only_in_right": only_b,
+        "deltas": deltas,
+    }
+    print(json.dumps(out, indent=2))
+    conn_a.close()
+    conn_b.close()
     return 0
 
 
@@ -670,7 +724,15 @@ def build_parser() -> argparse.ArgumentParser:
     pe.add_argument("--out", default=None, help="output path (default: stdout)")
     pe.add_argument("--paper-id", default=None, help="filter to one paper")
     pe.add_argument("--provider", default=None, help="filter to one provider")
+    pe.add_argument("--since", default=None,
+                    help="only rows with run_at >= this (ISO date or timestamp)")
     pe.set_defaults(func=cmd_export)
+
+    pcm = sub.add_parser("compare",
+                         help="diff two runs DBs — per-paper accuracy delta")
+    pcm.add_argument("left", help="path to left runs DB (the 'before')")
+    pcm.add_argument("right", help="path to right runs DB (the 'after')")
+    pcm.set_defaults(func=cmd_compare)
 
     pb = sub.add_parser("publish",
                         help="one-shot: run + report (writes to --out path)")

@@ -227,6 +227,26 @@ def test_schema_version_distribution(tmp_path):
     conn.close()
 
 
+def test_export_jsonl_filters_by_since(tmp_path):
+    """The export_jsonl `since=` filter is exposed via CLI in v1.64."""
+    from datetime import datetime, timedelta, timezone
+    from crucible.benchmark.runs_store import export_jsonl
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    rid = new_run_id()
+    insert_outcome(conn, run_id=rid, outcome=_outcome("a"),
+                   llm_provider="x", llm_model="x", schema_version="0.4.0")
+    # Future cutoff drops everything.
+    future = datetime.now(timezone.utc) + timedelta(days=7)
+    rows = list(export_jsonl(conn, since=future))
+    assert rows == []
+    # Past cutoff keeps everything.
+    past = datetime.now(timezone.utc) - timedelta(days=7)
+    rows = list(export_jsonl(conn, since=past))
+    assert len(rows) == 1
+    conn.close()
+
+
 def test_export_jsonl_streams_rows(tmp_path):
     from crucible.benchmark.runs_store import export_jsonl
     db = tmp_path / "runs.duckdb"
@@ -260,6 +280,52 @@ def test_export_jsonl_filters_by_paper_id_and_provider(tmp_path):
     only_y = list(export_jsonl(conn, llm_provider="y"))
     assert len(only_a) == 1 and len(only_y) == 1
     conn.close()
+
+
+def test_benchmark_compare_diffs_two_runs_dbs(tmp_path, capsys):
+    """`benchmark compare A B` shows per-paper delta + only-in-A /
+    only-in-B sets."""
+    from crucible.benchmark.cli import main
+    db_a = tmp_path / "a.duckdb"
+    db_b = tmp_path / "b.duckdb"
+
+    # Seed A: paper_x scores 4/8.
+    conn_a = open_runs_store(db_a)
+    rid = new_run_id()
+    insert_outcome(conn_a, run_id=rid,
+                   outcome=_outcome("paper_x", total=4),
+                   llm_provider="anthropic", llm_model="opus",
+                   schema_version="0.4.0")
+    insert_outcome(conn_a, run_id=rid,
+                   outcome=_outcome("only_in_a"),
+                   llm_provider="anthropic", llm_model="opus",
+                   schema_version="0.4.0")
+    conn_a.close()
+
+    # Seed B: paper_x scores 8/8 (improvement); only_in_b is new.
+    conn_b = open_runs_store(db_b)
+    rid_b = new_run_id()
+    insert_outcome(conn_b, run_id=rid_b,
+                   outcome=_outcome("paper_x", total=8, max_score=8),
+                   llm_provider="local", llm_model="qwen",
+                   schema_version="0.4.0")
+    insert_outcome(conn_b, run_id=rid_b,
+                   outcome=_outcome("only_in_b"),
+                   llm_provider="local", llm_model="qwen",
+                   schema_version="0.4.0")
+    conn_b.close()
+
+    rc = main(["compare", str(db_a), str(db_b)])
+    assert rc == 0
+    out = capsys.readouterr().out
+    import json as _json
+    parsed = _json.loads(out)
+    assert "only_in_a" in parsed["only_in_left"]
+    assert "only_in_b" in parsed["only_in_right"]
+    assert parsed["common_papers"] == 1
+    delta = parsed["deltas"][0]
+    assert delta["paper_id"] == "paper_x"
+    assert delta["delta_pp"] > 0   # B improved over A
 
 
 def test_benchmark_cli_publish_writes_markdown(tmp_path):
