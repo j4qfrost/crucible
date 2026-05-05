@@ -95,6 +95,115 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    """Smoke-check the Python install + (optionally) the air-gapped
+    configuration."""
+    import importlib.metadata
+    import os
+
+    findings: list[tuple[str, str, str]] = []   # (level, name, detail)
+
+    def add(level: str, name: str, detail: str) -> None:
+        findings.append((level, name, detail))
+
+    # Required deps.
+    for pkg in ("pydantic", "jsonschema"):
+        try:
+            ver = importlib.metadata.version(pkg)
+            add("ok", pkg, f"installed ({ver})")
+        except importlib.metadata.PackageNotFoundError:
+            add("error", pkg, "not installed (required base dep)")
+
+    # Optional extras.
+    for pkg, extra in (
+        ("duckdb", "[corpus]"),
+        ("streamlit", "[ui]"),
+        ("anthropic", "[llm-anthropic]"),
+    ):
+        try:
+            ver = importlib.metadata.version(pkg)
+            add("info", pkg, f"installed ({ver}) — extra {extra}")
+        except importlib.metadata.PackageNotFoundError:
+            add("info", pkg, f"not installed — install {extra} if needed")
+
+    # Schema sanity.
+    add("ok", "schema_version", f"{SCHEMA_VERSION!r}")
+
+    # Provider config.
+    provider = os.environ.get("CRUCIBLE_PROVIDER", "")
+    if provider:
+        add("ok", "CRUCIBLE_PROVIDER", provider)
+    else:
+        add("info", "CRUCIBLE_PROVIDER",
+            "unset — defaults vary by call site; set explicitly to pin")
+
+    if args.offline:
+        # Air-gapped mode: assert that no external-API config is active.
+        anth_key = os.environ.get("ANTHROPIC_API_KEY")
+        if anth_key:
+            add("error", "ANTHROPIC_API_KEY",
+                "is set — air-gapped mode forbids the Anthropic API. Unset it.")
+        else:
+            add("ok", "ANTHROPIC_API_KEY", "not set (correct for air-gapped)")
+
+        oa_email = os.environ.get("CRUCIBLE_OPENALEX_EMAIL")
+        if oa_email:
+            add("warn", "CRUCIBLE_OPENALEX_EMAIL",
+                f"is set ({oa_email!r}) — corpus fetch will hit OpenAlex. "
+                "Disable corpus fetch in air-gapped mode.")
+        else:
+            add("ok", "CRUCIBLE_OPENALEX_EMAIL", "not set")
+
+        local_ep = os.environ.get("CRUCIBLE_LOCAL_ENDPOINT")
+        if not local_ep:
+            add("warn", "CRUCIBLE_LOCAL_ENDPOINT",
+                "not set — LocalOpenAIProvider will use the default "
+                "http://localhost:8000/v1. Set explicitly in production.")
+        else:
+            # Pin to localhost / 127.0.0.1 / private nets only.
+            ep_lower = local_ep.lower()
+            is_local = any(seg in ep_lower for seg in
+                           ("localhost", "127.0.0.1", "10.", "172.16.",
+                            "172.17.", "172.18.", "172.19.", "172.2",
+                            "172.30.", "172.31.", "192.168."))
+            if is_local:
+                add("ok", "CRUCIBLE_LOCAL_ENDPOINT",
+                    f"{local_ep!r} (looks local — good)")
+            else:
+                add("warn", "CRUCIBLE_LOCAL_ENDPOINT",
+                    f"{local_ep!r} doesn't look like a private-net URL. "
+                    "Verify it's inside your air-gap.")
+
+        hekate = os.environ.get("CRUCIBLE_HEKATE_PUBLISH_EVENTS", "0")
+        if hekate == "1":
+            add("error", "CRUCIBLE_HEKATE_PUBLISH_EVENTS",
+                "set to 1 — AT Protocol publishing is enabled. Unset for air-gap.")
+        else:
+            add("ok", "CRUCIBLE_HEKATE_PUBLISH_EVENTS",
+                "not enabled (default; correct for air-gapped)")
+
+    # Render.
+    n_error = sum(1 for level, _, _ in findings if level == "error")
+    n_warn = sum(1 for level, _, _ in findings if level == "warn")
+    if args.format == "json":
+        print(json.dumps([
+            {"level": level, "name": name, "detail": detail}
+            for level, name, detail in findings
+        ], indent=2))
+    else:
+        for level, name, detail in findings:
+            mark = {"ok": "✓", "info": "ℹ", "warn": "⚠", "error": "✗"}[level]
+            print(f"{mark} {name}: {detail}")
+        print()
+        if n_error:
+            print(f"✗ {n_error} error(s); doctor failed.", file=sys.stderr)
+        elif n_warn:
+            print(f"⚠ {n_warn} warning(s).", file=sys.stderr)
+        else:
+            print("✓ all checks passed.", file=sys.stderr)
+    return n_error    # exit 0 if no errors; warnings don't fail
+
+
 def _cmd_spec_describe(args: argparse.Namespace) -> int:
     """Pretty-print the IR's structure — quick reference for users
     writing custom adapters or hand-editing specs."""
@@ -169,6 +278,13 @@ def main(argv: list[str] | None = None) -> int:
                          help="print the IR's allowlists + schema version")
     psd.add_argument("--format", choices=["text", "json"], default="text")
     psd.set_defaults(func=_cmd_spec_describe)
+
+    pdo = sub.add_parser("doctor",
+                         help="smoke-check the install (+ --offline for air-gap audit)")
+    pdo.add_argument("--offline", action="store_true",
+                     help="verify config is air-gap-ready per docs/AIR_GAPPED.md")
+    pdo.add_argument("--format", choices=["text", "json"], default="text")
+    pdo.set_defaults(func=_cmd_doctor)
 
     args = p.parse_args(argv)
     return args.func(args)

@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### v1.82 — `crucible-py doctor` (Python install + air-gap audit) (2026-05-05)
+
+Python equivalent of the Julia `crucible doctor`, plus an
+`--offline` mode that audits the running env against the v1.80
+AIR_GAPPED.md commitments.
+
+- **`python -m crucible doctor`** — pure-Python smoke check;
+  reports installed-version per base dep (pydantic, jsonschema)
+  + each optional extra (duckdb, streamlit, anthropic) + live
+  `SCHEMA_VERSION` + `CRUCIBLE_PROVIDER` config.
+- **`python -m crucible doctor --offline`** — enforces air-gap
+  invariants:
+  - **Errors** on `ANTHROPIC_API_KEY` set (forbidden) or
+    `CRUCIBLE_HEKATE_PUBLISH_EVENTS=1` (AT Protocol publishing
+    enabled).
+  - **Warns** on `CRUCIBLE_OPENALEX_EMAIL` set (corpus fetch
+    would hit OpenAlex) or `CRUCIBLE_LOCAL_ENDPOINT` not pointing
+    to localhost / private-net.
+  - **OK** when all checks are air-gap-friendly.
+- `--format json` for CI integration. Exit code = error count
+  (warnings don't fail).
+- 6 new tests; **220/220 pytest** (was 214).
+
 ### v1.81 — `tools/inventory_egress.py` (static-analysis audit) (2026-05-05)
 
 Companion to v1.80's `AIR_GAPPED.md`: a static-analysis script that
