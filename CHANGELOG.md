@@ -2,6 +2,61 @@
 
 ## Unreleased
 
+### v1.88 — live local-LLM smoke (closes #3) (2026-05-05)
+
+Opt-in test module that exercises `LocalOpenAIProvider` against a
+real running OpenAI-API-compatible LLM server, complementing the 8
+unit tests (which inject `http_post=` and prove only the parser).
+
+- **`python/tests/test_local_llm_live.py`** — 2 tests; gated on
+  `CRUCIBLE_LIVE_LOCAL_LLM=1` so the regular suite still skips
+  cleanly.
+- Configurable via the existing `CRUCIBLE_LOCAL_ENDPOINT` /
+  `CRUCIBLE_LOCAL_MODEL` env vars (defaults: localhost Ollama,
+  `qwen2.5-coder:3b`).
+- Module-scoped fixture probes `/v1/models` first; skips
+  gracefully if the endpoint isn't reachable, so accidentally
+  setting the env var on a box without Ollama doesn't break CI.
+- Tests:
+  1. Round-trip a real Methods paragraph through the provider;
+     accept either `out.ok` (schema-valid) or fail-soft
+     (`spec is None` + non-empty `raw_response`). Asserts the
+     fail-soft contract — no exception escapes regardless of
+     model output quality.
+  2. Unknown model name → fail-soft, with the URL or "model" /
+     "not found" surfaced in the raw_response.
+- Verified live against snowman's Ollama (`qwen2.5-coder:3b`) —
+  both tests pass in ~21 s; default suite is **220 passed,
+  2 skipped**.
+
+### v1.87 — `tools/precompile_offline_bundle.sh` (closes #2) (2026-05-05)
+
+Closes the doc-to-deployment gap from `docs/AIR_GAPPED.md`. Until
+now an operator following the doc had to hand-execute six tar
+commands; this script makes the bundle a single command.
+
+- **`tools/precompile_offline_bundle.sh`** — bundles, in order,
+  six layers (each independently skippable):
+  1. Python wheels via `pip download python[corpus,llm-anthropic]`
+  2. Julia depot — uses a *throwaway* `JULIA_DEPOT_PATH` rooted in
+     staging so we capture only the Project's transitive deps
+     (the user's full `~/.julia` is way too large).
+  3. OpenMM + scientific Python stack (optional `--openmm`)
+  4. Ollama model weights (repeatable `--ollama-model` flag)
+  5. Source tree via `git archive` (clean — no `.git/`, no untracked)
+  6. `MANIFEST.txt` with timestamp, HEAD SHA, host, and SHA256
+     sums of every artifact
+- **`tools/verify_offline_bundle.sh`** — companion script. Unpacks
+  the bundle into a scratch dir, sha256-checks every file, asserts
+  source/Project.toml is intact, and runs the workspace check
+  against the unpacked tree. Run before scp'ing across the
+  air-gap; exit 0 = good to ship.
+- Auto-names the output (`crucible-airgap-vN.NN-YYYYMMDD.tar.gz`)
+  from CHANGELOG.md if `--out` is omitted.
+- Smoke-tested end-to-end on snowman:
+  - source-only bundle: 560 KB, 243 SHA256 sums verified
+  - Python-wheels bundle: 26 MB, 22 wheels, 265 SHA256 sums verified
+
 ### v1.86 — wire air-gap audit into GHA CI (2026-04-29)
 
 Adds a new `air-gap-audit` job to `.github/workflows/ci.yml` so
