@@ -183,3 +183,48 @@ def test_benchmark_cli_add_rejects_duplicate_paper_id(capsys):
     assert rc == 1
     captured = capsys.readouterr()
     assert "already in seed set" in captured.err
+
+
+def test_benchmark_cli_verify_subcommand_exists():
+    from crucible.benchmark.cli import build_parser
+    p = build_parser()
+    sub_action = next(a for a in p._actions if hasattr(a, "choices") and a.choices)
+    assert "verify" in sub_action.choices
+    verify_parser = sub_action.choices["verify"]
+    arg_names = {action.dest for action in verify_parser._actions}
+    assert {"paper_id", "initials", "force"}.issubset(arg_names)
+
+
+def test_benchmark_cli_verify_unknown_paper_fails(capsys):
+    from crucible.benchmark.cli import main
+    rc = main(["verify", "--paper-id", "nonexistent_2099"])
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "unknown paper_id" in captured.err
+
+
+def test_patch_entry_replaces_expected_block_and_stamps_verified_by():
+    """Unit test for the patcher; doesn't require interactive input."""
+    from crucible.benchmark.cli import _patch_entry
+    text = '''
+    BenchmarkEntry(
+        paper_id="test_x",
+        doi="10.0/x",
+        title="X",
+        expected=ExpectedProtocol(
+            protein_ff=None,
+        ),
+        status="needs_verification",
+        notes="original notes",
+    ),
+'''
+    new_values = {"protein_ff": "amber14sb", "water_model": "TIP3P"}
+    out = _patch_entry(text, paper_id="test_x", new_values=new_values,
+                       verified_by="ABC 2026-05-04",
+                       notes_extra=["dt: paper does not specify"])
+    assert 'status="verified"' in out
+    assert "verified_by='ABC 2026-05-04'" in out or 'verified_by="ABC 2026-05-04"' in out
+    assert "amber14sb" in out
+    assert "TIP3P" in out
+    assert "[verify ABC 2026-05-04]" in out
+    assert "dt: paper does not specify" in out

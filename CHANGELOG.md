@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### v1.43 — interactive `benchmark verify` CLI (2026-05-04)
+
+Lowest-friction path to flipping a `needs_verification` entry to
+`verified`. Closes the "remember-the-syntax" friction at the keyboard;
+reading the paper is still the bottleneck (and rightly so).
+
+- **`python -m crucible benchmark verify --paper-id <id> [--initials AQN] [--force]`**
+  walks the 8 `ExpectedProtocol` axes interactively. For each axis:
+  enter a value, `none` (paper doesn't specify), or empty (keep
+  current). Confirms once, then surgically patches `papers.py`:
+  - replaces the `expected=ExpectedProtocol(...)` body with the new
+    field values
+  - strips any existing `status=`/`verified_by=` lines and re-inserts
+    canonical `status="verified"` + `verified_by="<initials> <YYYY-MM-DD>"`
+    just before the entry's closing `),`
+  - appends a `[verify <stamp>] <axis>: paper does not specify` note
+    for every axis the user marked `none`
+- The patcher uses **indent-based termination** for both the
+  `BenchmarkEntry(...)` block and the inner `ExpectedProtocol(...)`
+  block — naive `[^)]*\)` regexes hit early-close on parens-in-titles
+  like `"(PubMed PMID 20947758)"` or `"(Lindorff-Larsen et al., 2010)"`.
+  Real-papers smoke-tested against the Shaw 2010 entry; all 5
+  benchmark tests still pass after the patch.
+- **`docs/HOW_TO_VERIFY_A_PAPER.md`** — new section §4a documents the
+  interactive command as the recommended path; the by-hand procedure
+  is now §4b.
+- 3 new tests (subcommand registration, unknown-paper rejection,
+  patcher unit test). **112/112 pytest** (was 109).
+
 ### v1.42 — corpus full-text fetch (PDF → pdftotext) (2026-05-04)
 
 `paper_text_for_doi` learns to fetch + extract OA PDFs on demand.

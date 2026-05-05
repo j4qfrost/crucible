@@ -101,7 +101,21 @@ Common mappings:
 - "TIP3P" → `TIP3P`
 - "GBSA" → `implicit_GBSA`
 
-### 4. Edit the entry
+### 4a. Interactive — `crucible benchmark verify` (recommended)
+
+Easiest path: run the interactive verifier:
+
+```bash
+python -m crucible benchmark verify --paper-id shaw_2010_bpti --initials AQN
+```
+
+It walks through the 8 axes, accepts a value or `none` (paper doesn't
+specify) or empty (keep current) per axis, asks for confirmation, and
+patches `papers.py` directly. Stamps `verified_by="<initials> <YYYY-MM-DD>"`
+and flips `status` to `"verified"`. Works against the real entry blocks
+(handles parens-in-titles like `(PubMed PMID …)` correctly).
+
+### 4b. By hand
 
 ```python
 BenchmarkEntry(

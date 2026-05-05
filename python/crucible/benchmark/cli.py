@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 
 from .papers import list_entries, load_seed_set
@@ -45,6 +47,220 @@ def cmd_status(args: argparse.Namespace) -> int:
         "verified_pct": by_status.get("verified", 0) / max(len(entries), 1),
     }, indent=2))
     return 0
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    """Interactive axis-by-axis verification of a single seed entry.
+
+    Walks the user through the 8 ExpectedProtocol axes, accepts a value
+    or `none`/empty for each, prints the resulting Python diff, and
+    appends a `verified_by` stamp. Writes the change back to papers.py
+    so the next pytest run picks it up.
+
+    Designed to lower the friction on the highest-leverage paywall-gated
+    punch-list item per `docs/HOW_TO_VERIFY_A_PAPER.md`. Reading the
+    paper is still the bottleneck — this just kills the
+    "what-was-the-syntax" friction at the keyboard.
+    """
+    entries_by_id = {e.paper_id: e for e in list_entries()}
+    if args.paper_id not in entries_by_id:
+        print(f"unknown paper_id {args.paper_id!r}. available:", file=sys.stderr)
+        for pid in sorted(entries_by_id):
+            print(f"  - {pid}", file=sys.stderr)
+        return 1
+    entry = entries_by_id[args.paper_id]
+    if entry.is_scoreable() and not args.force:
+        print(f"{args.paper_id!r} is already verified ({entry.verified_by}). "
+              f"Pass --force to re-verify.", file=sys.stderr)
+        return 1
+
+    print(f"Verifying: {entry.title}")
+    print(f"DOI: https://doi.org/{entry.doi}")
+    print()
+    print("For each axis, enter a value or 'none' (paper doesn't specify) "
+          "or '' to keep current.")
+    print("See docs/HOW_TO_VERIFY_A_PAPER.md for allowlist mappings.\n")
+
+    axes: list[tuple[str, str, str, type]] = [
+        ("protein_ff", "amber14sb / amber99sb_ildn / charmm36m / opls_aam / "
+                       "martini3 / martini2_2", "string", str),
+        ("water_model", "TIP3P / TIP4P_EW / SPC_E / implicit_GBSA / vacuum",
+         "string", str),
+        ("ensemble", "NVE / NVT / NPT (production stage)", "string", str),
+        ("dt_fs", "integration timestep in fs (e.g. 2.0)", "float", float),
+        ("temperature_K", "production temperature (e.g. 300.0)", "float", float),
+        ("duration_ns", "production duration; FEP=per-window, REMD=per-replica",
+         "float", float),
+        ("pressure_bar", "barostat pressure (NPT only)", "float", float),
+        ("fep_lambda_count", "number of FEP λ-windows (FEP only)",
+         "int", int),
+    ]
+
+    new_values: dict[str, object] = {}
+    notes_lines: list[str] = []
+    for name, hint, kind, parse in axes:
+        current = getattr(entry.expected, name)
+        prompt = f"  {name} ({hint}) [current={current!r}]: "
+        try:
+            raw = input(prompt).strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\naborted.", file=sys.stderr)
+            return 130
+        if not raw:
+            new_values[name] = current
+            continue
+        if raw.lower() in ("none", "null", "n/a", "-"):
+            new_values[name] = None
+            notes_lines.append(f"{name}: paper does not specify")
+            continue
+        try:
+            new_values[name] = parse(raw)
+        except (ValueError, TypeError):
+            print(f"  ⚠ couldn't parse {raw!r} as {kind}; leaving as {current!r}",
+                  file=sys.stderr)
+            new_values[name] = current
+
+    print("\nNew expected protocol:")
+    for name, _, _, _ in axes:
+        print(f"  {name} = {new_values[name]!r}")
+    print()
+
+    initials = args.initials or os.environ.get("USER", "ANON").upper()[:3]
+    today = datetime.now().strftime("%Y-%m-%d")
+    verified_by = f"{initials} {today}"
+
+    confirm = input(f"Write to papers.py and stamp 'verified_by=\"{verified_by}\"'? [y/N] ").strip()
+    if confirm.lower() not in ("y", "yes"):
+        print("aborted.", file=sys.stderr)
+        return 1
+
+    papers_path = Path(__file__).resolve().parent / "papers.py"
+    text = papers_path.read_text()
+    new_text = _patch_entry(
+        text, paper_id=args.paper_id,
+        new_values=new_values,
+        verified_by=verified_by,
+        notes_extra=notes_lines,
+    )
+    if new_text == text:
+        print("no change written (regex didn't match — file layout drifted?)",
+              file=sys.stderr)
+        return 2
+    papers_path.write_text(new_text)
+    print(f"✓ wrote verified status for {args.paper_id!r}")
+    print("next: run `cd python && pytest tests/test_benchmark.py` to confirm.",
+          file=sys.stderr)
+    return 0
+
+
+def _patch_entry(text: str, *, paper_id: str,
+                 new_values: dict[str, object],
+                 verified_by: str,
+                 notes_extra: list[str]) -> str:
+    """Surgical re-write of a single BenchmarkEntry block.
+
+    Finds the `paper_id="<paper_id>"` line, walks forward to the matching
+    closing `)`, replaces the ExpectedProtocol field block + status +
+    verified_by inside. Conservative: returns `text` unchanged if the
+    expected shape isn't found.
+    """
+    import re
+    # Find the BenchmarkEntry whose paper_id matches; the entry block ends
+    # at the next `\n<INDENT>),\n` where INDENT matches the entry's own
+    # opening indent. Indent-based termination avoids the parens-inside-
+    # string-literal trap (titles contain things like
+    # "(Lindorff-Larsen et al., 2010)").
+    pid_re = re.compile(
+        r"^([ \t]*)BenchmarkEntry\(\s*\n\s*paper_id=[\"']"
+        + re.escape(paper_id) + r"[\"']",
+        re.MULTILINE,
+    )
+    m = pid_re.search(text)
+    if not m:
+        return text
+    indent = m.group(1)
+    open_idx = m.start()
+    # Walk forward for the closing `\n<indent>),`. There may be inner
+    # `),` lines (from nested ExpectedProtocol or List literals) but
+    # they're at deeper indentation.
+    closer = "\n" + indent + "),"
+    close_idx = text.find(closer, m.end())
+    if close_idx == -1:
+        return text
+    end = close_idx + len(closer)
+    block = text[open_idx:end]
+
+    # ExpectedProtocol is one indent-level deeper than BenchmarkEntry. Its
+    # closing `)` is at indent + "    "; find that for safe termination
+    # (regex `[^)]*\)` would close early on parens-in-comments like
+    # "(PubMed PMID 20947758)" inside titles or notes).
+    field_indent = indent + "        "       # 8 spaces deeper than entry indent
+    closer_indent = indent + "    "          # 4 spaces deeper
+    field_lines = []
+    for k, v in new_values.items():
+        field_lines.append(f"{field_indent}{k}={v!r},")
+    new_expected = "expected=ExpectedProtocol(\n" + "\n".join(field_lines) + "\n" + closer_indent + ")"
+
+    ep_open_idx = block.find("expected=ExpectedProtocol(")
+    if ep_open_idx == -1:
+        block_new = block
+    else:
+        ep_closer = "\n" + closer_indent + ")"
+        ep_close_idx = block.find(ep_closer, ep_open_idx)
+        if ep_close_idx == -1:
+            block_new = block
+        else:
+            ep_end = ep_close_idx + len(ep_closer)
+            block_new = block[:ep_open_idx] + new_expected + block[ep_end:]
+    # Strip any existing `status=...,` and `verified_by=...,` lines so we can
+    # reinsert canonical ones just before the closing `),`. The dataclass
+    # defaults `status="needs_verification"` + `verified_by=None`, so an
+    # entry may have neither line at all.
+    line_indent = indent + "    "          # one level deeper than entry
+    block_new = re.sub(
+        r"^[ \t]*status=[^,\n]+,\s*\n",
+        "",
+        block_new,
+        flags=re.MULTILINE,
+    )
+    block_new = re.sub(
+        r"^[ \t]*verified_by=[^,\n]+,\s*\n",
+        "",
+        block_new,
+        flags=re.MULTILINE,
+    )
+    inject = (
+        f'{line_indent}status="verified",\n'
+        f'{line_indent}verified_by={verified_by!r},\n'
+    )
+    # Insert just before the closing `\n<indent>),` of this BenchmarkEntry.
+    entry_closer = f"\n{indent}),"
+    close_pos = block_new.rfind(entry_closer)
+    if close_pos == -1:
+        # Defensive: if we somehow lost the closer, leave block_new as-is.
+        pass
+    else:
+        block_new = block_new[:close_pos + 1] + inject + block_new[close_pos + 1:]
+
+    # Append notes_extra to the existing notes.
+    if notes_extra:
+        joined = "; ".join(notes_extra)
+        # Look for the notes= line and append to it.
+        notes_re = re.compile(
+            r'(notes=)("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')',
+            re.DOTALL,
+        )
+        nm = notes_re.search(block_new)
+        if nm:
+            old_notes_literal = nm.group(2)
+            try:
+                old_notes = eval(old_notes_literal)  # safe — captured string literal
+            except Exception:
+                old_notes = ""
+            new_notes_text = f"{old_notes}\n\n[verify {verified_by}] {joined}"
+            block_new = block_new[:nm.start()] + f"notes={new_notes_text!r}" + block_new[nm.end():]
+
+    return text.replace(block, block_new, 1)
 
 
 def cmd_add(args: argparse.Namespace) -> int:
@@ -227,6 +443,16 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("--title", required=True,
                     help="paper title (single-line; can be long)")
     pa.set_defaults(func=cmd_add)
+
+    pv = sub.add_parser("verify",
+                        help="interactive axis-by-axis verification of one entry")
+    pv.add_argument("--paper-id", required=True,
+                    help="paper_id of the seed entry to verify")
+    pv.add_argument("--initials", default=None,
+                    help="initials for verified_by (default: $USER first 3 chars)")
+    pv.add_argument("--force", action="store_true",
+                    help="re-verify an already-verified entry")
+    pv.set_defaults(func=cmd_verify)
 
     pr = sub.add_parser("run", help="run the transpile against the seed set")
     pr.add_argument("--mock", action="store_true",
