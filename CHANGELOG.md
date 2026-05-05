@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### v1.79 — native Python LLM provider (2026-05-05)
+
+Companion to the v1.24 cli_bridge: pure-Python `LLMProvider` so
+headless Python services don't need to shell out to Julia for the
+transpile call. Same contract as the Julia-side
+`Crucible.LLMProvider`; cross-language consistency continues to be
+the schema's responsibility.
+
+- **`python/crucible/llm/`** — new module:
+  - `provider.py`: `LLMProvider` ABC + `TranspileResult` dataclass +
+    `MockLLMProvider` (deterministic, no deps, returns named
+    templates).
+  - `anthropic.py`: `AnthropicLLMProvider` using the `anthropic`
+    SDK with structured-output tool-use binding `schema.json` as
+    the `emit_mdspec` tool's `input_schema`. Fail-soft on rate
+    limits / network / invalid output. Constructor accepts an
+    injectable `client=` for tests.
+  - `__init__.py`: re-exports the public API.
+- **`python/pyproject.toml`** — new optional extra
+  `[llm-anthropic] = ["anthropic>=0.40"]`. The base interface has
+  no third-party deps.
+- 12 new tests (5 mock + 7 anthropic-with-mocked-client). **206/206
+  pytest** (was 194).
+- The local-LLM (Ollama / vLLM / llama.cpp) provider is queued for
+  v1.80; same shape, different transport.
+
 ### v1.78 — refactor: extract `seed_patcher` from `benchmark/cli.py` (2026-05-05)
 
 `benchmark/cli.py` had grown to 943 lines via 36 accreted slices.

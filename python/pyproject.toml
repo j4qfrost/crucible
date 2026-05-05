@@ -42,6 +42,9 @@ ui = [
     "streamlit>=1.30",
     "duckdb>=1.0",
 ]
+llm-anthropic = [
+    "anthropic>=0.40",
+]
 
 [project.urls]
 Homepage = "https://github.com/j4qfrost/crucible"
