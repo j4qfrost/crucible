@@ -225,6 +225,6 @@ separate conversation.
   Phase A weeks 4-6 — the planning context.
 - [`docs/CAMPAIGN_2026Q2.md`](CAMPAIGN_2026Q2.md) — pharma-CADD
   outreach template that cites this page.
-- [`docs/ON_PREM_DEPLOY_DOCKER.md`](ON_PREM_DEPLOY_DOCKER.md) —
-  follow-up doc with a concrete docker-compose. (TODO: write
-  alongside the first real pilot conversation.)
+- `docs/ON_PREM_DEPLOY_DOCKER.md` (planned, not yet written) —
+  follow-up doc with a concrete docker-compose. To be drafted
+  alongside the first real pilot conversation.

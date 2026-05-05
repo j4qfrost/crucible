@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### v1.68 — doc-links auditor + workspace-check integration (2026-05-04)
+
+Catches doc-rot — the regression class where a renamed/moved doc
+leaves stale cross-references behind in the rest of the doc set.
+v1.57–v1.62 shipped 11 new docs with hundreds of cross-references;
+this auditor enforces they keep resolving.
+
+- **`tools/check_doc_links.py`** — scans every `.md` under
+  `docs/`, `musings/`, `examples/`, plus the workspace-root markdown
+  files (README, AGENTS, CONTRIBUTING, SECURITY, CHANGELOG). For
+  each `[text](path)` link, resolves the target and verifies it
+  exists. Skips external (`http://`, `mailto:`) + anchor-only
+  links. Exit code = number of broken links.
+- **First-run finding:** 1 broken link out of 331 — a forward-
+  reference in `docs/ON_PREM.md` to the
+  `ON_PREM_DEPLOY_DOCKER.md` doc that's deferred per the
+  commercial-validation plan. Fixed inline (link → plain text +
+  "(planned, not yet written)" qualifier).
+- **`tools/check_workspace.py`** — sixth check added:
+  `doc_links` invokes `check_doc_links.py` as a subprocess.
+  All 6 checks green at this commit.
+- Designed for pre-commit + CI integration alongside the
+  v1.56 schema/manifest/pydantic guards.
+
 ### v1.67 — `corpus query` (read-only SQL escape hatch) (2026-05-04)
 
 When `papers` / `coauthors` / `authors` don't cover a one-off
