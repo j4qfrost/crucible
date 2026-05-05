@@ -393,10 +393,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         return entry.title
 
     if args.mock:
-        # Identity transpile for smoke testing — returns a vanilla template.
-        from ..templates import init as init_template
-        def transpile_fn(_text):
-            return init_template("vanilla")
+        # Deterministic mock — returns the vanilla template for every paper.
+        # Promoted to MockTranspileProvider so tests can call it directly.
+        from .runner import MockTranspileProvider
+        transpile_fn = MockTranspileProvider(template_name="vanilla")
     else:
         from ..cli_bridge import _run as cli_run
         from ..spec import MDSpec

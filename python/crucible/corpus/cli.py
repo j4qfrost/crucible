@@ -91,6 +91,28 @@ def cmd_coauthors(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_authors(args: argparse.Namespace) -> int:
+    """List authors in the local DB, ordered by local works count desc."""
+    with _open_store(args) as store:
+        sql = """
+            SELECT a.author_id, a.display_name, a.last_known_inst, a.h_index,
+                   COUNT(wa.work_id) AS local_works
+            FROM authors a
+            LEFT JOIN work_authors wa ON wa.author_id = a.author_id
+            GROUP BY a.author_id, a.display_name, a.last_known_inst, a.h_index
+            ORDER BY local_works DESC, a.display_name
+        """
+        params: list = []
+        if args.limit:
+            sql += " LIMIT ?"
+            params.append(args.limit)
+        cur = store._conn.execute(sql, params)
+        cols = [d[0] for d in cur.description]
+        for row in cur.fetchall():
+            print(json.dumps(dict(zip(cols, row))))
+    return 0
+
+
 def cmd_stats(args: argparse.Namespace) -> int:
     """Print row counts per table."""
     with _open_store(args) as store:
@@ -152,6 +174,11 @@ def build_parser() -> argparse.ArgumentParser:
     pc.add_argument("author_id", help="OpenAlex A… id of the focal author")
     pc.add_argument("--limit", type=int, default=None)
     pc.set_defaults(func=cmd_coauthors)
+
+    pa = sub.add_parser("authors", help="list authors in the local DB")
+    pa.add_argument("--limit", type=int, default=None,
+                    help="cap the number of authors emitted")
+    pa.set_defaults(func=cmd_authors)
 
     ps = sub.add_parser("stats", help="row counts per table")
     ps.set_defaults(func=cmd_stats)

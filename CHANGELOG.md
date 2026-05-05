@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### v1.53 — `corpus authors` + `MockTranspileProvider` class (2026-05-04)
+
+Two small surface improvements.
+
+- **`python -m crucible corpus authors [--limit N]`** — list authors
+  in the local DB ordered by local-works-count desc. Closes the
+  "browse without DuckDB" gap (previously you had to query the DB
+  directly to see what was ingested).
+- **`crucible.benchmark.MockTranspileProvider`** — promoted from an
+  inline lambda inside `cmd_run`'s `--mock` path to a real testable
+  class. Constructor takes `template_name=` so tests can pin a
+  specific template; default is `"vanilla"`. Lives in
+  `benchmark/runner.py` and is re-exported from `crucible.benchmark`.
+  The CLI's `--mock` path now uses it, so what tests exercise is
+  what production runs do.
+- 3 new tests (mock provider returns named template, mock default,
+  corpus authors lists local rows). **148/148 pytest** (was 145).
+
 ### v1.52 — `--brief` reports + `runs-stats-md` (2026-05-04)
 
 Two report-layer surface improvements that lean on the v1.45 data

@@ -25,6 +25,30 @@ from .scorer import ScoreResult, score
 TranspileFn = Callable[[str], MDSpec]
 
 
+class MockTranspileProvider:
+    """Deterministic mock transpile callable.
+
+    Returns a `MDSpec` chosen by `template_name` (defaults to vanilla).
+    Useful for smoke tests + CI cells that exercise the runner /
+    scorer / reporter without paying for live LLM tokens.
+
+    Use as a `TranspileFn`:
+
+        runner.run(entries, paper_text_fn,
+                   MockTranspileProvider(template_name="vanilla"))
+
+    Promoted from an inline lambda inside `cli.py:cmd_run` so tests can
+    exercise the same code path the `--mock` CLI flag does.
+    """
+
+    def __init__(self, *, template_name: str = "vanilla"):
+        self.template_name = template_name
+
+    def __call__(self, _paper_text: str) -> MDSpec:
+        from ..templates import init as init_template
+        return init_template(self.template_name)
+
+
 @dataclass
 class RunOutcome:
     paper_id: str

@@ -176,6 +176,20 @@ def test_score_none_expected_drops_axis_from_denominator():
 # -----------------------------------------------------------------------------
 # Runner
 
+def test_mock_transpile_provider_returns_named_template():
+    from crucible.benchmark import MockTranspileProvider
+    mock = MockTranspileProvider(template_name="kinase_inhibitor_fep")
+    out = mock("any paper text")
+    assert out.system.source.pdb_id == "2HYY"
+
+
+def test_mock_transpile_provider_default_is_vanilla():
+    from crucible.benchmark import MockTranspileProvider
+    mock = MockTranspileProvider()
+    out = mock("...")
+    assert out.notes.startswith("vanilla MD template")
+
+
 def test_runner_yields_outcome_per_entry():
     entries = [_verified_entry(), _verified_entry()]
     object.__setattr__(entries[1], "paper_id", "second")

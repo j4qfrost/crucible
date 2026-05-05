@@ -39,11 +39,12 @@ from .papers import (
 )
 from .scorer import ScoreAxis, ScoreResult, score
 from .reporter import render_report
-from .runner import RunOutcome, run
+from .runner import MockTranspileProvider, RunOutcome, run
 
 __all__ = [
     "BenchmarkEntry",
     "ExpectedProtocol",
+    "MockTranspileProvider",
     "ScoreAxis",
     "ScoreResult",
     "RunOutcome",
