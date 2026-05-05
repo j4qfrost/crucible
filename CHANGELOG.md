@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### v1.59 — adoption-strategy playbook meta-doc (2026-05-04)
+
+The "record notes as you go" piece complementing v1.57+v1.58.
+Distills the patterns that emerged while writing seven user-profile
+docs into a reusable playbook for future adoption-doc work.
+
+- **`docs/ADOPTION_STRATEGY_PLAYBOOK.md`** — captures:
+  - The three orthogonal axes (role / outcome / cadence) and why
+    organizing around role is correct for adoption.
+  - The 6-section shape every `USER_PROFILE_*.md` follows
+    (one-paragraph hook with concrete artifact, pre-flight,
+    30-minute path, first-week path, failure modes, next-reads),
+    with notes on what each section requires.
+  - Five anti-patterns to avoid: The Tour, The Pre-Flight
+    Inflation, The Aspirational Failure Mode, The Endless
+    Cross-Reference, The Missing Outcome.
+  - Time-to-value calibration (≤30 min, 1 day, 1 week, 30 days)
+    with what's possible at each cadence.
+  - The bar for adding a new profile: real adopter, real outcome,
+    real time-to-value measurement. Speculative profiles harm the
+    set.
+  - Sequencing notes: which profiles are plausible-but-unevidenced
+    (HPC admin, wet-lab biologist, AI/ML researcher) and why we're
+    deliberately waiting.
+  - Maintenance rules: 30-min paths track current project state;
+    drift is a regression, not a budget revision.
+- Companion to `musings/scaling_modes.md` (strategic) and
+  `docs/CAMPAIGN_2026Q2.md` (operational); this is the
+  *tactical* playbook for individual artifacts.
+
 ### v1.58 — three more user-profile docs (reproducibility / data eng / JOSS) (2026-05-04)
 
 Rounds out the v1.57 user-profile index with three more dedicated
