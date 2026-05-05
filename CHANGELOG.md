@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### v1.81 — `tools/inventory_egress.py` (static-analysis audit) (2026-05-05)
+
+Companion to v1.80's `AIR_GAPPED.md`: a static-analysis script that
+catalogs every potential outbound-network call in the codebase.
+Useful for the air-gapped audit when a new dep adds an opaque
+external touchpoint — diff the inventory before vs. after to see
+exactly what shifted.
+
+- **`tools/inventory_egress.py`** — pattern-matches Python + Julia
+  source for outbound calls across 10 categories: stdlib urllib,
+  third-party requests / httpx, Anthropic + OpenAI SDKs, Julia
+  HTTP.jl + Downloads, Pkg server, subprocess to curl/wget, DNS
+  lookups. Skips comment lines (don't false-positive on docs that
+  describe disabled paths). Skips `.venv`, `__pycache__`,
+  `node_modules`, `build`, `dist`. Two output formats: text
+  (grouped by category for human reading) + JSON (for
+  machine-readable diffs).
+- **`--strict`** flag (forward-looking): exits non-zero on any
+  uncategorized hit. The current pattern set covers everything
+  in the codebase; if a new pattern shows up, the strict gate
+  fails and we add a category.
+- **First-run inventory:** 19 sites total — 2 anthropic SDK
+  (LLM call), 10 Julia HTTP.jl (input adapters + atproto + LLM),
+  7 stdlib urllib (corpus OpenAlex + corpus full-text PDF +
+  Python LocalLLM + 1 test mock). Every site maps cleanly to an
+  entry in the AIR_GAPPED.md external-touchpoint table.
+
 ### v1.80 — `LocalOpenAIProvider` + `docs/AIR_GAPPED.md` (2026-05-05)
 
 Two slices that compose into the locked-down-research story.
