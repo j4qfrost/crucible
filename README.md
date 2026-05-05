@@ -216,6 +216,39 @@ step):
 - [`examples/membrane_protein.jl`](examples/membrane_protein.jl) — GPCR in POPC
   bilayer with `MonteCarloMembraneBarostat`
 
+## Tools
+
+CI-grade scripts under `tools/` that the maintainer + contributors
+should know about:
+
+- [`tools/check_workspace.py`](tools/check_workspace.py) — runs all
+  7 cross-file consistency checks (schema-version drift × 2,
+  fixture validity, manifest format, pydantic pin, doc-links,
+  profile-shape). `python tools/check_workspace.py --verbose` to
+  see passes too.
+- [`tools/check_doc_links.py`](tools/check_doc_links.py) — verifies
+  every `[text](path)` cross-reference in `docs/`, `musings/`,
+  `examples/`, plus root markdown files. Code-span aware (skips
+  links inside backticks).
+- [`tools/check_profile_shape.py`](tools/check_profile_shape.py) —
+  enforces the `docs/ADOPTION_STRATEGY_PLAYBOOK.md` 6-section shape
+  on every `USER_PROFILE_*.md`.
+- [`tools/release_summary.py`](tools/release_summary.py) — compact
+  one-line-per-version view of CHANGELOG.md.
+  `python tools/release_summary.py --latest 30` is a fast catch-up
+  when joining the project mid-stream.
+- [`tools/install_precommit.sh`](tools/install_precommit.sh) —
+  opt-in pre-commit hook installer that wires
+  `check_workspace.py` into git.
+  Idempotent + sentinel-marked + refuses to clobber foreign hooks.
+- [`tools/migration_smoke.jl`](tools/migration_smoke.jl) — walks
+  every test fixture through every registered schema migration
+  target.
+- [`tools/cross_lang_roundtrip.jl`](tools/cross_lang_roundtrip.jl)
+  — read JSONL of MDSpec on stdin; round-trip via Julia's
+  `spec_from_json` / `spec_to_json`. Used by the cross-language
+  consistency tests.
+
 ## How the option-3 flywheel works
 
 Every transpile session can be appended to `~/.local/share/crucible/transcripts.duckdb`

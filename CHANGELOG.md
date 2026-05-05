@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### v1.73 — README "Tools" section for script discoverability (2026-05-04)
+
+The v1.41–v1.72 run added 7 CI-grade scripts under `tools/`. None
+were discoverable from the README. This adds a dedicated "Tools"
+section between the examples and the option-3 flywheel
+description.
+
+- **README.md** — new "Tools" section listing every CI-grade
+  script:
+  - `check_workspace.py` (7-check aggregator)
+  - `check_doc_links.py` (cross-reference auditor)
+  - `check_profile_shape.py` (USER_PROFILE_*.md shape)
+  - `release_summary.py` (compact CHANGELOG view)
+  - `install_precommit.sh` (opt-in git hook installer)
+  - `migration_smoke.jl` (already documented; included for
+    completeness)
+  - `cross_lang_roundtrip.jl` (used by cross-language tests)
+- All 7 workspace checks still green at this commit.
+
 ### v1.72 — `tools/install_precommit.sh` (opt-in pre-commit hook) (2026-05-04)
 
 Wires the v1.56+v1.68+v1.70 workspace checks into git's pre-commit
