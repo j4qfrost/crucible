@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### v1.49 — fix passthrough subcommand argparse + verify-doc thermostat (2026-05-04)
+
+Two cleanup slices around v1.47–v1.48.
+
+- **`python/crucible/__main__.py`** — `python -m crucible corpus
+  --db PATH stats` was failing with `unrecognized arguments: --db`
+  because `argparse.REMAINDER` notoriously stops on unknown-option
+  tokens. Fix: dispatch the `corpus` and `benchmark` subcommands
+  via `sys.argv` slicing **before** the outer argparse runs. Also
+  fixes `crucible-py migrate --target` to default to the live
+  `SCHEMA_VERSION` (was hard-coded `"0.3.0"` from before v1.44).
+- **`docs/HOW_TO_VERIFY_A_PAPER.md`** — cheat-sheet expanded from 8
+  axes to 10 (`solvent_padding_nm` + `thermostat` added in v1.44 and
+  v1.47). With unit-conversion warning ("commonly stated as 10 Å
+  buffer" → convert to nm).
+- 137/137 pytest unchanged (the bug only surfaced in a real CLI
+  invocation; the existing tests use the inner CLI directly).
+
 ### v1.48 — corpus ↔ benchmark linkage (per-paper score writeback) (2026-05-04)
 
 Closes the loop between the corpus and the benchmark: a successful

@@ -14,6 +14,7 @@ from pathlib import Path
 
 from . import (
     MDSpec,
+    SCHEMA_VERSION,
     coverage_score,
     lint,
     migrate_json,
@@ -95,6 +96,20 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+
+    # Passthrough subcommands: dispatch to their own argparse trees BEFORE the
+    # outer argparse runs, otherwise argparse claims any `--flag` token as
+    # outer-level and `nargs=REMAINDER` won't recover it. argparse.REMAINDER
+    # is famously surprising about this.
+    if argv and argv[0] == "corpus":
+        from .corpus.cli import main as corpus_main
+        return corpus_main(argv[1:])
+    if argv and argv[0] == "benchmark":
+        from .benchmark.cli import main as benchmark_main
+        return benchmark_main(argv[1:])
+
     p = argparse.ArgumentParser(prog="crucible-py",
                                 description="Crucible Python bindings — pure-Python ops")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -117,36 +132,11 @@ def main(argv: list[str] | None = None) -> int:
 
     pm = sub.add_parser("migrate", help="migrate JSON across schema versions")
     pm.add_argument("spec", nargs="?", default="-")
-    pm.add_argument("--target", default="0.3.0")
+    pm.add_argument("--target", default=SCHEMA_VERSION)
     pm.set_defaults(func=_cmd_migrate)
-
-    # corpus subcommand — defers to crucible.corpus.cli for its own
-    # argparse tree so the corpus stays self-contained for a future
-    # standalone-app lift (see docs/CORPUS_DESIGN.md).
-    pc = sub.add_parser("corpus", help="fetch + index whitepapers by author",
-                        add_help=False)
-    pc.add_argument("rest", nargs=argparse.REMAINDER,
-                    help="passed to `python -m crucible.corpus`")
-    pc.set_defaults(func=_cmd_corpus)
-
-    # benchmark subcommand — same pattern; defers to crucible.benchmark.cli.
-    pb = sub.add_parser("benchmark", help="hallucination benchmark",
-                        add_help=False)
-    pb.add_argument("rest", nargs=argparse.REMAINDER)
-    pb.set_defaults(func=_cmd_benchmark)
 
     args = p.parse_args(argv)
     return args.func(args)
-
-
-def _cmd_corpus(args: argparse.Namespace) -> int:
-    from .corpus.cli import main as corpus_main
-    return corpus_main(args.rest)
-
-
-def _cmd_benchmark(args: argparse.Namespace) -> int:
-    from .benchmark.cli import main as benchmark_main
-    return benchmark_main(args.rest)
 
 
 if __name__ == "__main__":

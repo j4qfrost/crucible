@@ -27,7 +27,7 @@ You need:
   Should report 95+ passes. If not, run
   `~/Projects/crucible/tools/repair_manifest.sh` first.
 
-## The 8 axes you're verifying
+## The 10 axes you're verifying
 
 Per [`docs/HALLUCINATION_BENCHMARK.md`](HALLUCINATION_BENCHMARK.md):
 
@@ -41,6 +41,8 @@ Per [`docs/HALLUCINATION_BENCHMARK.md`](HALLUCINATION_BENCHMARK.md):
 | `duration_ns` | Production length; FEP / REMD = per-window, per-replica |
 | `pressure_bar` | NPT only; usually 1 bar / 1 atm (these differ slightly!) |
 | `fep_lambda_count` | FEP papers only; count the λ values listed |
+| `solvent_padding_nm` | Solute-to-box-edge buffer; commonly stated as "10 Å buffer" or "1.0 nm padding". Convert Å → nm. |
+| `thermostat` | Production stage; one of `langevin / nose_hoover / andersen / berendsen`. Most modern papers use `langevin`. |
 
 Three rules:
 
