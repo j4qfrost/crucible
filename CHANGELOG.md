@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### v1.76 — Streamlit dashboard for the benchmark runs DB (2026-05-05)
+
+Companion to v1.29's corpus GUI: a browsable dashboard for the
+longitudinal data the runs store has been collecting since v1.45.
+
+- **`python/crucible/benchmark/ui.py`** — Streamlit dashboard with
+  4 tabs:
+  - **Overview** — per-provider rollup table (provider, outcomes,
+    runs, avg accuracy).
+  - **Per-paper trends** — table of all papers with avg accuracy +
+    last-run-at + drill-in line chart of one paper's history.
+  - **Per-axis accuracy** — overall + per-provider slice via a
+    selectbox.
+  - **Raw rows** — paginated 500-row view of `benchmark_runs`.
+  - Sidebar: DB-path picker, headline metrics (`rows`, `runs`,
+    `papers_touched`), schema-version distribution.
+- **`python -m crucible benchmark ui [--runs-db PATH] [--port N]
+  [--headless]`** — launches Streamlit. Same opt-in pattern as
+  `corpus ui`: streamlit lives in the `[ui]` extra; the module's
+  import-guard fails with a clear remediation hint when missing.
+- Read-only — mutations go through `benchmark run` /
+  `benchmark publish` from the CLI.
+- 193/193 pytest unchanged (UI is glue; corpus/store +
+  benchmark/runs_store are tested independently).
+
 ### v1.75 — `docs/QUICK_REFERENCE.md` (single-page CLI cheatsheet) (2026-05-05)
 
 The CLI surface has accumulated to ~80 subcommands across 4 tiers

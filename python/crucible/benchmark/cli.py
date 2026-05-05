@@ -571,6 +571,29 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ui(args: argparse.Namespace) -> int:
+    """Launch the Streamlit dashboard for the benchmark runs DB."""
+    import shutil
+    import subprocess
+    if shutil.which("streamlit") is None:
+        print(
+            "streamlit not found on PATH. Install with "
+            "`pip install crucible[corpus,ui]`.",
+            file=sys.stderr,
+        )
+        return 2
+    ui_path = Path(__file__).resolve().parent / "ui.py"
+    cmd = ["streamlit", "run", str(ui_path)]
+    if args.port:
+        cmd.extend(["--server.port", str(args.port)])
+    if args.headless:
+        cmd.extend(["--server.headless", "true"])
+    env = os.environ.copy()
+    if args.runs_db:
+        env["CRUCIBLE_RUNS_DB"] = args.runs_db
+    return subprocess.call(cmd, env=env)
+
+
 def cmd_watch(args: argparse.Namespace) -> int:
     """Tail the runs DB; print new rows as they arrive.
 
@@ -831,6 +854,15 @@ def build_parser() -> argparse.ArgumentParser:
     pw.add_argument("--max-iterations", type=int, default=None,
                     help="stop after N polls (default: run forever; set in tests)")
     pw.set_defaults(func=cmd_watch)
+
+    pu = sub.add_parser("ui", help="Streamlit dashboard for the runs DB")
+    pu.add_argument("--runs-db", default=None,
+                    help="path to the runs DB (sets CRUCIBLE_RUNS_DB for the dashboard)")
+    pu.add_argument("--port", type=int, default=None,
+                    help="streamlit port (default: 8501)")
+    pu.add_argument("--headless", action="store_true",
+                    help="run without auto-opening a browser tab")
+    pu.set_defaults(func=cmd_ui)
 
     pb = sub.add_parser("publish",
                         help="one-shot: run + report (writes to --out path)")
