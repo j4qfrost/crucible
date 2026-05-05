@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""Aggregate consistency checks for the workspace.
+
+Bundles the cross-file invariants that v1.41–v1.55 introduced into a
+single fail-fast script. Designed for pre-commit + CI + ad-hoc human
+invocation.
+
+Each check is independent + has a one-line failure message. Exit code
+is the number of failed checks (so CI sees non-zero on any failure).
+
+Checks:
+    1. Python `SCHEMA_VERSION` matches `src/spec/schema.json` const
+    2. Python `SCHEMA_VERSION` matches `src/spec/MDSpec.jl` keyword default
+    3. Every test fixture under test/fixtures/*.json has a `schema_version`
+       in {0.1.0, 0.2.0, 0.3.0, 0.4.0} (known versions; the migration
+       chain handles all of them)
+    4. `Manifest.toml` has `manifest_format = "2.0"` (Pkg.jl modern)
+    5. `python/pyproject.toml` declares `pydantic>=2` (the pydantic-v1
+       split was painful enough that pinning v2 is load-bearing)
+
+Usage:
+    python tools/check_workspace.py
+    python tools/check_workspace.py --verbose   # report passed checks too
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _check_python_schema_matches_json() -> tuple[bool, str]:
+    sys.path.insert(0, str(REPO_ROOT / "python"))
+    try:
+        from crucible.spec import SCHEMA_VERSION
+    except Exception as exc:
+        return False, f"could not import crucible.spec: {exc}"
+    schema = json.loads((REPO_ROOT / "src" / "spec" / "schema.json").read_text())
+    canonical = schema["properties"]["schema_version"]["const"]
+    if SCHEMA_VERSION != canonical:
+        return False, (
+            f"SCHEMA_VERSION ({SCHEMA_VERSION!r}) drifts from "
+            f"src/spec/schema.json const ({canonical!r})"
+        )
+    return True, f"SCHEMA_VERSION ({SCHEMA_VERSION!r}) matches schema.json const"
+
+
+def _check_python_schema_matches_julia() -> tuple[bool, str]:
+    from crucible.spec import SCHEMA_VERSION
+    text = (REPO_ROOT / "src" / "spec" / "MDSpec.jl").read_text()
+    m = re.search(r'schema_version\s*=\s*"(\d+\.\d+\.\d+)"', text)
+    if m is None:
+        return False, "could not find schema_version=\"…\" in MDSpec.jl"
+    julia_default = m.group(1)
+    if SCHEMA_VERSION != julia_default:
+        return False, (
+            f"SCHEMA_VERSION ({SCHEMA_VERSION!r}) drifts from MDSpec.jl "
+            f"default ({julia_default!r})"
+        )
+    return True, f"SCHEMA_VERSION matches MDSpec.jl default ({julia_default})"
+
+
+_KNOWN_SCHEMA_VERSIONS = {"0.1.0", "0.2.0", "0.3.0", "0.4.0"}
+
+
+def _check_fixtures_have_known_schema_version() -> tuple[bool, str]:
+    fixtures_dir = REPO_ROOT / "test" / "fixtures"
+    if not fixtures_dir.is_dir():
+        return True, "no test/fixtures dir; skipped"
+    bad: list[str] = []
+    for fixture in fixtures_dir.glob("*.json"):
+        try:
+            obj = json.loads(fixture.read_text())
+        except json.JSONDecodeError as exc:
+            bad.append(f"{fixture.name}: invalid JSON ({exc})")
+            continue
+        if not isinstance(obj, dict):
+            continue
+        ver = obj.get("schema_version")
+        if ver is None:
+            continue   # not a spec fixture
+        if ver not in _KNOWN_SCHEMA_VERSIONS:
+            bad.append(f"{fixture.name}: schema_version={ver!r} unknown")
+    if bad:
+        return False, "fixture issues:\n  - " + "\n  - ".join(bad)
+    return True, f"all spec fixtures use known schema versions"
+
+
+def _check_manifest_format() -> tuple[bool, str]:
+    path = REPO_ROOT / "Manifest.toml"
+    if not path.is_file():
+        return True, "no Manifest.toml; skipped"
+    text = path.read_text()
+    m = re.search(r'manifest_format\s*=\s*"([^"]+)"', text)
+    if m is None:
+        return False, "Manifest.toml: could not find manifest_format"
+    fmt = m.group(1)
+    if fmt != "2.0":
+        return False, (
+            f"Manifest.toml: manifest_format={fmt!r}; expected 2.0 "
+            f"(Pkg modern). Regenerate with `julia --project -e 'using Pkg; Pkg.instantiate()'`."
+        )
+    return True, "Manifest.toml uses manifest_format 2.0"
+
+
+def _check_pydantic_pinned_v2() -> tuple[bool, str]:
+    path = REPO_ROOT / "python" / "pyproject.toml"
+    if not path.is_file():
+        return True, "no python/pyproject.toml; skipped"
+    text = path.read_text()
+    # pydantic>=2 or pydantic>=2.5 etc.
+    if not re.search(r'"pydantic\s*>=\s*2', text):
+        return False, "python/pyproject.toml: pydantic must be pinned >=2 (v1 split risk)"
+    return True, "pydantic pinned to v2"
+
+
+CHECKS = [
+    ("python_schema_matches_json", _check_python_schema_matches_json),
+    ("python_schema_matches_julia", _check_python_schema_matches_julia),
+    ("fixtures_have_known_schema_version", _check_fixtures_have_known_schema_version),
+    ("manifest_format", _check_manifest_format),
+    ("pydantic_pinned_v2", _check_pydantic_pinned_v2),
+]
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(prog="check_workspace.py")
+    p.add_argument("--verbose", action="store_true",
+                   help="report passing checks too")
+    args = p.parse_args(argv)
+
+    n_failed = 0
+    for name, check in CHECKS:
+        try:
+            ok, msg = check()
+        except Exception as exc:
+            ok, msg = False, f"check raised {type(exc).__name__}: {exc}"
+        marker = "✓" if ok else "✗"
+        if not ok or args.verbose:
+            print(f"{marker} {name}: {msg}")
+        if not ok:
+            n_failed += 1
+
+    if n_failed:
+        print(f"\n{n_failed} check(s) failed.", file=sys.stderr)
+    elif args.verbose:
+        print(f"\nall {len(CHECKS)} check(s) passed.")
+    return n_failed
+
+
+if __name__ == "__main__":
+    sys.exit(main())

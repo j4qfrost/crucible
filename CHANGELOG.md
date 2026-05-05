@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### v1.56 — `tools/check_workspace.py` aggregate consistency check (2026-05-04)
+
+Bundles the cross-file invariants that v1.41–v1.55 introduced into
+a single fail-fast script. Designed for pre-commit hooks + CI gates.
+
+- **`tools/check_workspace.py`** — five checks, each independent
+  with a one-line failure message; exit code = number of failed
+  checks.
+  1. Python `SCHEMA_VERSION` matches `src/spec/schema.json` const
+  2. Python `SCHEMA_VERSION` matches `src/spec/MDSpec.jl` keyword
+     default
+  3. Every test fixture under `test/fixtures/*.json` declares a
+     `schema_version` in `{0.1.0, 0.2.0, 0.3.0, 0.4.0}` (catches
+     stale fixtures after migration registry changes)
+  4. `Manifest.toml` uses `manifest_format = "2.0"` (Pkg modern;
+     guards against Julia version-skew regression)
+  5. `python/pyproject.toml` pins `pydantic>=2` (the v1 split was
+     painful enough to be load-bearing)
+- All 5 checks green at this commit. Run with `--verbose` to see
+  passes too.
+
 ### v1.55 — `publish --brief` + `--to-docs` (2026-05-04)
 
 Two UX improvements on the v1.50 publish flow.
