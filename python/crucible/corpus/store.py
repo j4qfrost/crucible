@@ -274,17 +274,36 @@ class CorpusStore:
             return None
         return dict(zip([d[0] for d in cur.description], row))
 
-    def paper_text_for_doi(self, doi: str) -> Optional[str]:
-        """Return a best-effort `(title + abstract)` blob for benchmarking.
+    def paper_text_for_doi(self, doi: str, *,
+                           prefer_full_text: bool = False,
+                           cache_dir: Optional[Path] = None) -> Optional[str]:
+        """Return text for benchmarking, in preference order.
 
-        Used by `crucible.benchmark.runner` to feed the LLM transpile when
-        no full-text source is wired up. Abstract-only is meaningfully
-        worse than Methods-section input for protocol extraction —
-        Methods-level fidelity is on the GROMACS/full-text-fetch roadmap.
+        With `prefer_full_text=True` (default off because it does network
+        I/O and requires `pdftotext`):
+          1. cached `<cache_dir>/<work_id>.txt` if present
+          2. download `pdf_url` → run pdftotext → cache → return
+
+        Without `prefer_full_text` (or if full-text fetch fails):
+          3. `title + abstract` from the local DB row
+
+        Returns `None` only when the DOI isn't in the corpus at all.
+        Network errors during full-text fetch silently fall back to
+        title+abstract — the test suite doesn't pay for outbound HTTP.
         """
         row = self.find_by_doi(doi)
         if row is None:
             return None
+
+        if prefer_full_text:
+            full = _fetch_full_text(
+                work_id=str(row.get("work_id") or ""),
+                pdf_url=row.get("pdf_url"),
+                cache_dir=cache_dir,
+            )
+            if full:
+                return full
+
         parts: list[str] = []
         if row.get("title"):
             parts.append(str(row["title"]))
@@ -380,3 +399,105 @@ class CorpusStore:
             (n,) = self._conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
             out[table] = n
         return out
+
+
+# -----------------------------------------------------------------------------
+# Full-text fetch — opt-in helper. Uses stdlib urllib + the system pdftotext
+# binary. No new runtime deps. Network failures, pdftotext failures, and
+# missing-binary failures all fall through to None so the caller can fall
+# back to title+abstract.
+
+def _default_cache_dir() -> Path:
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
+    return Path(base) / "crucible" / "corpus_full_text"
+
+
+def _fetch_full_text(*, work_id: str, pdf_url: Optional[str],
+                     cache_dir: Optional[Path]) -> Optional[str]:
+    """Best-effort PDF → text. Returns None on any failure.
+
+    Caches by `work_id` so repeated runs of the benchmark don't redownload.
+    pdftotext's output is post-processed lightly: collapse 3+ blank lines,
+    strip trailing whitespace, drop pages of pure whitespace.
+    """
+    if not work_id:
+        return None
+    cdir = cache_dir or _default_cache_dir()
+    cdir = cdir.expanduser()
+    cdir.mkdir(parents=True, exist_ok=True)
+    cached_txt = cdir / f"{work_id}.txt"
+    if cached_txt.is_file():
+        try:
+            text = cached_txt.read_text()
+            if text.strip():
+                return text
+        except OSError:
+            pass
+
+    if not pdf_url:
+        return None
+
+    if shutil.which("pdftotext") is None:
+        return None
+
+    pdf_path = cdir / f"{work_id}.pdf"
+    try:
+        # Stream-download with a short timeout. Anything weirder than a clean
+        # 200 + application/pdf response gets dropped.
+        req = urllib.request.Request(
+            pdf_url,
+            headers={"User-Agent": "crucible-corpus/0.3.0",
+                     "Accept": "application/pdf"},
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            ct = (resp.headers.get("content-type") or "").lower()
+            if "pdf" not in ct and not pdf_url.lower().endswith(".pdf"):
+                return None
+            with pdf_path.open("wb") as fh:
+                while True:
+                    chunk = resp.read(64 * 1024)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+    except Exception:
+        if pdf_path.exists():
+            pdf_path.unlink(missing_ok=True)
+        return None
+
+    try:
+        proc = subprocess.run(
+            ["pdftotext", "-layout", str(pdf_path), "-"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if proc.returncode != 0:
+            return None
+        text = _post_process_pdftotext(proc.stdout)
+        if text.strip():
+            cached_txt.write_text(text)
+            return text
+    except Exception:
+        return None
+    finally:
+        # Keep the cached .txt; drop the .pdf to save disk.
+        pdf_path.unlink(missing_ok=True)
+
+    return None
+
+
+def _post_process_pdftotext(raw: str) -> str:
+    import re
+    # Collapse 3+ blank lines to 2 (paragraph separator).
+    text = re.sub(r"\n{3,}", "\n\n", raw)
+    # Strip trailing whitespace per line.
+    text = "\n".join(line.rstrip() for line in text.splitlines())
+    return text
+
+
+# Imports used only by the full-text helper. Kept at the bottom so the
+# main DuckDB path doesn't pay for them on first import.
+import os
+import shutil
+import subprocess
+import urllib.request

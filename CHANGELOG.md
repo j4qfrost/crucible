@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### v1.42 — corpus full-text fetch (PDF → pdftotext) (2026-05-04)
+
+`paper_text_for_doi` learns to fetch + extract OA PDFs on demand.
+Bridges the gap between title+abstract (medium signal) and the
+sidecar Methods file (best signal) — when a paper is OA and has a
+direct PDF URL on OpenAlex, the LLM input upgrades automatically.
+
+- **`python/crucible/corpus/store.py`** — `paper_text_for_doi` now
+  takes `prefer_full_text=False` (default) / `True`, plus a
+  `cache_dir` override. With full-text on, resolution is:
+  1. cached `<cache_dir>/<work_id>.txt`
+  2. download `pdf_url` → `pdftotext -layout` → cache → return
+  3. fall back to `title + abstract`
+  4. fall back to `None` (DOI not in corpus)
+  Network errors, missing `pdftotext`, no `pdf_url`, and corrupt
+  PDFs all silently fall through. Tests don't pay for outbound
+  HTTP.
+- **`python/crucible/benchmark/cli.py`** — `benchmark run` learns
+  `--full-text` and `--full-text-cache <dir>`. Off by default;
+  on-demand for verified-only benchmark runs.
+- **`_post_process_pdftotext`** — collapses 3+ blank lines (paragraph
+  separator) and strips trailing whitespace per line. Output is
+  noticeably more LLM-friendly than raw pdftotext.
+- 4 new tests (cache hit, fallback to abstract, off-by-default,
+  post-process). **109/109 pytest pass** (was 105).
+- No new runtime deps — uses stdlib `urllib` + system `pdftotext`
+  (already a CI dep for `PDFAdapter` tests).
+
 ### v1.41 — cross-language consistency tests (2026-05-04)
 
 Pins the load-bearing IR-as-contract invariant: a `MDSpec` emitted

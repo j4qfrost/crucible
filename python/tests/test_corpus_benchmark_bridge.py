@@ -91,6 +91,68 @@ def test_seed_set_doi_format_compatible_with_find_by_doi():
             s._conn.execute("DELETE FROM authors")
 
 
+def test_paper_text_for_doi_full_text_cache_hit(tmp_path):
+    """When a cached .txt exists for the work_id, return it without
+    network or pdftotext calls."""
+    with CorpusStore.in_memory() as s:
+        _seed_work(s, doi="10.0000/cached", title="A title",
+                   abstract="An abstract.")
+        # Pre-populate the cache.
+        cached = tmp_path / "W_TEST.txt"
+        cached.write_text("FULL METHODS SECTION FROM CACHE")
+        text = s.paper_text_for_doi(
+            "10.0000/cached",
+            prefer_full_text=True,
+            cache_dir=tmp_path,
+        )
+        assert text == "FULL METHODS SECTION FROM CACHE"
+
+
+def test_paper_text_for_doi_full_text_falls_back_to_abstract(tmp_path):
+    """When cache miss + no pdf_url + no pdftotext path, fall back to
+    title+abstract gracefully."""
+    with CorpusStore.in_memory() as s:
+        # Note: Work has pdf_url=None for this test; the cache dir is
+        # empty. _fetch_full_text returns None; outer falls back.
+        from crucible.corpus.openalex import Author, Work, WorkAuthor
+        s.upsert_work(Work(
+            work_id="W_NOPDF", doi="10.0000/nopdf",
+            title="Title only",
+            abstract="The abstract.",
+            publication_year=2024, venue="X", cited_by_count=0,
+            is_oa=False, pdf_url=None,
+            authors=[WorkAuthor(author_id="A1", display_name="A",
+                                position=1)],
+        ))
+        text = s.paper_text_for_doi(
+            "10.0000/nopdf",
+            prefer_full_text=True,
+            cache_dir=tmp_path,
+        )
+        assert text is not None
+        assert "Title only" in text
+        assert "The abstract." in text
+
+
+def test_paper_text_for_doi_full_text_off_by_default(tmp_path):
+    """`prefer_full_text=False` (default) skips the network/pdftotext path
+    even when the work has a pdf_url."""
+    with CorpusStore.in_memory() as s:
+        _seed_work(s, doi="10.0000/x", title="X", abstract="abs")
+        # cache dir is empty; without prefer_full_text=True we should NOT
+        # hit the cached_dir lookup at all (purely returns title+abstract).
+        text = s.paper_text_for_doi("10.0000/x")
+        assert "X" in text and "abs" in text
+
+
+def test_post_process_pdftotext_collapses_blanks():
+    from crucible.corpus.store import _post_process_pdftotext
+    raw = "First paragraph.\n\n\n\n\nSecond paragraph.   \n   \nThird."
+    out = _post_process_pdftotext(raw)
+    assert "\n\n\n" not in out          # 3+ blank lines collapsed
+    assert "paragraph.   " not in out   # trailing whitespace stripped
+
+
 def test_benchmark_cli_corpus_db_flag_in_parser():
     from crucible.benchmark.cli import build_parser
     p = build_parser()

@@ -153,7 +153,11 @@ def cmd_run(args: argparse.Namespace) -> int:
             if p.exists():
                 return p.read_text()
         if corpus_store is not None and entry.doi:
-            text = corpus_store.paper_text_for_doi(entry.doi)
+            text = corpus_store.paper_text_for_doi(
+                entry.doi,
+                prefer_full_text=args.full_text,
+                cache_dir=Path(args.full_text_cache) if args.full_text_cache else None,
+            )
             if text:
                 return text
         return entry.title
@@ -231,6 +235,13 @@ def build_parser() -> argparse.ArgumentParser:
                     help="dir containing <paper_id>.txt sidecar files (best signal)")
     pr.add_argument("--corpus-db", default=None,
                     help="path to a corpus DuckDB (title+abstract by DOI)")
+    pr.add_argument("--full-text", action="store_true",
+                    help="fetch the OA PDF + run pdftotext when available "
+                         "(needs network + system pdftotext; falls back to "
+                         "title+abstract on any failure)")
+    pr.add_argument("--full-text-cache", default=None,
+                    help="directory to cache extracted PDF text "
+                         "(default: $XDG_CACHE_HOME/crucible/corpus_full_text)")
     pr.add_argument("--out", default=None, help="output JSONL path")
     pr.add_argument("--verified-only", action="store_true")
     pr.add_argument("--allow-unverified", action="store_true",
