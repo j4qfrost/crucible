@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### v1.61 — three-length project pitch (2026-05-04)
+
+The first artifact every adopter sees. Three pitches at three
+lengths (60s elevator / 5m dinner-conversation / 30m
+boardroom-deck) that share one wedge and end at the same place
+("here's what you do next").
+
+- **`docs/PROJECT_PITCH.md`** — non-overlapping pitches:
+  - **60s:** the wedge sentence — *"the LLM doesn't write Python;
+    it emits a typed IR with provenance, and the validator catches
+    silent errors before runtime."*
+  - **5m:** problem (reproducibility-as-translation), solution
+    (IR-as-contract), today (shipped capabilities), what-you-do-next
+    (three profile pointers).
+  - **30m:** 10-slide outline mapping to existing docs
+    (architecture diagrams, hallucination benchmark, on-prem mode,
+    fine-tune flywheel, adoption timeline). Per-audience
+    call-to-action at the close.
+- **Pitch maintenance rules** at the bottom — when to update each
+  length, what triggers a rewrite. Cross-checks against
+  `musings/scaling_modes.md` to keep the canonical pitch
+  consistent.
+- Companion to `docs/USER_PROFILES.md` (each pitch ends pointing
+  there) and `docs/ADOPTION_TIMELINE.md` (each phase has a
+  matching pitch length).
+
 ### v1.60 — adoption timeline (when to activate each profile) (2026-05-04)
 
 Bridges the strategic 18-month `docs/ADOPTION_PLAN.md` and the
