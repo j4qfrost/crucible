@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### v1.78 — refactor: extract `seed_patcher` from `benchmark/cli.py` (2026-05-05)
+
+`benchmark/cli.py` had grown to 943 lines via 36 accreted slices.
+Most of the bulk is short cmd_* dispatchers, but ~110 lines were a
+text-munging algorithm (the `_patch_entry` regex + indent-walking
+that powers `benchmark verify`) that's distinct in shape from the
+surrounding CLI dispatch.
+
+- **`python/crucible/benchmark/seed_patcher.py`** — new module.
+  `patch_entry(text, paper_id, new_values, verified_by, notes_extra)`
+  + four small helpers (`_replace_expected_protocol`,
+  `_strip_status_and_verified_by`, `_inject_status_lines`,
+  `_append_to_notes`). Same algorithm; cleaner shape (each helper
+  does one thing instead of one long function).
+- **`benchmark/cli.py`** — `_patch_entry` is now a one-line
+  re-export of `seed_patcher.patch_entry` so existing imports +
+  tests keep working unchanged. Top-of-file docstring updated with
+  a section map (Seed-set / Run+report / Data-layer reads / UI).
+- Net change: **cli.py 943 → 840 lines (-103); seed_patcher.py
+  140 new lines**. The two-file shape is more navigable than the
+  one-file shape was.
+- 194/194 pytest unchanged. The `_patch_entry`-targeting tests in
+  `test_corpus_benchmark_bridge.py` still pass via the re-export.
+
 ### v1.77 — `release_summary.py --by-theme` (grouped CHANGELOG view) (2026-05-05)
 
 Groups versions by inferred theme so the post-v1.40 changelog

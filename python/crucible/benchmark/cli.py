@@ -1,10 +1,17 @@
 """Subcommand dispatch for `python -m crucible benchmark …`.
 
-Subcommands:
-  list       — show seed-set entries (verified vs needs_verification)
-  run        — run an iterable of entries through a transpile callback
-  report     — render the markdown report from a run-results JSONL
-  status     — verification progress (e.g. "3 of 5 verified")
+Sections (grep markers, reflecting the order functions appear here —
+which is the order they accreted, not a strict grouping):
+
+  Seed-set ops    : cmd_list, cmd_status, cmd_verify, cmd_add
+  Run + report    : cmd_report, cmd_run, cmd_publish
+  Data-layer reads: cmd_trends, cmd_export, cmd_compare, cmd_watch,
+                    cmd_runs_stats, cmd_runs_stats_md
+  UI              : cmd_ui (Streamlit dashboard)
+
+The text-mutation algorithm for `cmd_verify` lives in
+`seed_patcher.py` (extracted v1.78); everything else is dispatcher
+glue that calls into `runner.py`, `runs_store.py`, `reporter.py`.
 """
 
 from __future__ import annotations
@@ -157,114 +164,11 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return 0
 
 
-def _patch_entry(text: str, *, paper_id: str,
-                 new_values: dict[str, object],
-                 verified_by: str,
-                 notes_extra: list[str]) -> str:
-    """Surgical re-write of a single BenchmarkEntry block.
-
-    Finds the `paper_id="<paper_id>"` line, walks forward to the matching
-    closing `)`, replaces the ExpectedProtocol field block + status +
-    verified_by inside. Conservative: returns `text` unchanged if the
-    expected shape isn't found.
-    """
-    import re
-    # Find the BenchmarkEntry whose paper_id matches; the entry block ends
-    # at the next `\n<INDENT>),\n` where INDENT matches the entry's own
-    # opening indent. Indent-based termination avoids the parens-inside-
-    # string-literal trap (titles contain things like
-    # "(Lindorff-Larsen et al., 2010)").
-    pid_re = re.compile(
-        r"^([ \t]*)BenchmarkEntry\(\s*\n\s*paper_id=[\"']"
-        + re.escape(paper_id) + r"[\"']",
-        re.MULTILINE,
-    )
-    m = pid_re.search(text)
-    if not m:
-        return text
-    indent = m.group(1)
-    open_idx = m.start()
-    # Walk forward for the closing `\n<indent>),`. There may be inner
-    # `),` lines (from nested ExpectedProtocol or List literals) but
-    # they're at deeper indentation.
-    closer = "\n" + indent + "),"
-    close_idx = text.find(closer, m.end())
-    if close_idx == -1:
-        return text
-    end = close_idx + len(closer)
-    block = text[open_idx:end]
-
-    # ExpectedProtocol is one indent-level deeper than BenchmarkEntry. Its
-    # closing `)` is at indent + "    "; find that for safe termination
-    # (regex `[^)]*\)` would close early on parens-in-comments like
-    # "(PubMed PMID 20947758)" inside titles or notes).
-    field_indent = indent + "        "       # 8 spaces deeper than entry indent
-    closer_indent = indent + "    "          # 4 spaces deeper
-    field_lines = []
-    for k, v in new_values.items():
-        field_lines.append(f"{field_indent}{k}={v!r},")
-    new_expected = "expected=ExpectedProtocol(\n" + "\n".join(field_lines) + "\n" + closer_indent + ")"
-
-    ep_open_idx = block.find("expected=ExpectedProtocol(")
-    if ep_open_idx == -1:
-        block_new = block
-    else:
-        ep_closer = "\n" + closer_indent + ")"
-        ep_close_idx = block.find(ep_closer, ep_open_idx)
-        if ep_close_idx == -1:
-            block_new = block
-        else:
-            ep_end = ep_close_idx + len(ep_closer)
-            block_new = block[:ep_open_idx] + new_expected + block[ep_end:]
-    # Strip any existing `status=...,` and `verified_by=...,` lines so we can
-    # reinsert canonical ones just before the closing `),`. The dataclass
-    # defaults `status="needs_verification"` + `verified_by=None`, so an
-    # entry may have neither line at all.
-    line_indent = indent + "    "          # one level deeper than entry
-    block_new = re.sub(
-        r"^[ \t]*status=[^,\n]+,\s*\n",
-        "",
-        block_new,
-        flags=re.MULTILINE,
-    )
-    block_new = re.sub(
-        r"^[ \t]*verified_by=[^,\n]+,\s*\n",
-        "",
-        block_new,
-        flags=re.MULTILINE,
-    )
-    inject = (
-        f'{line_indent}status="verified",\n'
-        f'{line_indent}verified_by={verified_by!r},\n'
-    )
-    # Insert just before the closing `\n<indent>),` of this BenchmarkEntry.
-    entry_closer = f"\n{indent}),"
-    close_pos = block_new.rfind(entry_closer)
-    if close_pos == -1:
-        # Defensive: if we somehow lost the closer, leave block_new as-is.
-        pass
-    else:
-        block_new = block_new[:close_pos + 1] + inject + block_new[close_pos + 1:]
-
-    # Append notes_extra to the existing notes.
-    if notes_extra:
-        joined = "; ".join(notes_extra)
-        # Look for the notes= line and append to it.
-        notes_re = re.compile(
-            r'(notes=)("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')',
-            re.DOTALL,
-        )
-        nm = notes_re.search(block_new)
-        if nm:
-            old_notes_literal = nm.group(2)
-            try:
-                old_notes = eval(old_notes_literal)  # safe — captured string literal
-            except Exception:
-                old_notes = ""
-            new_notes_text = f"{old_notes}\n\n[verify {verified_by}] {joined}"
-            block_new = block_new[:nm.start()] + f"notes={new_notes_text!r}" + block_new[nm.end():]
-
-    return text.replace(block, block_new, 1)
+# `_patch_entry` is preserved as the public name for tests + existing
+# callers; the implementation moved to `seed_patcher.py` in v1.78
+# (~120 lines of focused regex/text-munging extracted from this CLI
+# dispatcher file for readability).
+from .seed_patcher import patch_entry as _patch_entry  # noqa: F401
 
 
 def cmd_add(args: argparse.Namespace) -> int:
