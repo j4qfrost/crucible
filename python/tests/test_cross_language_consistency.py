@@ -142,6 +142,68 @@ _RECORDED_FIXTURES = (
 )
 
 
+def test_python_migration_output_parses_cleanly_in_julia():
+    """A v0.1.0-shape spec migrated through the Python registry must
+    serialize to JSON that Julia's `spec_from_json` parses without
+    error, and the parsed-as-dict result must equal what Python's
+    pydantic-validated round-trip produces.
+
+    Pins migration parity — if the Python migration registry drifts
+    from Julia's (or either side's parser stops accepting a migrated
+    field), this test fires.
+    """
+    from crucible import migrate_json
+    old_v0_1 = json.dumps({
+        "schema_version": "0.1.0",
+        "system": {
+            "source": {"type": "user_supplied", "topology": "p.parm7",
+                       "coordinates": "p.rst7", "pdb_id": None},
+            "n_atoms_estimate": 12000, "has_ligand": False,
+            "solvent": {"model": "TIP3P", "ions_NaCl_mM": 150.0},
+        },
+        "force_field": {"protein": "amber14sb", "water": "TIP3P",
+                        "ligand": "user_supplied"},
+        "protocol": [
+            {"kind": "minimize", "max_iterations": 1000,
+             "tolerance_kj_mol_nm": 10.0},
+            {"kind": "dynamics", "role": "production", "ensemble": "NPT",
+             "duration_ns": 5.0, "dt_fs": 2.0, "temperature_K": 300.0,
+             "pressure_bar": 1.0, "thermostat": "langevin",
+             "barostat": "monte_carlo", "friction_ps": 1.0,
+             "constraints": "h_bonds",
+             "restraints": {"selection": "none", "kind": "harmonic",
+                            "k_kj_mol_nm2": 0.0}},
+        ],
+        "observables": [],
+        "provenance": {},
+        "warnings": [],
+        "notes": "old-shape transcript",
+    })
+    # Python migrates to the current schema; pydantic re-validates.
+    migrated = migrate_json(old_v0_1)
+    from crucible import MDSpec
+    py_spec = MDSpec.from_json(migrated)
+    py_emit = py_spec.to_json()
+
+    # Julia parses the Python-migrated + Python-emitted JSON cleanly.
+    proc = subprocess.run(
+        ["julia", f"--project={REPO_ROOT}", str(ROUNDTRIP_SCRIPT)],
+        input=py_emit + "\n",
+        capture_output=True, text=True, timeout=120,
+    )
+    assert proc.returncode == 0, (
+        f"julia rejected the Python-migrated spec\nstderr:\n{proc.stderr}"
+    )
+    julia_obj = json.loads(proc.stdout.strip())
+    py_obj = json.loads(py_emit)
+    assert _normalize_for_compare(julia_obj) == _normalize_for_compare(py_obj), (
+        "migration output diverges between Python and Julia round-trips."
+    )
+    # Sanity: the migration actually filled in the v0.4.0-only field.
+    assert "padding_nm" in julia_obj["system"]["solvent"]
+    assert julia_obj["system"]["solvent"]["padding_nm"] is None
+
+
 @pytest.mark.parametrize("fixture", _RECORDED_FIXTURES)
 def test_julia_can_parse_python_validated_recorded_fixture(fixture):
     """Python pydantic validates the recorded fixture; pipe it through

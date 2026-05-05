@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### v1.51 — cross-language migration smoke (2026-05-04)
+
+Pins the migration parity invariant: a v0.1.0 spec migrated through
+the Python migration registry must serialize to JSON that Julia's
+`spec_from_json` parses cleanly, and the parsed-as-dict result must
+equal Python's pydantic-validated round-trip.
+
+- **`python/tests/test_cross_language_consistency.py`** —
+  `test_python_migration_output_parses_cleanly_in_julia` builds an
+  old-shape v0.1.0 spec, walks it through the Python migration
+  chain (`0.1.0 → 0.2.0 → 0.3.0 → 0.4.0`), and pipes the result
+  through Julia's `spec_from_json` + `spec_to_json` via the existing
+  `cross_lang_roundtrip.jl` script. Asserts:
+  - Julia parses without error
+  - Round-tripped Julia output deep-equals Python's pydantic
+    round-trip
+  - `padding_nm` (added in v0.4.0) survives the migration on both
+    sides
+- Catches the regression class where the Python and Julia
+  migration registries drift (e.g. one adds a backfill field the
+  other doesn't, or one renames a key).
+- 1 new test; **141/141 pytest** (was 140).
+
 ### v1.50 — `benchmark export-jsonl` + one-shot `benchmark publish` (2026-05-04)
 
 Two CLI surface improvements that lean on the v1.45 + v1.48 data
