@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### v1.48 — corpus ↔ benchmark linkage (per-paper score writeback) (2026-05-04)
+
+Closes the loop between the corpus and the benchmark: a successful
+`benchmark run --corpus-db <X>` now upserts per-paper accuracy back
+into the corpus DB so the corpus tier (GUI, future API) can surface
+"this paper's last benchmark accuracy was Y%" alongside the rest of
+the metadata.
+
+- **`python/crucible/corpus/store.py`** — new `benchmark_scores`
+  table:
+  `(doi, paper_id, last_run_at, last_total, last_max, last_provider,
+  n_runs)`. PK `(doi, paper_id)`. Two methods:
+  `upsert_benchmark_score(doi, paper_id, total, max_score, provider)`
+  (uses `now()` instead of `CURRENT_TIMESTAMP` to dodge the same
+  DuckDB binder quirk as v1.29) and
+  `benchmark_score_for_doi(doi)` returning the latest score with a
+  pre-computed `last_pct`.
+- **`python/crucible/benchmark/cli.py`** — `cmd_run` now writes
+  per-paper score back to the corpus DB when `--corpus-db` is set
+  AND the outcome is ok AND the entry has a DOI. Best-effort: if
+  the corpus is open elsewhere, the upsert is wrapped in the
+  existing run loop with no extra connection.
+- **`stats()`** in `corpus.store` now includes `benchmark_scores`
+  in its row-count summary.
+- 4 new tests (round-trip, increment-and-replace, DOI normalization,
+  end-to-end run-writes-back). **137/137 pytest** (was 133).
+- End-to-end smoke verified: `benchmark run --corpus-db X` produces
+  5 rows in the corpus's `benchmark_scores` table.
+
 ### v1.47 — 10th benchmark axis (thermostat) + runs-stats CLI (2026-05-04)
 
 Two slices: extend the benchmark to grade the production-stage

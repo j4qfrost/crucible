@@ -81,11 +81,24 @@ _SCHEMA_STATEMENTS = [
         PRIMARY KEY (work_id, concept_id)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS benchmark_scores (
+        doi             TEXT,
+        paper_id        TEXT,
+        last_run_at     TIMESTAMP,
+        last_total      INTEGER,
+        last_max        INTEGER,
+        last_provider   TEXT,
+        n_runs          INTEGER DEFAULT 1,
+        PRIMARY KEY (doi, paper_id)
+    )
+    """,
     "CREATE INDEX IF NOT EXISTS works_year_idx       ON works (publication_year)",
     "CREATE INDEX IF NOT EXISTS work_authors_aid_idx ON work_authors (author_id)",
     "CREATE INDEX IF NOT EXISTS work_concepts_cid_idx ON work_concepts (concept_id)",
     "CREATE INDEX IF NOT EXISTS work_refs_citing_idx ON work_references (citing_work_id)",
     "CREATE INDEX IF NOT EXISTS work_refs_cited_idx  ON work_references (cited_work_id)",
+    "CREATE INDEX IF NOT EXISTS bench_scores_paper_idx ON benchmark_scores (paper_id)",
 ]
 
 
@@ -392,10 +405,70 @@ class CorpusStore:
         for row in cur.fetchall():
             yield dict(zip(cols, row))
 
+    def upsert_benchmark_score(self, *,
+                               doi: str,
+                               paper_id: str,
+                               total: int,
+                               max_score: int,
+                               provider: str) -> None:
+        """Record the latest benchmark accuracy for a (DOI, paper_id) pair.
+        Idempotent: subsequent calls update last_*; n_runs increments.
+        """
+        # Normalize the DOI to the same form `find_by_doi` accepts.
+        normalized = doi.strip().lower()
+        for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix):]
+                break
+        # Upsert: increment n_runs, replace last_*.
+        self._conn.execute(
+            """
+            INSERT INTO benchmark_scores (
+                doi, paper_id, last_run_at, last_total, last_max,
+                last_provider, n_runs
+            ) VALUES (?, ?, now(), ?, ?, ?, 1)
+            ON CONFLICT (doi, paper_id) DO UPDATE SET
+                last_run_at   = now(),
+                last_total    = excluded.last_total,
+                last_max      = excluded.last_max,
+                last_provider = excluded.last_provider,
+                n_runs        = benchmark_scores.n_runs + 1
+            """,
+            [normalized, paper_id, int(total), int(max_score), provider],
+        )
+
+    def benchmark_score_for_doi(self, doi: str) -> Optional[dict]:
+        """Most recent benchmark score for a DOI (most recent paper_id wins
+        if multiple seed entries used the same DOI)."""
+        normalized = doi.strip().lower()
+        for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix):]
+                break
+        cur = self._conn.execute(
+            """
+            SELECT doi, paper_id, last_run_at, last_total, last_max,
+                   last_provider, n_runs
+            FROM benchmark_scores
+            WHERE doi = ?
+            ORDER BY last_run_at DESC
+            LIMIT 1
+            """,
+            [normalized],
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        cols = [d[0] for d in cur.description]
+        rec = dict(zip(cols, row))
+        if rec.get("last_max"):
+            rec["last_pct"] = rec["last_total"] / rec["last_max"]
+        return rec
+
     def stats(self) -> dict:
         out: dict[str, int] = {}
         for table in ("works", "authors", "work_authors", "work_references",
-                      "concepts", "work_concepts"):
+                      "concepts", "work_concepts", "benchmark_scores"):
             (n,) = self._conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
             out[table] = n
         return out

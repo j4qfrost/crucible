@@ -153,6 +153,62 @@ def test_post_process_pdftotext_collapses_blanks():
     assert "paragraph.   " not in out   # trailing whitespace stripped
 
 
+def test_upsert_benchmark_score_round_trips():
+    with CorpusStore.in_memory() as s:
+        s.upsert_benchmark_score(doi="10.1126/science.1187409",
+                                 paper_id="shaw_2010_bpti",
+                                 total=7, max_score=9, provider="anthropic")
+        rec = s.benchmark_score_for_doi("10.1126/science.1187409")
+        assert rec is not None
+        assert rec["paper_id"] == "shaw_2010_bpti"
+        assert rec["last_total"] == 7
+        assert rec["last_max"] == 9
+        assert abs(rec["last_pct"] - 7/9) < 1e-9
+        assert rec["n_runs"] == 1
+
+
+def test_upsert_benchmark_score_increments_and_replaces():
+    with CorpusStore.in_memory() as s:
+        s.upsert_benchmark_score(doi="10.0/x", paper_id="p",
+                                 total=3, max_score=8, provider="local")
+        s.upsert_benchmark_score(doi="10.0/x", paper_id="p",
+                                 total=8, max_score=8, provider="anthropic")
+        rec = s.benchmark_score_for_doi("10.0/x")
+        assert rec["n_runs"] == 2
+        assert rec["last_total"] == 8           # most-recent total wins
+        assert rec["last_provider"] == "anthropic"
+
+
+def test_upsert_benchmark_score_normalizes_doi():
+    with CorpusStore.in_memory() as s:
+        s.upsert_benchmark_score(doi="https://doi.org/10.0/x", paper_id="p",
+                                 total=1, max_score=1, provider="x")
+        # Both forms resolve to the same row.
+        bare = s.benchmark_score_for_doi("10.0/x")
+        url  = s.benchmark_score_for_doi("https://doi.org/10.0/x")
+        assert bare is not None and url is not None
+        assert bare["paper_id"] == url["paper_id"] == "p"
+
+
+def test_benchmark_run_writes_score_back_to_corpus(tmp_path):
+    """End-to-end: `benchmark run --corpus-db X` writes per-paper accuracy
+    back into the corpus's benchmark_scores table."""
+    from crucible.benchmark.cli import main
+    db = tmp_path / "shared.duckdb"
+    rc = main([
+        "run", "--mock", "--allow-unverified",
+        "--corpus-db", str(db),
+        "--llm-model", "vanilla-mock",
+    ])
+    assert rc == 0
+    import duckdb
+    conn = duckdb.connect(str(db))
+    n = conn.execute("SELECT COUNT(*) FROM benchmark_scores").fetchone()[0]
+    # 5 verified-allowed seed entries, 5 ok outcomes, 5 score_back rows.
+    assert n == 5
+    conn.close()
+
+
 def test_benchmark_cli_corpus_db_flag_in_parser():
     from crucible.benchmark.cli import build_parser
     p = build_parser()

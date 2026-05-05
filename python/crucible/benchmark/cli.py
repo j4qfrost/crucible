@@ -415,6 +415,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         runs_store = open_runs_store(runs_db_path)
         run_id = new_run_id()
 
+    # Optional: also write per-paper accuracy back into the corpus DB so the
+    # corpus GUI surfaces "this paper's last benchmark accuracy was X%".
+    score_back_corpus = corpus_store
+    by_paper_id = {e.paper_id: e for e in entries}
+
     llm_provider = "mock" if args.mock else "cli_bridge"
     llm_model = args.llm_model
 
@@ -452,6 +457,23 @@ def cmd_run(args: argparse.Namespace) -> int:
                 llm_model=llm_model,
                 schema_version=SCHEMA_VERSION,
             )
+
+        # Write per-paper score back to the corpus DB so it surfaces in
+        # the corpus tier (GUI / `corpus papers` queries).
+        if (
+            score_back_corpus is not None
+            and outcome.score_result is not None
+            and outcome.ok
+        ):
+            entry = by_paper_id.get(outcome.paper_id)
+            if entry is not None and entry.doi:
+                score_back_corpus.upsert_benchmark_score(
+                    doi=entry.doi,
+                    paper_id=outcome.paper_id,
+                    total=outcome.score_result.total,
+                    max_score=outcome.score_result.max_score,
+                    provider=llm_provider,
+                )
     if runs_store is not None:
         runs_store.close()
         print(f"recorded run {run_id!r} → {runs_db_path}", file=sys.stderr)
