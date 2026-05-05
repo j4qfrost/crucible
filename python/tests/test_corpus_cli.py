@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import patch
 
 import pytest
@@ -17,6 +18,77 @@ def test_build_parser_has_all_subcommands():
     assert sub_actions, "expected subparsers"
     cmds = set(sub_actions[0].choices.keys())
     assert {"fetch", "papers", "coauthors", "authors", "stats", "ui"}.issubset(cmds)
+
+
+def test_fetch_batch_skips_comments_and_blanks(tmp_path, capsys, monkeypatch):
+    """fetch-batch reads a names file, skips `#` + blank lines, and
+    accumulates per-author results into a JSON summary."""
+    duckdb = pytest.importorskip("duckdb")
+    from crucible.corpus.openalex import Author
+    db = tmp_path / "corp.duckdb"
+    names_file = tmp_path / "names.txt"
+    names_file.write_text(
+        "# Tier-1 personas\n"
+        "John Chodera\n"
+        "\n"                          # blank — skipped
+        "  # blank line above        \n"
+        "David Mobley\n"
+    )
+
+    # Mock the OpenAlex client: find_author returns a synthetic Author;
+    # list_works returns an empty list (zero works upserted).
+    from crucible.corpus.cli import _fetch_author
+    from unittest.mock import patch
+
+    fake_author_calls: list[str] = []
+    def fake_fetch(client, store, name, **kwargs):
+        fake_author_calls.append(name)
+        return (3, None) if name == "John Chodera" else (0, None)
+
+    with patch("crucible.corpus.cli._fetch_author", side_effect=fake_fetch):
+        from crucible.corpus.cli import main
+        rc = main(["--db", str(db), "fetch-batch", str(names_file)])
+
+    assert rc == 0   # no failures
+    assert fake_author_calls == ["John Chodera", "David Mobley"]
+    captured = capsys.readouterr()
+    parsed = json.loads(captured.out)
+    assert parsed["n_total"] == 2
+    assert parsed["n_failed"] == 0
+    assert parsed["results"][0]["n_works"] == 3
+
+
+def test_fetch_batch_empty_file_exits_1(tmp_path, capsys):
+    """fetch-batch with no usable lines exits 1 with a clean message."""
+    duckdb = pytest.importorskip("duckdb")
+    db = tmp_path / "corp.duckdb"
+    names_file = tmp_path / "names.txt"
+    names_file.write_text("# all comments\n\n   \n")
+    from crucible.corpus.cli import main
+    rc = main(["--db", str(db), "fetch-batch", str(names_file)])
+    assert rc == 1
+    assert "no author names" in capsys.readouterr().err
+
+
+def test_fetch_batch_returns_n_failed_as_exit_code(tmp_path, monkeypatch):
+    """When some authors fail (no match, OpenAlex error), exit code
+    reflects the failure count."""
+    duckdb = pytest.importorskip("duckdb")
+    db = tmp_path / "corp.duckdb"
+    names_file = tmp_path / "names.txt"
+    names_file.write_text("Real Person\nFake Person\nAlso Real\n")
+
+    from unittest.mock import patch
+    def mixed_fetch(client, store, name, **kwargs):
+        if "Fake" in name:
+            return (0, "no author found")
+        return (5, None)
+
+    with patch("crucible.corpus.cli._fetch_author", side_effect=mixed_fetch):
+        from crucible.corpus.cli import main
+        rc = main(["--db", str(db), "fetch-batch", str(names_file)])
+
+    assert rc == 1   # one failure
 
 
 def test_corpus_authors_lists_local_authors(tmp_path, capsys):

@@ -1,0 +1,16 @@
+# Tier-1 academic OSS leadership personas from docs/CAMPAIGN_2026Q2.md.
+# Use with: crucible corpus fetch-batch examples/persona_names_tier1.txt --concept "molecular dynamics" --since 2018
+#
+# Names are display-name format (matches OpenAlex's `search` field).
+# Confirm each via `crucible corpus authors --limit 50` after the batch.
+
+John Chodera
+Peter Eastman
+David Mobley
+Mike Shirts
+Joe Greener
+Lee-Ping Wang
+Rommie Amaro
+Paul Robustelli
+Charlotte Deane
+Frank Noé

@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### v1.65 — `corpus fetch-batch` + Tier-1 personas names file (2026-05-04)
+
+Bulk-ingestion path for the corpus tier. Lets a maintainer fetch
+all 10 Tier-1 personas from `docs/CAMPAIGN_2026Q2.md` in one
+command rather than 10 sequential `corpus fetch` calls.
+
+- **`python -m crucible corpus fetch-batch <names-file>`** —
+  reads one author display-name per line; skips `#` comments and
+  blank lines; per-author failures (no match, OpenAlex error)
+  log + continue rather than aborting the batch. Exit code is the
+  number of failed authors (0 = all green; useful for CI / cron).
+  JSON summary on stdout: `{n_total, n_failed, results: [{name,
+  n_works, error?}, …]}`.
+- **`_fetch_author` helper** — extracted the shared fetch logic
+  out of `cmd_fetch` so `cmd_fetch_batch` calls the same code
+  path. Both gain consistent error handling.
+- **`examples/persona_names_tier1.txt`** — the 10 Tier-1 personas
+  ready to ingest:
+  ```
+  crucible corpus fetch-batch examples/persona_names_tier1.txt \
+      --concept "molecular dynamics" --since 2018
+  ```
+- 3 new tests (skip comments+blanks, empty file → exit 1,
+  partial failure → exit n_failed). **164/164 pytest** (was 161).
+
 ### v1.64 — `benchmark compare` + `export-jsonl --since` (2026-05-04)
 
 Two longitudinal-tracking improvements on the v1.45 runs DB layer.
