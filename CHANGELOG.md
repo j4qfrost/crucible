@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### v1.54 — BENCHMARK_AXES.md reference + `spec-describe` CLI (2026-05-04)
+
+Two reference-layer additions: a canonical doc for the 10 benchmark
+axes and a quick CLI for inspecting the IR's allowlists.
+
+- **`docs/BENCHMARK_AXES.md`** — per-axis reference: spec path,
+  grading rule, allowed enum values, common LLM mappings, unit-
+  conversion warnings (Å → nm, °C → K, atm vs bar, μs/ms → ns).
+  Includes a "How to add an axis" runbook (7-step checklist
+  spanning IR, scorer, papers, docs, verify-CLI). Companion to
+  `docs/HOW_TO_VERIFY_A_PAPER.md` — that doc covers the verification
+  procedure; this one covers what each axis means.
+- **`python -m crucible spec-describe [--format json]`** — prints
+  the schema version + every allowlist (protein / water / ligand /
+  lipid FF, lipid composition, CG protein FFs). Useful for users
+  writing custom adapters or hand-editing specs without consulting
+  source. Text by default; `--format json` for scripting.
+- 148/148 pytest unchanged (CLI smoke verified manually).
+
 ### v1.53 — `corpus authors` + `MockTranspileProvider` class (2026-05-04)
 
 Two small surface improvements.

@@ -95,6 +95,36 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_spec_describe(args: argparse.Namespace) -> int:
+    """Pretty-print the IR's structure — quick reference for users
+    writing custom adapters or hand-editing specs."""
+    from . import spec as spec_mod
+    sections: list[tuple[str, list[str]]] = []
+
+    sections.append(("Schema version", [spec_mod.SCHEMA_VERSION]))
+    sections.append(("Protein force fields (allowlist)",
+                     list(spec_mod.PROTEIN_FF)))
+    sections.append(("Water models (allowlist)", list(spec_mod.WATER_MODELS)))
+    sections.append(("Ligand FFs (allowlist)", list(spec_mod.LIGAND_FF)))
+    sections.append(("Lipid FFs (allowlist)", list(spec_mod.LIPID_FF)))
+    sections.append(("Lipid bilayer compositions",
+                     list(spec_mod.LIPID_COMPOSITION)))
+    sections.append(("Coarse-grained protein FFs",
+                     list(spec_mod.CG_PROTEIN_FF)))
+
+    if args.format == "json":
+        out = {title: items for title, items in sections}
+        print(json.dumps(out, indent=2))
+        return 0
+
+    for title, items in sections:
+        print(f"## {title}")
+        for item in items:
+            print(f"  - {item}")
+        print()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -134,6 +164,11 @@ def main(argv: list[str] | None = None) -> int:
     pm.add_argument("spec", nargs="?", default="-")
     pm.add_argument("--target", default=SCHEMA_VERSION)
     pm.set_defaults(func=_cmd_migrate)
+
+    psd = sub.add_parser("spec-describe",
+                         help="print the IR's allowlists + schema version")
+    psd.add_argument("--format", choices=["text", "json"], default="text")
+    psd.set_defaults(func=_cmd_spec_describe)
 
     args = p.parse_args(argv)
     return args.func(args)
