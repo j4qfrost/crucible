@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### v1.71 — `tools/release_summary.py` (one-line CHANGELOG view) (2026-05-04)
+
+The CHANGELOG has grown to 70+ versions / ~3000 lines; scanning
+"what changed in v1.5x?" is now slow. This emits a compact
+one-line-per-version view for navigation.
+
+- **`tools/release_summary.py`** — parses CHANGELOG headers
+  (`### v1.42 — title (date)`) and emits a column-aligned table:
+  ```
+  v1.69  2026-05-04  export-jsonl --include-paper-text + Tier-2 personas file
+  v1.68  2026-05-04  doc-links auditor + workspace-check integration
+  …
+  ```
+- Three filters: `--prefix v1.4` (everything in the v1.4x cluster),
+  `--since v1.50` (everything from a baseline), `--latest 10` (most
+  recent N).
+- Strips backticks from titles for compact display; preserves the
+  date as parsed from the header.
+- Useful for orientation when joining the project mid-stream — `tools/release_summary.py --latest 30` is a fast catch-up.
+
 ### v1.70 — profile-shape auditor + code-span-aware link checker (2026-05-04)
 
 Two CI-side polish slices that compound the v1.68 doc-rot defense.
