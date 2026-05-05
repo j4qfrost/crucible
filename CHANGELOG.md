@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### v1.69 — `export-jsonl --include-paper-text` + Tier-2 personas file (2026-05-04)
+
+Two slices that compose the corpus + benchmark layers into the
+option-3 fine-tune flywheel feeder format.
+
+- **`benchmark export-jsonl --include-paper-text`** — joins each
+  runs row with `corpus.paper_text_for_doi(entry.doi)`, producing
+  self-contained `(paper_id, mdspec_score, paper_text)` rows.
+  Exactly the shape the option-3 fine-tune
+  (`docs/ADOPTION_PLAN.md` Phase 4) wants for training data
+  preparation. Missing-from-corpus DOIs surface as
+  `paper_text: null` so downstream filters can drop them.
+- **`--corpus-db`** flag on `export-jsonl` — optional separate
+  corpus-DB path; defaults to reusing `runs_db` (the friction-
+  minimum config when one DuckDB file holds both tables).
+- **`examples/persona_names_tier2.txt`** — the 6 Tier-2 industry
+  CADD personas from `docs/CAMPAIGN_2026Q2.md`. Includes a
+  caveat: industry-name OpenAlex matches are less reliable than
+  academic ones; verify before trusting the works list.
+  Companion to the Tier-1 file from v1.65.
+- 1 new test (end-to-end: seed corpus → run → export with text
+  join → assert shaw row has populated paper_text, others `None`).
+  **190/190 pytest** (was 189).
+
 ### v1.68 — doc-links auditor + workspace-check integration (2026-05-04)
 
 Catches doc-rot — the regression class where a renamed/moved doc

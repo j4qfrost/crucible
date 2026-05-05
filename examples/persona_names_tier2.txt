@@ -1,0 +1,23 @@
+# Tier-2 pharma CADD leadership personas from docs/CAMPAIGN_2026Q2.md.
+#
+# CAVEAT: industry names match less reliably in OpenAlex than academic
+# ones. Several of these are people whose primary OpenAlex profile is
+# their academic affiliation (often years out of date). Run with --limit
+# 50 first; verify the resolved author against the campaign doc's bio
+# before trusting the works list. Some entries may need manual lookup
+# by ORCID instead — see `crucible corpus query` for a manual workflow.
+#
+# Usage:
+#   crucible corpus fetch-batch examples/persona_names_tier2.txt \
+#       --concept "molecular dynamics" --since 2018 --limit 50
+#
+# After fetch: `crucible corpus authors --limit 50` to verify which rows
+# landed; some may need a follow-up `corpus fetch` with a more specific
+# query string.
+
+Robert Abel
+Patrick Walters
+Tom Miller
+Mathai Mammen
+Daphne Koller
+Brooke Husic

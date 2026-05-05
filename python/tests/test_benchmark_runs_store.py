@@ -227,6 +227,61 @@ def test_schema_version_distribution(tmp_path):
     conn.close()
 
 
+def test_export_jsonl_include_paper_text_joins_corpus(tmp_path, capsys):
+    """`--include-paper-text` joins each runs row with the corpus's
+    `paper_text_for_doi` result. Self-contained training records for
+    the option-3 flywheel."""
+    duckdb = pytest.importorskip("duckdb")
+    from crucible.benchmark.cli import main
+    from crucible.corpus.openalex import Author, Work, WorkAuthor
+    from crucible.corpus.store import CorpusStore
+
+    db = tmp_path / "shared.duckdb"
+
+    # Step 1: seed the corpus with one DOI from the benchmark seed set.
+    with CorpusStore.open(db) as s:
+        wa = WorkAuthor(author_id="A1", display_name="K Lindorff-Larsen",
+                        position=1)
+        s.upsert_work(Work(
+            work_id="W_SHAW", doi="10.1126/science.1187409",
+            title="Atomic-Level Characterization …",
+            abstract="Long-MD characterization at 1 ms.",
+            publication_year=2010, venue="Science",
+            cited_by_count=3000, is_oa=False, pdf_url=None,
+            authors=[wa],
+        ))
+
+    # Step 2: run the benchmark to populate benchmark_runs.
+    rc = main([
+        "run", "--mock", "--allow-unverified",
+        "--corpus-db", str(db),
+        "--llm-model", "vanilla-mock",
+        "--out", str(tmp_path / "out.jsonl"),
+    ])
+    assert rc == 0
+
+    # Step 3: export with --include-paper-text. The shaw_2010_bpti row
+    # should have its `paper_text` populated; rows whose DOI isn't in
+    # the corpus get `paper_text=None`.
+    out = tmp_path / "export.jsonl"
+    rc = main([
+        "export-jsonl", str(db), "--out", str(out),
+        "--include-paper-text",
+    ])
+    assert rc == 0
+
+    import json as _json
+    rows = [_json.loads(line) for line in out.read_text().splitlines() if line]
+    by_paper = {r["paper_id"]: r for r in rows}
+    shaw_row = by_paper["shaw_2010_bpti"]
+    assert "paper_text" in shaw_row
+    assert shaw_row["paper_text"] is not None
+    assert "Atomic-Level Characterization" in shaw_row["paper_text"]
+    # Other entries didn't get seeded; their paper_text is None.
+    other_id = next(pid for pid in by_paper if pid != "shaw_2010_bpti")
+    assert by_paper[other_id]["paper_text"] is None
+
+
 def test_export_jsonl_filters_by_since(tmp_path):
     """The export_jsonl `since=` filter is exposed via CLI in v1.64."""
     from datetime import datetime, timedelta, timezone

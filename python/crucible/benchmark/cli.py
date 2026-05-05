@@ -527,6 +527,25 @@ def cmd_export(args: argparse.Namespace) -> int:
                   file=sys.stderr)
             conn.close()
             return 2
+
+    # Optional: include the paper text from the corpus DB so each row
+    # is a self-contained `(paper_text, mdspec, score)` training tuple
+    # for the option-3 fine-tune flywheel. Resolves DOI per benchmark
+    # entry; skips the join silently if the corpus row is missing.
+    text_lookup: dict[str, str | None] = {}
+    if args.include_paper_text:
+        from ..corpus.store import CorpusStore
+        from .papers import list_entries
+        # Reuse the same DB if it doubles as the corpus (the common case).
+        corpus = CorpusStore.open(args.corpus_db or args.runs_db)
+        try:
+            for entry in list_entries():
+                if not entry.doi:
+                    continue
+                text_lookup[entry.paper_id] = corpus.paper_text_for_doi(entry.doi)
+        finally:
+            corpus.close()
+
     sink = open(args.out, "w") if args.out else sys.stdout
     n = 0
     try:
@@ -536,6 +555,11 @@ def cmd_export(args: argparse.Namespace) -> int:
             llm_provider=args.provider,
             since=since_dt,
         ):
+            if args.include_paper_text:
+                record = json.loads(line)
+                pid = record.get("paper_id")
+                record["paper_text"] = text_lookup.get(pid)
+                line = json.dumps(record, default=str)
             sink.write(line + "\n")
             n += 1
     finally:
@@ -726,6 +750,11 @@ def build_parser() -> argparse.ArgumentParser:
     pe.add_argument("--provider", default=None, help="filter to one provider")
     pe.add_argument("--since", default=None,
                     help="only rows with run_at >= this (ISO date or timestamp)")
+    pe.add_argument("--include-paper-text", action="store_true",
+                    help="join each row with corpus.paper_text_for_doi (for "
+                         "option-3 flywheel: self-contained training records)")
+    pe.add_argument("--corpus-db", default=None,
+                    help="separate corpus DB path; default reuses --runs-db")
     pe.set_defaults(func=cmd_export)
 
     pcm = sub.add_parser("compare",
