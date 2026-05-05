@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### v1.41 — cross-language consistency tests (2026-05-04)
+
+Pins the load-bearing IR-as-contract invariant: a `MDSpec` emitted
+by Python's pydantic models must round-trip byte-equivalent (after
+JSON normalization) through the Julia loader. Without this test,
+silent divergence between the two ports can creep in over schema
+bumps; the polyglot story (`musings/ecosystem_alternatives.md`)
+collapses if it isn't pinned.
+
+- **`tools/cross_lang_roundtrip.jl`** — single Julia process reads
+  JSONL from stdin, parses each line via `Crucible.spec_from_json`,
+  re-emits via `Crucible.spec_to_json`. Amortizes Julia's ~3 s
+  startup over arbitrarily many specs.
+- **`python/tests/test_cross_language_consistency.py`** — runs six
+  representative templates (vanilla, smiles, protein_ligand_fep,
+  remd, membrane, metadynamics) through the round-trip; asserts
+  parsed-as-dict equality, provenance-key-set equality, and stage
+  discriminator preservation. Skips when `julia` isn't on PATH.
+  Module-scoped fixture: 8 tests share one Julia subprocess.
+- 105/105 pytest pass (was 97; +8 cross-language). Total wall-clock
+  ~4.4 s.
+- 928/928 Julia tests unchanged.
+
 ### v1.40 — verification guide + `benchmark add` CLI (2026-05-04)
 
 Lowers the friction on the highest-leverage paywall-gated punch-list
