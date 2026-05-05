@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### v1.50 — `benchmark export-jsonl` + one-shot `benchmark publish` (2026-05-04)
+
+Two CLI surface improvements that lean on the v1.45 + v1.48 data
+layer.
+
+- **`python -m crucible benchmark export-jsonl <runs.db>
+  [--out X] [--paper-id Y] [--provider Z]`** — dumps the runs table
+  to JSONL, one row per line, with `per_axis` rehydrated from JSON.
+  Designed as the **option-3 fine-tune flywheel feeder**
+  (`docs/ADOPTION_PLAN.md` Phase 4) — the JSONL is the wire format
+  the training corpus consumes; per-row provenance lets the trainer
+  filter to "high-quality runs only" downstream.
+- **`python -m crucible benchmark publish [--mock] [--corpus-db X]
+  [--out report.md]`** — one-shot: runs the benchmark, renders the
+  report, optionally writes to a markdown path. Auto-includes the
+  trends section when `--corpus-db` is set (it's also the runs DB
+  by default). Reduces the publish cycle from 3 commands
+  (run → report → cp) to 1.
+- **`python/crucible/benchmark/runs_store.py`** — new
+  `export_jsonl(conn, since=, paper_id=, llm_provider=)` generator.
+- 3 new tests (export round-trip, export filters, publish writes
+  markdown). **140/140 pytest** (was 137).
+
 ### v1.49 — fix passthrough subcommand argparse + verify-doc thermostat (2026-05-04)
 
 Two cleanup slices around v1.47–v1.48.

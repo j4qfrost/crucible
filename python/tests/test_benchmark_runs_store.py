@@ -227,6 +227,56 @@ def test_schema_version_distribution(tmp_path):
     conn.close()
 
 
+def test_export_jsonl_streams_rows(tmp_path):
+    from crucible.benchmark.runs_store import export_jsonl
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    rid = new_run_id()
+    insert_outcome(conn, run_id=rid, outcome=_outcome("a"),
+                   llm_provider="anthropic", llm_model="opus",
+                   schema_version="0.4.0")
+    insert_outcome(conn, run_id=rid, outcome=_outcome("b"),
+                   llm_provider="local", llm_model="qwen",
+                   schema_version="0.4.0")
+    import json as _json
+    rows = [_json.loads(line) for line in export_jsonl(conn)]
+    assert {r["paper_id"] for r in rows} == {"a", "b"}
+    assert all("per_axis" in r for r in rows)
+    # per_axis was hydrated back into a dict, not left as a JSON string.
+    assert isinstance(rows[0]["per_axis"], dict)
+    conn.close()
+
+
+def test_export_jsonl_filters_by_paper_id_and_provider(tmp_path):
+    from crucible.benchmark.runs_store import export_jsonl
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    rid = new_run_id()
+    insert_outcome(conn, run_id=rid, outcome=_outcome("a"),
+                   llm_provider="x", llm_model="m", schema_version="0.4.0")
+    insert_outcome(conn, run_id=rid, outcome=_outcome("b"),
+                   llm_provider="y", llm_model="m", schema_version="0.4.0")
+    only_a = list(export_jsonl(conn, paper_id="a"))
+    only_y = list(export_jsonl(conn, llm_provider="y"))
+    assert len(only_a) == 1 and len(only_y) == 1
+    conn.close()
+
+
+def test_benchmark_cli_publish_writes_markdown(tmp_path):
+    from crucible.benchmark.cli import main
+    out = tmp_path / "report.md"
+    rc = main(["publish", "--mock", "--allow-unverified",
+               "--corpus-db", str(tmp_path / "shared.duckdb"),
+               "--llm-model", "vanilla-mock",
+               "--out", str(out)])
+    assert rc == 0
+    text = out.read_text()
+    assert "Hallucination benchmark" in text
+    assert "Per-paper detail" in text
+    # Trends section auto-included because --corpus-db doubles as --runs-db.
+    assert "Longitudinal trends" in text
+
+
 def test_benchmark_cli_run_writes_runs_db_when_corpus_db_passed(tmp_path):
     """End-to-end: `benchmark run --mock --corpus-db <path>` writes a row
     per outcome into the corpus DB's benchmark_runs table without an

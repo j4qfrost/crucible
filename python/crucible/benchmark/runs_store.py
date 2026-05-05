@@ -288,3 +288,50 @@ def schema_version_distribution(conn: Any) -> dict[str, int]:
         "GROUP BY schema_version ORDER BY schema_version"
     )
     return {row[0]: int(row[1]) for row in cur.fetchall()}
+
+
+def export_jsonl(conn: Any, *,
+                 since: Optional[datetime] = None,
+                 paper_id: Optional[str] = None,
+                 llm_provider: Optional[str] = None) -> Iterator[str]:
+    """Yield one JSON line per benchmark_runs row.
+
+    Designed for the option-3 fine-tune flywheel
+    (`docs/ADOPTION_PLAN.md` Phase 4) — the JSONL is what the training
+    corpus consumes. Each line carries enough context (paper_id, model,
+    provider, schema_version, per_axis breakdown) to filter the corpus
+    to "high-quality runs only" downstream.
+    """
+    sql = """
+        SELECT run_id, paper_id, run_at, llm_provider, llm_model, ok,
+               elapsed_s, total, max_score, per_axis, error,
+               schema_version, crucible_version
+        FROM benchmark_runs
+        WHERE 1=1
+    """
+    params: list = []
+    if since is not None:
+        sql += " AND run_at >= ?"
+        params.append(since)
+    if paper_id is not None:
+        sql += " AND paper_id = ?"
+        params.append(paper_id)
+    if llm_provider is not None:
+        sql += " AND llm_provider = ?"
+        params.append(llm_provider)
+    sql += " ORDER BY run_at"
+    cur = conn.execute(sql, params)
+    cols = [d[0] for d in cur.description]
+    for row in cur.fetchall():
+        record = dict(zip(cols, row))
+        # per_axis is stored as a JSON string; rehydrate for downstream parsers.
+        if record.get("per_axis"):
+            try:
+                record["per_axis"] = json.loads(record["per_axis"])
+            except (TypeError, json.JSONDecodeError):
+                pass
+        # Datetime → ISO string for JSON-friendliness.
+        run_at = record.get("run_at")
+        if run_at is not None:
+            record["run_at"] = run_at.isoformat() if hasattr(run_at, "isoformat") else str(run_at)
+        yield json.dumps(record, default=str)

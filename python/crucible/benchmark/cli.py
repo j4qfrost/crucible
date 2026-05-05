@@ -509,6 +509,70 @@ def cmd_trends(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_export(args: argparse.Namespace) -> int:
+    """Dump the runs table to JSONL — option-3 fine-tune flywheel feeder."""
+    from .runs_store import export_jsonl, open_runs_store
+    conn = open_runs_store(args.runs_db)
+    sink = open(args.out, "w") if args.out else sys.stdout
+    n = 0
+    try:
+        for line in export_jsonl(
+            conn,
+            paper_id=args.paper_id,
+            llm_provider=args.provider,
+        ):
+            sink.write(line + "\n")
+            n += 1
+    finally:
+        if args.out:
+            sink.close()
+    print(f"exported {n} row(s)" + (f" → {args.out}" if args.out else ""),
+          file=sys.stderr)
+    conn.close()
+    return 0
+
+
+def cmd_publish(args: argparse.Namespace) -> int:
+    """One-shot: run the benchmark + render the report + (optionally) write
+    it to a docs path. Reduces the publish cycle from 3 commands to 1.
+    """
+    import tempfile
+    runs_jsonl = tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False)
+    runs_jsonl.close()
+    runs_path = Path(runs_jsonl.name)
+
+    # Reuse the existing run + report code paths via Namespace shims so we
+    # don't duplicate the corpus-resolution / runs-store wiring.
+    run_args = argparse.Namespace(
+        db=None,
+        mock=args.mock,
+        papers_dir=args.papers_dir,
+        corpus_db=args.corpus_db,
+        full_text=args.full_text,
+        full_text_cache=None,
+        runs_db=args.runs_db or args.corpus_db,
+        llm_model=args.llm_model,
+        out=str(runs_path),
+        verified_only=args.verified_only,
+        allow_unverified=args.allow_unverified,
+    )
+    rc = cmd_run(run_args)
+    if rc != 0:
+        runs_path.unlink(missing_ok=True)
+        return rc
+
+    report_args = argparse.Namespace(
+        db=None,
+        runs=str(runs_path),
+        out=args.out,
+        intro=args.intro,
+        trends_db=args.runs_db or args.corpus_db,
+    )
+    rc = cmd_report(report_args)
+    runs_path.unlink(missing_ok=True)
+    return rc
+
+
 def cmd_runs_stats(args: argparse.Namespace) -> int:
     """Per-axis accuracy + per-provider breakdown from the runs DB."""
     from .runs_store import (
@@ -565,6 +629,31 @@ def build_parser() -> argparse.ArgumentParser:
     prs.add_argument("--provider", default=None,
                      help="also emit per-axis accuracy filtered to this provider")
     prs.set_defaults(func=cmd_runs_stats)
+
+    pe = sub.add_parser("export-jsonl",
+                        help="dump benchmark_runs to JSONL (option-3 flywheel feeder)")
+    pe.add_argument("runs_db", help="path to the DuckDB with benchmark_runs table")
+    pe.add_argument("--out", default=None, help="output path (default: stdout)")
+    pe.add_argument("--paper-id", default=None, help="filter to one paper")
+    pe.add_argument("--provider", default=None, help="filter to one provider")
+    pe.set_defaults(func=cmd_export)
+
+    pb = sub.add_parser("publish",
+                        help="one-shot: run + report (writes to --out path)")
+    pb.add_argument("--mock", action="store_true",
+                    help="use a deterministic mock transpile (smoke test)")
+    pb.add_argument("--papers-dir", default=None)
+    pb.add_argument("--corpus-db", default=None)
+    pb.add_argument("--runs-db", default=None,
+                    help="defaults to --corpus-db if set")
+    pb.add_argument("--full-text", action="store_true")
+    pb.add_argument("--llm-model", default=None)
+    pb.add_argument("--verified-only", action="store_true")
+    pb.add_argument("--allow-unverified", action="store_true")
+    pb.add_argument("--intro", default=None)
+    pb.add_argument("--out", default=None,
+                    help="markdown destination (default: stdout)")
+    pb.set_defaults(func=cmd_publish)
 
     pv = sub.add_parser("verify",
                         help="interactive axis-by-axis verification of one entry")
