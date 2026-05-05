@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### v1.75 — `docs/QUICK_REFERENCE.md` (single-page CLI cheatsheet) (2026-05-05)
+
+The CLI surface has accumulated to ~80 subcommands across 4 tiers
+(Julia CLI / Python pure / corpus / benchmark) plus the workspace
+tooling. This is the single-page lookup for "what's the syntax
+again?" — intentionally light on prose, heavy on tables.
+
+- **`docs/QUICK_REFERENCE.md`** — five sections:
+  - Tier 0: 30-subcommand `crucible` Julia CLI (transpile, render,
+    run, advise, doctor, templates, diff, coverage, lint, explain,
+    cite, upgrade, serve, info, bench, fmt, plot, events, analyze,
+    trajstat, snapshot, restore, audit-transcripts,
+    export-jsonschema, import-jsonl, parameterize, verify,
+    walkthrough, hekate).
+  - Tier 1: `python -m crucible` pure-Python ops (validate, lint,
+    templates, migrate, spec-describe).
+  - Tier 2: `corpus *` (fetch, fetch-batch, papers, authors,
+    coauthors, stats, query, ui).
+  - Tier 3: `benchmark *` (list, status, add, verify, run,
+    report, publish, trends, runs-stats, runs-stats-md,
+    export-jsonl, compare, watch).
+  - Tier 4: workspace tools (`tools/check_workspace.py` + 9
+    others).
+  - Environment variables reference.
+  - 6 common-workflow recipes (reproduce / audit / corpus seed /
+    benchmark publish / regression compare / live-monitor /
+    pre-commit).
+- **`README.md`** — Documentation section now lists
+  `QUICK_REFERENCE.md` first, before `USER_PROFILES.md` and
+  `HOW_TO_READ.md`. Order: cheatsheet → task-oriented profile →
+  reading-oriented guide.
+- All 7 workspace checks green at this commit (the new doc's
+  ~50 cross-references all resolve).
+
 ### v1.74 — `crucible benchmark watch` (live tail of runs DB) (2026-05-05)
 
 A second mode for the runs DB beyond the v1.45 batch-query model: a

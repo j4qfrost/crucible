@@ -183,6 +183,10 @@ step):
 
 ## Documentation
 
+- [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) — **CLI
+  cheatsheet** — every subcommand on one page, organized by tier
+  (Julia CLI / Python pure / corpus / benchmark / workspace tools)
+  + common-workflow recipes + environment variables.
 - [`docs/USER_PROFILES.md`](docs/USER_PROFILES.md) — **task-oriented**
   onboarding for specific adopter personas (grad student / postdoc,
   pharma POC scientist, instructor, reproducibility researcher,
