@@ -58,6 +58,31 @@ jobs:
             exit 1
           }
 
+  # Air-gap audit: workspace consistency + egress-baseline gate +
+  # `crucible-py doctor --offline`. Pure-Python; finishes in seconds.
+  # Failing this means a new outbound-network call site landed without
+  # an explicit baseline bump (tools/baselines/egress.json) + an
+  # AIR_GAPPED.md update — block the PR until both happen.
+  air-gap-audit:
+    name: Air-gap audit (workspace + egress baseline + doctor --offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python bindings (with anthropic extra for doctor)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "python[llm-anthropic]"
+
+      - name: Run composite air-gap audit
+        # --skip-julia keeps this job fast; the Julia doctor surface is
+        # already exercised in cmd-doctor smoke under Pkg.test().
+        run: ./tools/audit_offline.sh --skip-julia
+
   # Live OpenMM + PDBFixer + mdtraj smoke. Installs OpenMM into a venv
   # and re-runs Pkg.test() with CRUCIBLE_RUN_OPENMM=1 so the
   # integration_test.jl live testset actually exercises OpenMM against

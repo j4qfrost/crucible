@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### v1.86 — wire air-gap audit into GHA CI (2026-04-29)
+
+Adds a new `air-gap-audit` job to `.github/workflows/ci.yml` so
+the egress baseline + doctor `--offline` audits gate every PR
+automatically, not just on operator-run audits.
+
+- Job sets up Python 3.11, installs `python[llm-anthropic]`, and
+  runs `tools/audit_offline.sh --skip-julia`.
+- Runs in parallel with the Julia matrix (no `needs:` chain) so
+  it doesn't block the slower path.
+- Fails the PR if any of: workspace consistency drifts, a new
+  outbound call site lands without a baseline bump + AIR_GAPPED.md
+  update, or the runtime env is air-gap-hostile (e.g. someone
+  hard-codes `ANTHROPIC_API_KEY` into a default).
+- Pure-Python so finishes in tens of seconds; pairs with the
+  existing Julia matrix as a separate fast lane.
+
 ### v1.85 — `tools/audit_offline.sh` (composite air-gap gate) (2026-04-29)
 
 A single one-shot gate that composes v1.81 (egress inventory),
