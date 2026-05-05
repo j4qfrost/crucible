@@ -1,0 +1,9 @@
+{
+  "_comment": "Per-category counts of outbound-network call sites recorded by tools/inventory_egress.py. The check_workspace.py egress check fails if any category exceeds these counts. To add a new egress site: (1) add it to the codebase, (2) run `python tools/inventory_egress.py` to confirm classification, (3) update this file to the new counts, (4) update docs/AIR_GAPPED.md with the neutralization. Decreases are silently allowed (improvements).",
+  "schema_version": 1,
+  "counts": {
+    "urllib": 7,
+    "anthropic_sdk": 2,
+    "julia_HTTP": 10
+  }
+}

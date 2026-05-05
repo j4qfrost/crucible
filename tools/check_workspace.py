@@ -17,6 +17,11 @@ Checks:
     4. `Manifest.toml` has `manifest_format = "2.0"` (Pkg.jl modern)
     5. `python/pyproject.toml` declares `pydantic>=2` (the pydantic-v1
        split was painful enough that pinning v2 is load-bearing)
+    6. Doc cross-references resolve (delegated to `check_doc_links.py`)
+    7. USER_PROFILE_*.md files match the v1.59 playbook shape
+    8. Outbound-network call inventory has not exceeded the baseline
+       in `tools/baselines/egress.json` (any new egress site forces
+       a deliberate baseline bump + AIR_GAPPED.md update — air-gap audit gate)
 
 Usage:
     python tools/check_workspace.py
@@ -146,6 +151,47 @@ def _check_profile_shape() -> tuple[bool, str]:
     return True, "all USER_PROFILE_*.md files match the v1.59 playbook shape"
 
 
+def _check_egress_baseline() -> tuple[bool, str]:
+    """Ensure no new outbound-network call site has crept in past the
+    baseline in tools/baselines/egress.json. New sites force a
+    deliberate baseline bump + an AIR_GAPPED.md update."""
+    import subprocess
+    baseline_path = REPO_ROOT / "tools" / "baselines" / "egress.json"
+    if not baseline_path.is_file():
+        return True, "no egress baseline; skipped"
+    baseline = json.loads(baseline_path.read_text())
+    expected = baseline.get("counts") or {}
+
+    proc = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "tools" / "inventory_egress.py"),
+         "--format", "json"],
+        capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        return False, f"inventory_egress.py exited {proc.returncode}: {proc.stderr.strip()[:200]}"
+    try:
+        hits = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        return False, f"inventory_egress.py emitted invalid JSON: {exc}"
+
+    actual: dict[str, int] = {}
+    for h in hits:
+        actual[h["category"]] = actual.get(h["category"], 0) + 1
+
+    drift: list[str] = []
+    for cat, n in actual.items():
+        baseline_n = expected.get(cat, 0)
+        if n > baseline_n:
+            drift.append(f"{cat}: {n} > baseline {baseline_n}")
+    if drift:
+        return False, (
+            "egress baseline exceeded:\n  - " + "\n  - ".join(drift)
+            + "\n  bump tools/baselines/egress.json + update docs/AIR_GAPPED.md"
+        )
+    total = sum(actual.values())
+    return True, f"egress inventory within baseline ({total} site(s) across {len(actual)} categor{'y' if len(actual)==1 else 'ies'})"
+
+
 CHECKS = [
     ("python_schema_matches_json", _check_python_schema_matches_json),
     ("python_schema_matches_julia", _check_python_schema_matches_julia),
@@ -154,6 +200,7 @@ CHECKS = [
     ("pydantic_pinned_v2", _check_pydantic_pinned_v2),
     ("doc_links", _check_doc_links),
     ("profile_shape", _check_profile_shape),
+    ("egress_baseline", _check_egress_baseline),
 ]
 
 
