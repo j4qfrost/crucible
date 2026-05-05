@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### v1.77 — `release_summary.py --by-theme` (grouped CHANGELOG view) (2026-05-05)
+
+Groups versions by inferred theme so the post-v1.40 changelog
+becomes scannable by area rather than just by date.
+
+- **`tools/release_summary.py --by-theme`** — title-keyword
+  classifier with 11 themes ordered by relevance:
+  Schema / IR, Benchmark layer, Corpus tier, Adoption / docs,
+  CI / tooling, LLM / providers, AT Protocol / hekate,
+  Python bindings / packaging, Renderers / backends,
+  Validation gates / lint, UI / dashboard, then Misc.
+- First-match-wins keyword logic (e.g. "schema 0.4.0" hits
+  Schema / IR before reaching Benchmark layer's "axis"). Ordered
+  list per theme means tweaking is a single-line edit.
+- Composes with the existing `--prefix` / `--since` / `--latest`
+  filters: `release_summary.py --since v1.40 --by-theme` shows the
+  themed view of just the recent run.
+- Useful sanity check for "did I ship balanced work?" — a quick
+  glance reveals if one theme dominates an arbitrary release window.
+
 ### v1.76 — Streamlit dashboard for the benchmark runs DB (2026-05-05)
 
 Companion to v1.29's corpus GUI: a browsable dashboard for the

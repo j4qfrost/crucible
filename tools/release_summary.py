@@ -36,6 +36,61 @@ def _semver_tuple(version: str) -> tuple[int, ...]:
     return tuple(int(p) for p in parts)
 
 
+_THEMES = [
+    # (theme, ordered keyword list — first match wins).
+    ("Schema / IR", [
+        "schema 0.", "schema-version", "migration", "_explain_spec",
+    ]),
+    ("Benchmark layer", [
+        "benchmark", "hallucination", "scorer", "axis",
+        "verify", "seed-set",
+    ]),
+    ("Corpus tier", [
+        "corpus", "openalex", "fetch-batch", "papers.py",
+    ]),
+    ("Adoption / docs", [
+        "user_profile", "user-profile", "adoption", "campaign",
+        "pitch", "playbook", "faq", "loom", "cheatsheet",
+        "quick reference", "quick_reference",
+        "how_to_verify", "how_to_read", "power_users",
+        "musing", "scoping",
+    ]),
+    ("CI / tooling", [
+        "check_workspace", "check_doc_links", "check_profile_shape",
+        "release_summary", "install_precommit", "ci ",
+        "manifest", "cross-language", "consistency",
+    ]),
+    ("LLM / providers", [
+        "localprovider", "anthropic", "transpile",
+    ]),
+    ("AT Protocol / hekate", [
+        "atproto", "hekate", "lexicon",
+    ]),
+    ("Python bindings / packaging", [
+        "pydantic", "python bindings", "pyproject",
+    ]),
+    ("Renderers / backends", [
+        "renderer", "openmm", "molly.jl", "gromacs",
+    ]),
+    ("Validation gates / lint", [
+        "gate ", "lint", "coverage",
+    ]),
+    ("UI / dashboard", [
+        "streamlit", "dashboard", "ui",
+    ]),
+    ("Misc", [],),     # always last; catches everything that didn't match
+]
+
+
+def _classify(title: str) -> str:
+    text = title.lower()
+    for theme, keywords in _THEMES:
+        for kw in keywords:
+            if kw in text:
+                return theme
+    return "Misc"
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="release_summary.py")
     p.add_argument("--prefix", default=None,
@@ -44,6 +99,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="only versions >= this (e.g. v1.50)")
     p.add_argument("--latest", type=int, default=None,
                    help="show only the N most-recent versions")
+    p.add_argument("--by-theme", action="store_true",
+                   help="group versions by inferred theme")
     args = p.parse_args(argv)
 
     if not CHANGELOG.is_file():
@@ -77,11 +134,33 @@ def main(argv: list[str] | None = None) -> int:
         print("(no versions match the filter)", file=sys.stderr)
         return 0
 
-    # Format: `v1.42  2026-05-04  corpus full-text fetch (PDF → pdftotext)`
+    if args.by_theme:
+        # Group by classified theme. Preserve in-theme order
+        # (newest first, since CHANGELOG is in that order).
+        groups: dict[str, list[tuple[str, str, str]]] = {}
+        for version, title, date in rows:
+            theme = _classify(title)
+            groups.setdefault(theme, []).append((version, title, date))
+        # Emit groups in the order defined in _THEMES (then Misc).
+        theme_order = [t for t, _ in _THEMES]
+        for theme in theme_order:
+            if theme not in groups:
+                continue
+            entries = groups[theme]
+            print(f"## {theme}  ({len(entries)} releases)")
+            print()
+            max_version_w = max(len(r[0]) for r in entries)
+            max_date_w = max(len(r[2]) for r in entries)
+            for version, title, date in entries:
+                clean_title = title.replace("`", "")
+                print(f"  {version:<{max_version_w}}  {date:<{max_date_w}}  {clean_title}")
+            print()
+        return 0
+
+    # Default flat view.
     max_version_w = max(len(r[0]) for r in rows)
     max_date_w = max(len(r[2]) for r in rows)
     for version, title, date in rows:
-        # Strip backticks from titles for compact display.
         clean_title = title.replace("`", "")
         print(f"{version:<{max_version_w}}  {date:<{max_date_w}}  {clean_title}")
     return 0
