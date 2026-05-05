@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### v1.62 — adoption FAQ (cross-profile common questions) (2026-05-04)
+
+Closes the v1.57–v1.61 adoption-strategy doc set with an FAQ
+covering questions that span multiple user profiles.
+
+- **`docs/ADOPTION_FAQ.md`** — five categories:
+  - **Does this actually work?** — benchmark stance, what failures
+    are caught, the failure mode that worries us most.
+  - **What's it cost?** — software (Apache 2.0), compute
+    (~$0.05/paper Anthropic; local-mode electricity), maintainer
+    time (~10 min/paper for researchers, 30 days for pharma POC).
+  - **How do I integrate it?** — Python / Julia / R-Rust-Go-TS /
+    macOS-Linux-Windows / offline-airgap / dependency list.
+  - **What's the IP / data story?** — what leaves the network,
+    where transcripts are stored, attribution rules, no telemetry.
+  - **Where does this go from here?** — roadmap pointers, bus
+    factor, LLM-model-change story, OpenMM/Molly version pinning,
+    GROMACS support scoping.
+  - **Help / community** — issue templates, Discord status, paid
+    POC entry.
+- The FAQ deliberately doesn't repeat anything from the profile
+  docs; it answers cross-profile questions and points at the
+  profile docs for role-specific detail.
+
 ### v1.61 — three-length project pitch (2026-05-04)
 
 The first artifact every adopter sees. Three pitches at three
