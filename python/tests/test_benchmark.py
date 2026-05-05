@@ -80,6 +80,30 @@ def test_score_unverified_entry_allowed_with_flag():
     assert result.paper_id == "test_paper"
 
 
+def test_thermostat_axis_scores_against_vanilla():
+    """vanilla template uses langevin in production; expected match
+    grades that axis as True."""
+    entry = BenchmarkEntry(
+        paper_id="t", doi="10.0/x", title="t",
+        expected=ExpectedProtocol(thermostat="langevin"),
+        status="verified",
+    )
+    spec = templates.init("vanilla")
+    result = score(entry, spec)
+    assert result.per_axis[ScoreAxis.THERMOSTAT] is True
+
+
+def test_thermostat_axis_string_mismatch():
+    entry = BenchmarkEntry(
+        paper_id="t", doi="10.0/x", title="t",
+        expected=ExpectedProtocol(thermostat="berendsen"),
+        status="verified",
+    )
+    spec = templates.init("vanilla")
+    result = score(entry, spec)
+    assert result.per_axis[ScoreAxis.THERMOSTAT] is False
+
+
 def test_score_perfect_match_against_vanilla_template():
     """vanilla template uses amber14sb, TIP3P, NPT, dt=2 fs, T=300K,
        duration=10ns, P=1 bar — perfect match for the verified entry."""

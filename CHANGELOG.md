@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### v1.47 — 10th benchmark axis (thermostat) + runs-stats CLI (2026-05-04)
+
+Two slices: extend the benchmark to grade the production-stage
+thermostat (already in the IR; previously ungraded), and surface the
+longitudinal runs DB through a JSON-emitting `runs-stats` subcommand
+(per-axis accuracy + per-provider breakdown + schema-version
+distribution).
+
+- **`python/crucible/benchmark/scorer.py` + `papers.py`** — adds
+  `ScoreAxis.THERMOSTAT` (now 10 axes); `ExpectedProtocol.thermostat`
+  (`Optional[str]`). Scorer compares case-insensitive against
+  `production.thermostat`. No schema bump — the field was already on
+  `DynamicsStage`.
+- **`python/crucible/benchmark/cli.py`** — interactive `verify`
+  prompt now includes the 10th axis.
+- **`python/crucible/benchmark/runs_store.py`** — three new
+  accessors: `per_axis_accuracy(conn, llm_provider=None)`,
+  `per_provider_summary(conn)`,
+  `schema_version_distribution(conn)`. Per-axis is computed in
+  Python (parses `per_axis` JSON column) for cross-DuckDB-version
+  portability.
+- **`python -m crucible benchmark runs-stats <db> [--provider X]`**
+  — prints stats + schema-version distribution + per-provider
+  rollup + per-axis accuracy as JSON. Optional `--provider` slice
+  for per-provider per-axis accuracy.
+- 6 new tests (2 thermostat scorer + 4 stats accessors). **133/133
+  pytest** (was 127).
+- End-to-end smoke verified: `benchmark run` → `runs-stats`
+  surfaces the new axis + per-provider numbers.
+
 ### v1.46 — schema-version guards + trend reporter (2026-05-04)
 
 Two slices that close around the v1.44 schema bump experience: pin

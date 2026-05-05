@@ -49,6 +49,7 @@ class ExpectedProtocol:
     pressure_bar: Optional[float] = None     # required if ensemble == NPT
     fep_lambda_count: Optional[int] = None   # 0/None for non-FEP papers
     solvent_padding_nm: Optional[float] = None  # solute-to-box-edge buffer (added v0.4.0)
+    thermostat: Optional[str] = None         # langevin / nose_hoover / andersen / berendsen (production stage)
 
 
 @dataclass

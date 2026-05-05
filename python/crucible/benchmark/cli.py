@@ -96,6 +96,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
          "int", int),
         ("solvent_padding_nm", "solute-to-box-edge buffer in nm (e.g. 1.0)",
          "float", float),
+        ("thermostat", "langevin / nose_hoover / andersen / berendsen",
+         "string", str),
     ]
 
     new_values: dict[str, object] = {}
@@ -485,6 +487,28 @@ def cmd_trends(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_runs_stats(args: argparse.Namespace) -> int:
+    """Per-axis accuracy + per-provider breakdown from the runs DB."""
+    from .runs_store import (
+        open_runs_store, per_axis_accuracy, per_provider_summary,
+        schema_version_distribution, stats,
+    )
+    conn = open_runs_store(args.runs_db)
+    out = {
+        "stats": stats(conn),
+        "schema_version_distribution": schema_version_distribution(conn),
+        "per_provider": per_provider_summary(conn),
+        "per_axis_overall": per_axis_accuracy(conn),
+    }
+    if args.provider:
+        out["per_axis_for_provider"] = {
+            args.provider: per_axis_accuracy(conn, llm_provider=args.provider),
+        }
+    print(json.dumps(out, indent=2))
+    conn.close()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="crucible-benchmark",
@@ -512,6 +536,13 @@ def build_parser() -> argparse.ArgumentParser:
     pt.add_argument("runs_db", help="path to the DuckDB with benchmark_runs table")
     pt.add_argument("--paper-id", default=None, help="filter to one paper")
     pt.set_defaults(func=cmd_trends)
+
+    prs = sub.add_parser("runs-stats",
+                         help="per-axis + per-provider accuracy from runs DB")
+    prs.add_argument("runs_db", help="path to the DuckDB with benchmark_runs table")
+    prs.add_argument("--provider", default=None,
+                     help="also emit per-axis accuracy filtered to this provider")
+    prs.set_defaults(func=cmd_runs_stats)
 
     pv = sub.add_parser("verify",
                         help="interactive axis-by-axis verification of one entry")

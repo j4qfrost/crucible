@@ -156,6 +156,77 @@ def test_insert_outcome_idempotent_on_run_id_paper_id(tmp_path):
     conn.close()
 
 
+def test_per_axis_accuracy_counts_True_only(tmp_path):
+    from crucible.benchmark.runs_store import per_axis_accuracy
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    rid = new_run_id()
+    insert_outcome(conn, run_id=rid, outcome=_outcome("a", total=5),
+                   llm_provider="x", llm_model="x", schema_version="0.4.0")
+    out = per_axis_accuracy(conn)
+    # The mock outcome scores 5 axes True, 2 False, 1 None.
+    # protein_ff=True, water_model=True, ensemble=True, dt_fs=True,
+    # temperature_K=True, duration_ns=False, pressure_bar=True (7th True),
+    # fep_lambda_count=None (skipped), solvent_padding_nm=False
+    assert out["protein_ff"]["pct"] == 1.0
+    assert out["duration_ns"]["pct"] == 0.0
+    assert "fep_lambda_count" not in out
+    conn.close()
+
+
+def test_per_axis_accuracy_filter_by_provider(tmp_path):
+    from crucible.benchmark.runs_store import per_axis_accuracy
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    rid = new_run_id()
+    insert_outcome(conn, run_id=rid, outcome=_outcome("a"),
+                   llm_provider="anthropic", llm_model="x",
+                   schema_version="0.4.0")
+    insert_outcome(conn, run_id=rid, outcome=_outcome("b"),
+                   llm_provider="local", llm_model="y",
+                   schema_version="0.4.0")
+    only_anthropic = per_axis_accuracy(conn, llm_provider="anthropic")
+    assert only_anthropic["protein_ff"]["n_scored"] == 1
+    only_missing = per_axis_accuracy(conn, llm_provider="nonexistent")
+    assert only_missing == {}
+    conn.close()
+
+
+def test_per_provider_summary(tmp_path):
+    from crucible.benchmark.runs_store import per_provider_summary
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    rid = new_run_id()
+    insert_outcome(conn, run_id=rid, outcome=_outcome("a", total=4),
+                   llm_provider="x", llm_model="m", schema_version="0.4.0")
+    insert_outcome(conn, run_id=rid, outcome=_outcome("b", total=8, max_score=8),
+                   llm_provider="x", llm_model="m", schema_version="0.4.0")
+    insert_outcome(conn, run_id=rid, outcome=_outcome("c", total=2),
+                   llm_provider="y", llm_model="n", schema_version="0.4.0")
+    rows = per_provider_summary(conn)
+    by_provider = {r["llm_provider"]: r for r in rows}
+    assert by_provider["x"]["n_outcomes"] == 2
+    # avg(4/8, 8/8) = 0.75
+    assert abs(by_provider["x"]["avg_pct"] - 0.75) < 1e-6
+    conn.close()
+
+
+def test_schema_version_distribution(tmp_path):
+    from crucible.benchmark.runs_store import schema_version_distribution
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    rid = new_run_id()
+    insert_outcome(conn, run_id=rid, outcome=_outcome("a"),
+                   llm_provider="x", llm_model="m", schema_version="0.3.0")
+    insert_outcome(conn, run_id=rid, outcome=_outcome("b"),
+                   llm_provider="x", llm_model="m", schema_version="0.4.0")
+    insert_outcome(conn, run_id=rid, outcome=_outcome("c"),
+                   llm_provider="x", llm_model="m", schema_version="0.4.0")
+    dist = schema_version_distribution(conn)
+    assert dist == {"0.3.0": 1, "0.4.0": 2}
+    conn.close()
+
+
 def test_benchmark_cli_run_writes_runs_db_when_corpus_db_passed(tmp_path):
     """End-to-end: `benchmark run --mock --corpus-db <path>` writes a row
     per outcome into the corpus DB's benchmark_runs table without an

@@ -217,3 +217,74 @@ def stats(conn: Any) -> dict[str, int]:
         "runs": int(row[1]),
         "papers_touched": int(row[2]),
     }
+
+
+def per_axis_accuracy(conn: Any, *, llm_provider: Optional[str] = None) -> dict[str, dict]:
+    """Per-axis accuracy across the runs table.
+
+    Returns `{axis_name: {n_correct, n_scored, pct}}`. Optionally
+    filtered to one provider. The per-axis JSON is parsed in Python
+    rather than SQL because DuckDB's JSON ops differ across versions
+    and the volume here is small (rows × ~10 axes).
+    """
+    sql = "SELECT per_axis FROM benchmark_runs WHERE per_axis IS NOT NULL"
+    params: list = []
+    if llm_provider is not None:
+        sql += " AND llm_provider = ?"
+        params.append(llm_provider)
+    cur = conn.execute(sql, params)
+    counts: dict[str, dict[str, int]] = {}
+    for (per_axis_json,) in cur.fetchall():
+        try:
+            per_axis = json.loads(per_axis_json)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        for axis, value in per_axis.items():
+            if value is None:
+                continue            # axis not scored for this paper
+            slot = counts.setdefault(axis, {"n_correct": 0, "n_scored": 0})
+            slot["n_scored"] += 1
+            if value is True:
+                slot["n_correct"] += 1
+    out: dict[str, dict] = {}
+    for axis, slot in counts.items():
+        n_scored = slot["n_scored"]
+        out[axis] = {
+            "n_correct": slot["n_correct"],
+            "n_scored": n_scored,
+            "pct": (slot["n_correct"] / n_scored) if n_scored else 0.0,
+        }
+    return out
+
+
+def per_provider_summary(conn: Any) -> list[dict]:
+    """One row per provider: counts + average accuracy across all runs."""
+    cur = conn.execute(
+        """
+        SELECT llm_provider,
+               COUNT(*) AS n_outcomes,
+               COUNT(DISTINCT run_id) AS n_runs,
+               AVG(CAST(total AS DOUBLE) / NULLIF(max_score, 0)) AS avg_pct
+        FROM benchmark_runs
+        WHERE total IS NOT NULL
+        GROUP BY llm_provider
+        ORDER BY n_outcomes DESC
+        """
+    )
+    rows = []
+    for row in cur.fetchall():
+        rows.append({
+            "llm_provider": row[0],
+            "n_outcomes": int(row[1]),
+            "n_runs": int(row[2]),
+            "avg_pct": float(row[3]) if row[3] is not None else 0.0,
+        })
+    return rows
+
+
+def schema_version_distribution(conn: Any) -> dict[str, int]:
+    cur = conn.execute(
+        "SELECT schema_version, COUNT(*) FROM benchmark_runs "
+        "GROUP BY schema_version ORDER BY schema_version"
+    )
+    return {row[0]: int(row[1]) for row in cur.fetchall()}

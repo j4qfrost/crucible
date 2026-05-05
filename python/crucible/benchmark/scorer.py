@@ -43,6 +43,7 @@ class ScoreAxis(str, Enum):
     PRESSURE_BAR = "pressure_bar"
     FEP_LAMBDA_COUNT = "fep_lambda_count"
     SOLVENT_PADDING_NM = "solvent_padding_nm"
+    THERMOSTAT = "thermostat"
 
 
 @dataclass
@@ -122,6 +123,11 @@ def score(
     per_axis[ScoreAxis.SOLVENT_PADDING_NM] = _score_num(
         expected.solvent_padding_nm,
         spec.system.solvent.padding_nm,
+    )
+    # Thermostat is on the production-stage DynamicsStage.
+    per_axis[ScoreAxis.THERMOSTAT] = _score_str(
+        expected.thermostat,
+        production.thermostat if production else None,
     )
 
     total = sum(1 for v in per_axis.values() if v is True)
