@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### v1.52 — `--brief` reports + `runs-stats-md` (2026-05-04)
+
+Two report-layer surface improvements that lean on the v1.45 data
+layer.
+
+- **`render_report(..., brief=True)`** + **`benchmark report --brief`**
+  — emits a single Per-paper-summary table (one row per paper:
+  status, score, elapsed) instead of the verbose per-axis breakdown.
+  The full report extracted to `_per_paper_verbose` helper so the
+  brief/verbose split is one line. Reduces a typical 5-paper
+  benchmark report from ~80 lines to ~12 — practical for blog
+  embeds + cold emails.
+- **`render_runs_stats_md(conn)`** + **`benchmark runs-stats-md
+  <db>`** — markdown variant of the JSON `runs-stats` output.
+  Three sections (per-provider rollup, per-axis accuracy,
+  schema-version distribution). Embeddable in any markdown
+  document.
+- 4 new tests (brief mode, brief-on-empty, runs-stats-md emit,
+  runs-stats-md empty). **145/145 pytest** (was 141).
+
 ### v1.51 — cross-language migration smoke (2026-05-04)
 
 Pins the migration parity invariant: a v0.1.0 spec migrated through

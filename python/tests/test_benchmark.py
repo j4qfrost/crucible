@@ -266,6 +266,60 @@ def test_render_report_includes_trend_section_when_runs_db_passed(tmp_path):
     conn.close()
 
 
+def test_render_report_brief_emits_table_not_per_axis():
+    entry = _verified_entry()
+    spec = templates.init("vanilla")
+    sr = score(entry, spec)
+    outcome = RunOutcome(paper_id=entry.paper_id, ok=True,
+                         elapsed_s=0.5, score_result=sr)
+    md = render_report([(entry, outcome)], brief=True)
+    assert "Per-paper summary" in md
+    assert "Per-paper detail" not in md
+    # No per-axis table in brief mode.
+    assert "Axis | Expected" not in md
+
+
+def test_render_report_brief_handles_empty():
+    md = render_report([], brief=True)
+    assert "_(no outcomes)_" in md
+
+
+def test_render_runs_stats_md_emits_per_provider(tmp_path):
+    duckdb = pytest.importorskip("duckdb")
+    from crucible.benchmark.runs_store import (
+        open_runs_store, insert_outcome, new_run_id,
+    )
+    from crucible.benchmark.scorer import ScoreAxis, ScoreResult
+    from crucible.benchmark.reporter import render_runs_stats_md
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    rid = new_run_id()
+    sr = ScoreResult(paper_id="x",
+                     per_axis={ax: True for ax in ScoreAxis},
+                     total=10, max_score=10, notes=[])
+    insert_outcome(conn, run_id=rid,
+                   outcome=RunOutcome(paper_id="x", ok=True,
+                                      elapsed_s=0.1, score_result=sr),
+                   llm_provider="anthropic", llm_model="opus",
+                   schema_version="0.4.0")
+    md = render_runs_stats_md(conn)
+    assert "Per-provider" in md
+    assert "Per-axis accuracy" in md
+    assert "Schema-version distribution" in md
+    assert "anthropic" in md
+    conn.close()
+
+
+def test_render_runs_stats_md_empty_returns_empty_string(tmp_path):
+    duckdb = pytest.importorskip("duckdb")
+    from crucible.benchmark.runs_store import open_runs_store
+    from crucible.benchmark.reporter import render_runs_stats_md
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    assert render_runs_stats_md(conn) == ""
+    conn.close()
+
+
 def test_render_report_omits_trend_section_when_runs_db_empty(tmp_path):
     duckdb = pytest.importorskip("duckdb")
     from crucible.benchmark.runs_store import open_runs_store

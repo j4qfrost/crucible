@@ -17,6 +17,64 @@ from .runner import RunOutcome
 from .scorer import ScoreAxis
 
 
+def render_runs_stats_md(runs_db: Any) -> str:
+    """Markdown summary of the runs DB — embeddable variant of the
+    `benchmark runs-stats` JSON output.
+
+    Three sections: per-provider rollup, per-axis accuracy, schema
+    distribution. Returns empty string on empty DB.
+    """
+    from .runs_store import (
+        per_axis_accuracy, per_provider_summary,
+        schema_version_distribution, stats,
+    )
+
+    s = stats(runs_db)
+    if s["rows"] == 0:
+        return ""
+    lines: list[str] = ["## Runs-DB statistics", ""]
+    lines.append(
+        f"_{s['rows']} outcome row(s) across {s['runs']} run(s) "
+        f"on {s['papers_touched']} distinct paper(s)._"
+    )
+    lines.append("")
+
+    providers = per_provider_summary(runs_db)
+    if providers:
+        lines.append("### Per-provider")
+        lines.append("")
+        lines.append("| Provider | Outcomes | Runs | Avg accuracy |")
+        lines.append("|---|---:|---:|---:|")
+        for p in providers:
+            lines.append(
+                f"| `{p['llm_provider']}` | {p['n_outcomes']} | "
+                f"{p['n_runs']} | {p['avg_pct']:.0%} |"
+            )
+        lines.append("")
+
+    axis_acc = per_axis_accuracy(runs_db)
+    if axis_acc:
+        lines.append("### Per-axis accuracy")
+        lines.append("")
+        lines.append("| Axis | Correct | Scored | Pct |")
+        lines.append("|---|---:|---:|---:|")
+        for axis, slot in sorted(axis_acc.items()):
+            lines.append(
+                f"| `{axis}` | {slot['n_correct']} | {slot['n_scored']} | "
+                f"{slot['pct']:.0%} |"
+            )
+        lines.append("")
+
+    dist = schema_version_distribution(runs_db)
+    if dist:
+        lines.append("### Schema-version distribution")
+        lines.append("")
+        for ver, n in dist.items():
+            lines.append(f"- `{ver}`: {n}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def render_trend_section(runs_db: Any) -> str:
     """Markdown section showing per-paper accuracy trends from the runs DB.
 
@@ -55,6 +113,7 @@ def render_report(
     intro: str | None = None,
     timestamp: datetime | None = None,
     trends_db: Any = None,
+    brief: bool = False,
 ) -> str:
     pairs = list(pairs)
     ts = (timestamp or datetime.now(timezone.utc)).strftime("%Y-%m-%d %H:%M UTC")
@@ -110,44 +169,12 @@ def render_report(
             lines.append(f"| `{axis.value}` | {n_correct} | {n_scored} | {pct} |")
         lines.append("")
 
-    # Per-paper detail
-    lines.append("## Per-paper detail")
-    lines.append("")
-    for entry, outcome in pairs:
-        verified_tag = "✅ verified" if entry.is_scoreable() else \
-                       f"⚠ {entry.status}"
-        lines.append(f"### `{entry.paper_id}` — {verified_tag}")
-        lines.append("")
-        lines.append(f"- **Title:** {entry.title}")
-        lines.append(f"- **DOI:** [{entry.doi}](https://doi.org/{entry.doi})")
-        lines.append(f"- **Elapsed:** {outcome.elapsed_s:.2f}s")
-        if outcome.ok and outcome.score_result is not None:
-            sr = outcome.score_result
-            lines.append(f"- **Score:** {sr.total} / {sr.max_score} "
-                         f"({sr.percent:.0%})")
-            lines.append("")
-            lines.append("| Axis | Expected | LLM | Match |")
-            lines.append("|---|---|---|---|")
-            for axis, match in sr.per_axis.items():
-                expected = getattr(entry.expected, axis.value)
-                if match is None:
-                    mark = "—"
-                elif match is True:
-                    mark = "✓"
-                else:
-                    mark = "✗"
-                lines.append(
-                    f"| `{axis.value}` | {expected!r} | "
-                    f"{'(see spec)' if match is not None else '—'} | {mark} |"
-                )
-            for note in sr.notes:
-                lines.append(f"- _Note:_ {note}")
-        else:
-            lines.append(f"- **Error:** `{outcome.error}`")
-        if entry.notes:
-            lines.append("")
-            lines.append(f"> {entry.notes}")
-        lines.append("")
+    # Per-paper section — `--brief` uses a one-row-per-paper table; the
+    # default mode emits the verbose per-axis breakdown.
+    if brief:
+        lines.extend(_per_paper_brief(pairs))
+    else:
+        lines.extend(_per_paper_verbose(pairs))
 
     # Optional trends section (from the longitudinal runs DB).
     if trends_db is not None:
@@ -180,3 +207,67 @@ def render_report(
                  "checklist.")
     lines.append("")
     return "\n".join(lines)
+
+
+# -----------------------------------------------------------------------------
+# Per-paper section helpers — extracted so render_report's body stays flat
+# and the brief/verbose split is one line.
+
+def _per_paper_brief(pairs: list[tuple[BenchmarkEntry, RunOutcome]]) -> list[str]:
+    if not pairs:
+        return ["## Per-paper summary", "", "_(no outcomes)_", ""]
+    lines = ["## Per-paper summary", ""]
+    lines.append("| Paper | Status | Score | Elapsed |")
+    lines.append("|---|---|---:|---:|")
+    for entry, outcome in pairs:
+        verified = "✅" if entry.is_scoreable() else "⚠"
+        if outcome.ok and outcome.score_result is not None:
+            sr = outcome.score_result
+            score_cell = f"{sr.total}/{sr.max_score} ({sr.percent:.0%})"
+        else:
+            score_cell = f"_{outcome.error or 'failed'}_"
+        lines.append(
+            f"| `{entry.paper_id}` | {verified} {entry.status} | "
+            f"{score_cell} | {outcome.elapsed_s:.2f}s |"
+        )
+    lines.append("")
+    return lines
+
+
+def _per_paper_verbose(pairs: list[tuple[BenchmarkEntry, RunOutcome]]) -> list[str]:
+    lines = ["## Per-paper detail", ""]
+    for entry, outcome in pairs:
+        verified_tag = "✅ verified" if entry.is_scoreable() else f"⚠ {entry.status}"
+        lines.append(f"### `{entry.paper_id}` — {verified_tag}")
+        lines.append("")
+        lines.append(f"- **Title:** {entry.title}")
+        lines.append(f"- **DOI:** [{entry.doi}](https://doi.org/{entry.doi})")
+        lines.append(f"- **Elapsed:** {outcome.elapsed_s:.2f}s")
+        if outcome.ok and outcome.score_result is not None:
+            sr = outcome.score_result
+            lines.append(f"- **Score:** {sr.total} / {sr.max_score} "
+                         f"({sr.percent:.0%})")
+            lines.append("")
+            lines.append("| Axis | Expected | LLM | Match |")
+            lines.append("|---|---|---|---|")
+            for axis, match in sr.per_axis.items():
+                expected = getattr(entry.expected, axis.value)
+                if match is None:
+                    mark = "—"
+                elif match is True:
+                    mark = "✓"
+                else:
+                    mark = "✗"
+                lines.append(
+                    f"| `{axis.value}` | {expected!r} | "
+                    f"{'(see spec)' if match is not None else '—'} | {mark} |"
+                )
+            for note in sr.notes:
+                lines.append(f"- _Note:_ {note}")
+        else:
+            lines.append(f"- **Error:** `{outcome.error}`")
+        if entry.notes:
+            lines.append("")
+            lines.append(f"> {entry.notes}")
+        lines.append("")
+    return lines

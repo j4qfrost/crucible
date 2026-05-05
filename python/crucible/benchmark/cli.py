@@ -346,7 +346,11 @@ def cmd_report(args: argparse.Namespace) -> int:
     if args.trends_db:
         from .runs_store import open_runs_store
         trends_conn = open_runs_store(args.trends_db)
-    md = render_report(pairs, intro=args.intro, trends_db=trends_conn)
+    md = render_report(
+        pairs, intro=args.intro,
+        trends_db=trends_conn,
+        brief=getattr(args, "brief", False),
+    )
     if trends_conn is not None:
         trends_conn.close()
     if args.out:
@@ -573,6 +577,20 @@ def cmd_publish(args: argparse.Namespace) -> int:
     return rc
 
 
+def cmd_runs_stats_md(args: argparse.Namespace) -> int:
+    """Markdown variant of `runs-stats` — embeddable in reports."""
+    from .reporter import render_runs_stats_md
+    from .runs_store import open_runs_store
+    conn = open_runs_store(args.runs_db)
+    md = render_runs_stats_md(conn)
+    if not md:
+        print("_(no runs recorded yet)_", file=sys.stderr)
+    else:
+        print(md)
+    conn.close()
+    return 0
+
+
 def cmd_runs_stats(args: argparse.Namespace) -> int:
     """Per-axis accuracy + per-provider breakdown from the runs DB."""
     from .runs_store import (
@@ -629,6 +647,11 @@ def build_parser() -> argparse.ArgumentParser:
     prs.add_argument("--provider", default=None,
                      help="also emit per-axis accuracy filtered to this provider")
     prs.set_defaults(func=cmd_runs_stats)
+
+    prsm = sub.add_parser("runs-stats-md",
+                          help="markdown variant of runs-stats (embeddable in reports)")
+    prsm.add_argument("runs_db", help="path to the DuckDB with benchmark_runs table")
+    prsm.set_defaults(func=cmd_runs_stats_md)
 
     pe = sub.add_parser("export-jsonl",
                         help="dump benchmark_runs to JSONL (option-3 flywheel feeder)")
@@ -697,6 +720,8 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--intro", default=None, help="optional intro paragraph")
     pp.add_argument("--trends-db", default=None,
                     help="path to a runs DuckDB to include a trends section")
+    pp.add_argument("--brief", action="store_true",
+                    help="emit a single-table summary instead of per-axis detail")
     pp.set_defaults(func=cmd_report)
 
     return p
