@@ -38,7 +38,7 @@ Usage:
                                      [--seed N] [--resume] [--backend openmm] [--quiet]
                                      [--pre-run-hook 'cmd'] [--post-run-hook 'cmd']
   crucible serve         [--host 0.0.0.0] [--port 8080]         # HTTP web frontend
-  crucible doctor                                                 # diagnose Python / OpenMM / OpenFF deps
+  crucible doctor [--offline]                                     # diagnose Python / OpenMM / OpenFF deps (`--offline` adds air-gap audit)
   crucible coverage      <spec.json>                              # provenance coverage report
   crucible lint          <spec.json> [--format text|json]         # advisory checks
   crucible templates     list | show <name> | init <name> [--out spec.json]
@@ -694,8 +694,9 @@ function cmd_serve(args::Vector{String})
     0
 end
 
-function cmd_doctor(::Vector{String})
-    println("crucible doctor — environment diagnostic")
+function cmd_doctor(args::Vector{String})
+    offline = "--offline" in args
+    println("crucible doctor — environment diagnostic", offline ? " (air-gap audit)" : "")
     println("=" ^ 60)
 
     # Probe each optional dep. Each probe either returns the version
@@ -823,7 +824,57 @@ function cmd_doctor(::Vector{String})
     println("    CRUCIBLE_PRECISION:   ", get(ENV, "CRUCIBLE_PRECISION", "(default: mixed)"))
     println()
     println("  Verdict: ", _doctor_verdict(py))
-    0
+
+    n_errors = 0
+    if offline
+        println()
+        println("  Air-gap audit (per docs/AIR_GAPPED.md):")
+        anth = get(ENV, "ANTHROPIC_API_KEY", "")
+        if !isempty(anth)
+            println("    ✗ ANTHROPIC_API_KEY is set — air-gapped mode forbids the Anthropic API. Unset it.")
+            n_errors += 1
+        else
+            println("    ✓ ANTHROPIC_API_KEY not set (correct for air-gapped)")
+        end
+
+        oa = get(ENV, "CRUCIBLE_OPENALEX_EMAIL", "")
+        if !isempty(oa)
+            println("    ⚠ CRUCIBLE_OPENALEX_EMAIL is set ($(repr(oa))) — corpus fetch will hit OpenAlex.")
+        else
+            println("    ✓ CRUCIBLE_OPENALEX_EMAIL not set")
+        end
+
+        ep = get(ENV, "CRUCIBLE_LOCAL_ENDPOINT", "")
+        if isempty(ep)
+            println("    ⚠ CRUCIBLE_LOCAL_ENDPOINT not set — LocalProvider will use the default. Set explicitly in production.")
+        else
+            ep_lower = lowercase(ep)
+            is_local = any(occursin(seg, ep_lower) for seg in
+                           ("localhost", "127.0.0.1", "10.", "172.16.", "172.17.",
+                            "172.18.", "172.19.", "172.2", "172.30.", "172.31.", "192.168."))
+            if is_local
+                println("    ✓ CRUCIBLE_LOCAL_ENDPOINT $(repr(ep)) (looks local — good)")
+            else
+                println("    ⚠ CRUCIBLE_LOCAL_ENDPOINT $(repr(ep)) doesn't look like a private-net URL.")
+            end
+        end
+
+        hekate = get(ENV, "CRUCIBLE_HEKATE_PUBLISH_EVENTS", "0")
+        if hekate == "1"
+            println("    ✗ CRUCIBLE_HEKATE_PUBLISH_EVENTS=1 — AT Protocol publishing is enabled. Unset for air-gap.")
+            n_errors += 1
+        else
+            println("    ✓ CRUCIBLE_HEKATE_PUBLISH_EVENTS not enabled")
+        end
+
+        println()
+        if n_errors > 0
+            println("  ✗ $(n_errors) air-gap error(s); doctor failed.")
+        else
+            println("  ✓ air-gap audit clean (warnings, if any, do not fail).")
+        end
+    end
+    n_errors
 end
 
 function _run_capture(cmd::Cmd)::String

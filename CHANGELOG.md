@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### v1.84 — Julia `crucible doctor --offline` (2026-04-29)
+
+Adds the `--offline` flag to the existing Julia-side `crucible
+doctor` (the v1.82 Python equivalent has shipped; this brings the
+two surfaces into parity so a single audit story covers both
+runtimes).
+
+- **`crucible doctor --offline`** — after the existing diagnostic
+  (Python/OpenMM/OpenFF/GPU probes) emits an "Air-gap audit"
+  section. Errors on `ANTHROPIC_API_KEY` set or
+  `CRUCIBLE_HEKATE_PUBLISH_EVENTS=1`; warns on
+  `CRUCIBLE_OPENALEX_EMAIL` set or `CRUCIBLE_LOCAL_ENDPOINT` not
+  pointing at localhost / private-net (10./172.16-31./192.168.).
+- Exit code = number of errors (so CI can treat as a hard gate;
+  warnings are informational and don't fail).
+- Help text in `--help` now shows `[--offline]`.
+- Parses cleanly under Julia 1.12.
+
 ### v1.83 — egress baseline gate (8th workspace check) (2026-04-29)
 
 Wires `tools/inventory_egress.py` (v1.81) into
