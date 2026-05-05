@@ -183,10 +183,16 @@ step):
 
 ## Documentation
 
-- [`docs/HOW_TO_READ.md`](docs/HOW_TO_READ.md) — six role-specific
-  reading guides (wet-lab biologist, comp chem, research software
-  engineer, PI evaluating adoption, new PhD student, LLM-tooling
-  engineer). Pick yours; ignore the rest.
+- [`docs/USER_PROFILES.md`](docs/USER_PROFILES.md) — **task-oriented**
+  onboarding for specific adopter personas (grad student / postdoc,
+  pharma POC scientist, instructor, reproducibility researcher,
+  open-source maintainer). Pick the one that matches the artifact
+  you want to leave with.
+- [`docs/HOW_TO_READ.md`](docs/HOW_TO_READ.md) — **reading-oriented**
+  guides for newcomers navigating the codebase (wet-lab biologist,
+  comp chem, research software engineer, PI evaluating adoption,
+  new PhD student, LLM-tooling engineer). Companion to the
+  user-profile docs; pick yours; ignore the rest.
 - [`docs/PLAN.md`](docs/PLAN.md) — architecture, rationale, roadmap.
 - [`docs/ADOPTION_PLAN.md`](docs/ADOPTION_PLAN.md) — 18-month
   go-to-market plan with phases + decision gates for academia / OSS

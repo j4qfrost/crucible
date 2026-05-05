@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+### v1.57 — task-oriented user-profile docs for adoption (2026-05-04)
+
+Adoption-strategy artifacts: dedicated docs that take a specific
+kind of person from "I just heard about Crucible" to "I have
+produced something useful with it." Companion to the existing
+reading-oriented guides in `docs/HOW_TO_READ.md` — the two are
+non-overlapping by design.
+
+- **`docs/USER_PROFILES.md`** — index. Five profiles (grad
+  student / postdoc, pharma CADD POC eval, instructor / TA,
+  reproducibility researcher, open-source maintainer) with
+  primary outcome + first artifact + time-to-value per row.
+  Includes a chooser ("if you have a paper and want to reproduce
+  its MD…") and a process for adding new profiles (don't
+  speculate; talk to a real person first).
+- **`docs/USER_PROFILE_GRAD_STUDENT.md`** — most common adopter
+  pattern. 30-minute path from clone → runnable OpenMM script
+  reproducing a published Methods section. First-week path
+  (preview → production → analysis). Failure modes (OPLS3 not in
+  allowlist, missing salt-concentration extraction, Gate 3 path
+  issues, no API budget, blown-up production run).
+- **`docs/USER_PROFILE_PHARMA_POC.md`** — Tier-2 audience from
+  the campaign doc. 30-day eval path: install → public benchmark
+  baseline → internal protocol baseline → accuracy + iteration →
+  written eval. Explicit "is/isn't": measures protocol fidelity,
+  doesn't measure FEP convergence or LP correctness. Pilot scope
+  pointer ($5K-$15K POC per the commercial-validation plan).
+- **`docs/USER_PROFILE_INSTRUCTOR.md`** — instructor / TA. 1-week
+  course module: 5 lectures + 1 lab + 1 homework that produces a
+  real PR contribution to the benchmark seed set. Variants for
+  computational-drug-discovery, MD-methodology, and AI-for-science
+  courses.
+- **`README.md`** — Documentation section now points users at the
+  profile index FIRST, then the reading guides, with the
+  task/reading distinction called out.
+- All four new docs follow the same shape (one-paragraph hook,
+  pre-flight, 30-minute path, first-week path, failure modes,
+  next-read pointers) so they cross-reference cleanly.
+
 ### v1.56 — `tools/check_workspace.py` aggregate consistency check (2026-05-04)
 
 Bundles the cross-file invariants that v1.41–v1.55 introduced into
