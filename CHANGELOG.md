@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### v1.60 — adoption timeline (when to activate each profile) (2026-05-04)
+
+Bridges the strategic 18-month `docs/ADOPTION_PLAN.md` and the
+180-day `docs/COMMERCIAL_VALIDATION_PLAN.md` with the seven user
+profiles in `docs/USER_PROFILES.md`. Answers the question
+"when does each profile get actively onboarded?" rather than just
+"what does each profile need?".
+
+- **`docs/ADOPTION_TIMELINE.md`** — phase-by-phase activation
+  table:
+  - Phase 0 (months 0-3): grad student + reproducibility
+    researcher (only prerequisite: working install).
+  - Phase 1 (months 3-9): + JOSS reviewer + open-source maintainer
+    (prerequisite: tagged release + methods paper draft).
+  - Phase 2a (months 9-18): + instructor / TA (prerequisite:
+    polished walkthrough notebooks + cited paper).
+  - Phase 2c (months 9-18): + pharma POC + data engineer
+    (prerequisite: on-prem mode + verified benchmark + fine-tune
+    flywheel data layer).
+- **What-not-to-do per phase** — explicit anti-patterns that
+  produce dropouts (don't pitch pharma in Phase 0; don't submit
+  to JOSS pre-paper; don't activate instructors before the
+  walkthroughs polish).
+- **Cross-reference table** mapping each phase activation to the
+  doc that walks it + the doc that gates it. Maintainers can use
+  this as the activation checklist.
+- Companion to `ADOPTION_STRATEGY_PLAYBOOK.md` (the *how*) and
+  `scaling_modes.md` (the *strategic frame*).
+
 ### v1.59 — adoption-strategy playbook meta-doc (2026-05-04)
 
 The "record notes as you go" piece complementing v1.57+v1.58.
