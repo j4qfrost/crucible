@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### v1.67 — `corpus query` (read-only SQL escape hatch) (2026-05-04)
+
+When `papers` / `coauthors` / `authors` don't cover a one-off
+analysis, drop into read-only SQL.
+
+- **`python -m crucible corpus query <SQL> [--format jsonl|table]`**
+  — runs SQL against the corpus DB. Refuses anything starting with
+  a write keyword (INSERT, UPDATE, DELETE, DROP, CREATE, ALTER,
+  TRUNCATE, REPLACE, MERGE, ATTACH, DETACH, COPY, PRAGMA) — use
+  the `upsert_*` / `fetch` / `fetch-batch` CLI for mutations.
+  Refusal exits 2 with a clear error.
+- Refusal is keyword-based with leading-comment-stripping; safe
+  for the typo case ("DELETE" vs "SELECT"), not adversarial
+  isolation. The DB user owns the file; if they want to mutate
+  it, they can open `duckdb <path>` directly.
+- Two output formats: `jsonl` (default; one row per line) and
+  `table` (tab-separated, with a header row, for human reading).
+- 13 new tests covering: SELECT round-trip, table format, 9
+  parametrized write-keyword refusals (case-insensitive +
+  whitespace-tolerant), comment-prefixed SELECT allowed, empty
+  SQL → exit 2. **189/189 pytest** (was 176).
+
 ### v1.66 — benchmark seed-set structural invariants (2026-05-04)
 
 Catches the regression class that bit v1.37/v1.38: a fabricated

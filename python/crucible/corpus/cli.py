@@ -160,6 +160,63 @@ def cmd_coauthors(args: argparse.Namespace) -> int:
     return 0
 
 
+_WRITE_KEYWORDS = (
+    "insert", "update", "delete", "drop", "create", "alter", "truncate",
+    "replace", "merge", "attach", "detach", "copy", "pragma",
+)
+
+
+def cmd_query(args: argparse.Namespace) -> int:
+    """Read-only SQL escape hatch against the corpus DB.
+
+    Writes (INSERT/UPDATE/DELETE/DROP/CREATE/ALTER/TRUNCATE/REPLACE/
+    MERGE/ATTACH/DETACH/COPY/PRAGMA) are refused — use the
+    upsert_* / fetch / fetch-batch CLI surface for mutations. The
+    refusal is keyword-based; sophisticated bypass attempts would
+    work, but the goal is safety for the typo case ("DELETE" vs
+    "SELECT"), not adversarial isolation.
+    """
+    sql = args.sql.strip()
+    if not sql:
+        print("empty SQL", file=sys.stderr)
+        return 2
+    # Strip leading SQL comments before keyword check.
+    cleaned = sql.lower().lstrip()
+    while cleaned.startswith("--"):
+        # Drop a single -- ... \n line.
+        nl = cleaned.find("\n")
+        if nl == -1:
+            cleaned = ""
+            break
+        cleaned = cleaned[nl + 1:].lstrip()
+    first_word = cleaned.split(None, 1)[0] if cleaned else ""
+    if first_word in _WRITE_KEYWORDS:
+        print(
+            f"refused: query starts with write keyword {first_word!r}. "
+            f"Use the upsert_* / fetch / fetch-batch CLI for mutations.",
+            file=sys.stderr,
+        )
+        return 2
+
+    with _open_store(args) as store:
+        try:
+            cur = store._conn.execute(sql)
+        except Exception as exc:
+            print(f"sql error: {exc}", file=sys.stderr)
+            return 1
+        cols = [d[0] for d in (cur.description or [])]
+        rows = cur.fetchall()
+    if args.format == "table":
+        if cols:
+            print("\t".join(cols))
+        for row in rows:
+            print("\t".join("" if v is None else str(v) for v in row))
+    else:
+        for row in rows:
+            print(json.dumps(dict(zip(cols, row)), default=str))
+    return 0
+
+
 def cmd_authors(args: argparse.Namespace) -> int:
     """List authors in the local DB, ordered by local works count desc."""
     with _open_store(args) as store:
@@ -261,6 +318,13 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("--limit", type=int, default=None,
                     help="cap the number of authors emitted")
     pa.set_defaults(func=cmd_authors)
+
+    pq = sub.add_parser("query",
+                        help="read-only SQL against the corpus DB")
+    pq.add_argument("sql", help="SQL statement (must start with SELECT/WITH)")
+    pq.add_argument("--format", choices=["jsonl", "table"], default="jsonl",
+                    help="output format (JSONL default; table for human reading)")
+    pq.set_defaults(func=cmd_query)
 
     ps = sub.add_parser("stats", help="row counts per table")
     ps.set_defaults(func=cmd_stats)

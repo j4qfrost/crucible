@@ -91,6 +91,79 @@ def test_fetch_batch_returns_n_failed_as_exit_code(tmp_path, monkeypatch):
     assert rc == 1   # one failure
 
 
+def test_query_select_returns_jsonl(tmp_path, capsys):
+    duckdb = pytest.importorskip("duckdb")
+    from crucible.corpus.openalex import Author
+    from crucible.corpus.store import CorpusStore
+    db = tmp_path / "corp.duckdb"
+    with CorpusStore.open(db) as s:
+        s.upsert_author(Author(author_id="A1", display_name="A One"))
+    from crucible.corpus.cli import main
+    rc = main(["--db", str(db), "query", "SELECT display_name FROM authors"])
+    assert rc == 0
+    captured = capsys.readouterr()
+    parsed = [json.loads(line) for line in captured.out.splitlines() if line]
+    assert parsed == [{"display_name": "A One"}]
+
+
+def test_query_table_format(tmp_path, capsys):
+    duckdb = pytest.importorskip("duckdb")
+    from crucible.corpus.openalex import Author
+    from crucible.corpus.store import CorpusStore
+    db = tmp_path / "corp.duckdb"
+    with CorpusStore.open(db) as s:
+        s.upsert_author(Author(author_id="A1", display_name="A One"))
+    from crucible.corpus.cli import main
+    rc = main(["--db", str(db), "query",
+               "SELECT author_id, display_name FROM authors",
+               "--format", "table"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    lines = out.strip().splitlines()
+    assert lines[0] == "author_id\tdisplay_name"
+    assert lines[1] == "A1\tA One"
+
+
+@pytest.mark.parametrize("write_sql", [
+    "DELETE FROM authors",
+    "delete from authors",       # case-insensitive
+    "  DROP TABLE works",        # leading whitespace
+    "INSERT INTO authors VALUES ('A2', 'X')",
+    "UPDATE authors SET display_name = 'evil'",
+    "ALTER TABLE works ADD COLUMN x TEXT",
+    "TRUNCATE benchmark_runs",
+    "ATTACH 'evil.duckdb' AS evil",
+    "PRAGMA enable_external_access = true",
+])
+def test_query_refuses_write_keywords(tmp_path, capsys, write_sql):
+    duckdb = pytest.importorskip("duckdb")
+    db = tmp_path / "corp.duckdb"
+    from crucible.corpus.cli import main
+    rc = main(["--db", str(db), "query", write_sql])
+    assert rc == 2
+    assert "refused" in capsys.readouterr().err
+
+
+def test_query_allows_select_after_sql_comment(tmp_path, capsys):
+    """Leading -- comments don't trip the keyword check."""
+    duckdb = pytest.importorskip("duckdb")
+    db = tmp_path / "corp.duckdb"
+    from crucible.corpus.cli import main
+    rc = main(["--db", str(db), "query",
+               "-- safety comment\nSELECT 1 AS x"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert json.loads(out.strip()) == {"x": 1}
+
+
+def test_query_empty_sql_exits_2(tmp_path, capsys):
+    duckdb = pytest.importorskip("duckdb")
+    db = tmp_path / "corp.duckdb"
+    from crucible.corpus.cli import main
+    rc = main(["--db", str(db), "query", "   "])
+    assert rc == 2
+
+
 def test_corpus_authors_lists_local_authors(tmp_path, capsys):
     """Seed two authors via direct upsert, then `authors` lists them."""
     duckdb = pytest.importorskip("duckdb")
