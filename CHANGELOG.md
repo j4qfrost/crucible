@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### v1.70 — profile-shape auditor + code-span-aware link checker (2026-05-04)
+
+Two CI-side polish slices that compound the v1.68 doc-rot defense.
+
+- **`tools/check_profile_shape.py`** — enforces the v1.59
+  `ADOPTION_STRATEGY_PLAYBOOK.md` 6-section shape across all
+  `USER_PROFILE_*.md` files (you-leave-with hook, pre-flight,
+  30-minute path, first-week / multi-day path, failure modes,
+  when-to-read-X-next). Tolerates synonyms for the longer-cadence
+  sections (instructor's "1-week course module," pharma POC's
+  "30-day path"). Catches new profiles that skip a section.
+  All 6 current profiles conform.
+- **`tools/check_doc_links.py`** — bug fix: strips inline + fenced
+  code spans before matching links. Eliminates a false-positive on
+  changelog entries that document link syntax verbatim.
+- **`tools/check_workspace.py`** — seventh check added.
+  All 7 workspace checks green.
+
 ### v1.69 — `export-jsonl --include-paper-text` + Tier-2 personas file (2026-05-04)
 
 Two slices that compose the corpus + benchmark layers into the

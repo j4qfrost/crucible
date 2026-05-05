@@ -133,6 +133,19 @@ def _check_doc_links() -> tuple[bool, str]:
     return True, "all doc cross-references resolve"
 
 
+def _check_profile_shape() -> tuple[bool, str]:
+    import subprocess
+    proc = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "tools" / "check_profile_shape.py")],
+        capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        snippet = (proc.stderr or proc.stdout).strip().splitlines()
+        head = "; ".join(snippet[:3])
+        return False, f"{proc.returncode} profile(s) missing playbook sections: {head}"
+    return True, "all USER_PROFILE_*.md files match the v1.59 playbook shape"
+
+
 CHECKS = [
     ("python_schema_matches_json", _check_python_schema_matches_json),
     ("python_schema_matches_julia", _check_python_schema_matches_julia),
@@ -140,6 +153,7 @@ CHECKS = [
     ("manifest_format", _check_manifest_format),
     ("pydantic_pinned_v2", _check_pydantic_pinned_v2),
     ("doc_links", _check_doc_links),
+    ("profile_shape", _check_profile_shape),
 ]
 
 

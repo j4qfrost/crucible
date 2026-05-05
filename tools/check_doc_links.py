@@ -60,6 +60,17 @@ def _is_anchor_only(target: str) -> bool:
     return target.startswith("#")
 
 
+def _strip_code_spans(text: str) -> str:
+    """Drop fenced code blocks and inline code spans before link matching.
+    Order matters: fenced blocks first (greedy), then inline.
+    """
+    # Fenced code blocks: ```…``` (multi-line, lazy match).
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    # Inline code: `…` (no newlines inside; lazy).
+    text = re.sub(r"`[^`\n]*`", "", text)
+    return text
+
+
 def _resolve_target(source: Path, target: str) -> Path:
     """Resolve a link target relative to its source file. Strips the
     `#anchor` suffix and any URL-encoded characters that show up in
@@ -84,6 +95,11 @@ def main(argv: list[str] | None = None) -> int:
             text = source.read_text()
         except UnicodeDecodeError:
             continue
+        # Strip code spans (`…` and ```…```) so literal-syntax-in-docs
+        # like `[text](path)` doesn't trigger a false-positive broken
+        # link. Preserves line + column count is irrelevant; we just
+        # care about which links are real.
+        text = _strip_code_spans(text)
         for m in _LINK_RE.finditer(text):
             target = m.group("target")
             if _is_external(target) or _is_anchor_only(target):
