@@ -190,3 +190,132 @@ def test_extract_tool_use_helper_filters_by_tool_name():
     response = MagicMock()
     response.content = [tool_block]
     assert _extract_tool_use_input(response) is None
+
+
+# -----------------------------------------------------------------------------
+# LocalOpenAIProvider — stdlib-only; no SDK to skip.
+
+import json as _json
+
+from crucible.llm.local import LocalOpenAIProvider
+
+
+def _vanilla_envelope() -> dict:
+    """Build an OpenAI-compatible response envelope with the vanilla
+    template as the assistant message content."""
+    spec_dict = _vanilla_spec_dict()
+    return {
+        "id": "chat-test",
+        "object": "chat.completion",
+        "model": "test-model",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": _json.dumps(spec_dict),
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 200,
+            "completion_tokens": 800,
+            "total_tokens": 1000,
+        },
+    }
+
+
+def _make_local_post(body_str: str):
+    """Build an http_post= callable that always returns body_str."""
+    def fake_post(url, body, headers, timeout_s):
+        return body_str
+    return fake_post
+
+
+def test_local_provider_round_trips_spec():
+    fake = _make_local_post(_json.dumps(_vanilla_envelope()))
+    p = LocalOpenAIProvider(
+        endpoint="http://localhost:11434/v1",
+        model="qwen-test",
+        api_key="ollama",
+        http_post=fake,
+    )
+    out = p.transpile("Methods: …")
+    assert out.ok
+    assert out.spec is not None
+    assert out.provider_name == "local"
+    assert out.metadata["prompt_tokens"] == 200
+    assert out.metadata["completion_tokens"] == 800
+
+
+def test_local_provider_handles_connection_error():
+    """Network failures return a fail-soft TranspileResult."""
+    def boom(url, body, headers, timeout_s):
+        raise ConnectionRefusedError("connection refused")
+    p = LocalOpenAIProvider(http_post=boom)
+    out = p.transpile("...")
+    assert not out.ok
+    assert "connection refused" in out.raw_response.lower()
+
+
+def test_local_provider_handles_non_json_response():
+    """Bad gateway / HTML error pages should fail-soft, not crash."""
+    fake = _make_local_post("<html>502 Bad Gateway</html>")
+    p = LocalOpenAIProvider(http_post=fake)
+    out = p.transpile("...")
+    assert not out.ok
+    assert "non-JSON" in out.raw_response or "non-json" in out.raw_response.lower()
+
+
+def test_local_provider_handles_empty_choices():
+    fake = _make_local_post(_json.dumps({"choices": []}))
+    p = LocalOpenAIProvider(http_post=fake)
+    out = p.transpile("...")
+    assert not out.ok
+    assert "no choices" in out.raw_response
+
+
+def test_local_provider_handles_invalid_spec_content():
+    """If the model emits content that doesn't validate as MDSpec,
+    fail-soft with the validation error."""
+    bad_envelope = {
+        "choices": [
+            {"message": {"content": _json.dumps({"wrong_shape": True})}}
+        ]
+    }
+    fake = _make_local_post(_json.dumps(bad_envelope))
+    p = LocalOpenAIProvider(http_post=fake)
+    out = p.transpile("...")
+    assert not out.ok
+    assert "validation failed" in out.raw_response.lower()
+
+
+def test_local_provider_env_var_defaults(monkeypatch):
+    """Constructor falls back to CRUCIBLE_LOCAL_* env vars."""
+    monkeypatch.setenv("CRUCIBLE_LOCAL_ENDPOINT", "http://test:8080/v1")
+    monkeypatch.setenv("CRUCIBLE_LOCAL_MODEL", "test-from-env")
+    monkeypatch.setenv("CRUCIBLE_LOCAL_API_KEY", "envkey")
+    p = LocalOpenAIProvider(http_post=lambda *a, **kw: "{}")
+    assert p.endpoint == "http://test:8080/v1"
+    assert p.model == "test-from-env"
+    assert p.api_key == "envkey"
+
+
+def test_local_provider_url_assembly(monkeypatch):
+    """The endpoint's trailing slash must not double up."""
+    captured = {}
+    def capture(url, body, headers, timeout_s):
+        captured["url"] = url
+        return _json.dumps(_vanilla_envelope())
+    p = LocalOpenAIProvider(
+        endpoint="http://localhost:8000/v1/",   # trailing slash
+        http_post=capture,
+    )
+    p.transpile("...")
+    assert captured["url"] == "http://localhost:8000/v1/chat/completions"
+
+
+def test_local_provider_implements_abstract_interface():
+    p = LocalOpenAIProvider(http_post=lambda *a, **kw: "{}")
+    assert isinstance(p, LLMProvider)

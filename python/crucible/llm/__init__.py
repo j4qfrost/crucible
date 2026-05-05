@@ -30,6 +30,7 @@ covered by the schema, not by the provider class.
 
 from __future__ import annotations
 
+from .local import LocalOpenAIProvider
 from .provider import (
     LLMProvider,
     LLMProviderError,
@@ -40,6 +41,7 @@ from .provider import (
 __all__ = [
     "LLMProvider",
     "LLMProviderError",
+    "LocalOpenAIProvider",
     "MockLLMProvider",
     "TranspileResult",
 ]

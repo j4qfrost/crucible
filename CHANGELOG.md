@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### v1.80 — `LocalOpenAIProvider` + `docs/AIR_GAPPED.md` (2026-05-05)
+
+Two slices that compose into the locked-down-research story.
+
+- **`python/crucible/llm/local.py`** — `LocalOpenAIProvider`. Pure
+  stdlib (urllib); no third-party HTTP dep. Hits
+  `/v1/chat/completions` with `response_format` binding the
+  canonical MDSpec schema (matches the Julia-side `LocalProvider`
+  contract; OpenAI-compatible servers handle this directly).
+  Fail-soft on connection refused / non-JSON / empty choices /
+  invalid spec content. Constructor accepts an injectable
+  `http_post=` for tests + falls back to `CRUCIBLE_LOCAL_*` env
+  vars (same names as the Julia side).
+- **`docs/AIR_GAPPED.md`** — comprehensive zero-egress deployment
+  guide. Three threat-model tiers (on-prem / air-gapped install /
+  air-gapped + audit); complete external-touchpoint inventory
+  with per-touchpoint neutralization (PyPI, JuliaHub,
+  conda-forge, OpenAlex, Anthropic API, Hugging Face, GitHub
+  CDN, DOI resolvers, AT Protocol). Step-by-step air-gapped
+  install (mirror Python wheels + Julia depot + OpenMM env + LLM
+  weights). Runtime configuration template + zero-egress
+  verification with `tcpdump`. Determinism table per-layer. Three
+  update paths. Honest "when this isn't enough" section
+  addressing the poisoned-model-weights threat.
+- 8 new tests for `LocalOpenAIProvider`. **214/214 pytest**
+  (was 206). 7 workspace checks green.
+
 ### v1.79 — native Python LLM provider (2026-05-05)
 
 Companion to the v1.24 cli_bridge: pure-Python `LLMProvider` so
