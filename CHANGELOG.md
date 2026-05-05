@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### v1.58 — three more user-profile docs (reproducibility / data eng / JOSS) (2026-05-04)
+
+Rounds out the v1.57 user-profile index with three more dedicated
+adoption docs.
+
+- **`docs/USER_PROFILE_REPRODUCIBILITY_RESEARCHER.md`** — the
+  audit-the-paper workflow. 30-minute path: extract Methods →
+  transpile → `crucible coverage` → manual cross-check of `assumed`
+  + missing fields. The audit becomes a benchmark contribution
+  via `benchmark add` + `verify`.
+- **`docs/USER_PROFILE_DATA_ENGINEER.md`** — the option-3
+  fine-tune flywheel data-layer story. Walks the three stores
+  (transcripts, corpus, benchmark runs); export to warehouse via
+  JSONL or DuckDB COPY-to-Parquet; schema migration for historical
+  records; streaming hook patterns. Honest scope: Crucible ships
+  clean inputs; curation pipeline is the team's domain.
+- **`docs/USER_PROFILE_JOSS_REVIEWER.md`** — JOSS / pyOpenSci /
+  national-lab eval review. 30-minute smoke path mapped to the 6
+  required criteria; 3-4 hour deep review with prep cheat sheet
+  for likely findings (LLM-correctness, JSON-vs-protobuf,
+  language choice, migration story). Designed so the reviewer can
+  finish in one sitting without grep-spiraling.
+- **`docs/USER_PROFILES.md`** — index now lists 7 profiles
+  (3 dedicated to existing onboarding paths, 3 new dedicated docs,
+  1 routing to the maintainer guide). Chooser updated.
+- All three follow the v1.57 shape (one-paragraph hook, pre-flight,
+  30-minute path, first-week path, failure modes, next-read
+  pointers) so they cross-reference cleanly.
+
 ### v1.57 — task-oriented user-profile docs for adoption (2026-05-04)
 
 Adoption-strategy artifacts: dedicated docs that take a specific
