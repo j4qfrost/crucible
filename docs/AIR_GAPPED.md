@@ -252,9 +252,26 @@ is the highest-fidelity path; also the highest maintenance cost.
 
 Crucible ships these to support air-gapped audits:
 
-- [`tools/check_workspace.py`](../tools/check_workspace.py) — 7
-  invariants including the schema-version drift check + manifest
-  format. Runs offline.
+- [`tools/audit_offline.sh`](../tools/audit_offline.sh) — composite
+  one-shot gate. Runs the workspace check (incl. egress baseline),
+  the egress inventory dump, and both `crucible doctor --offline`
+  surfaces (Python + Julia). Exit code = number of failed steps.
+  Use `--skip-julia` on Python-only CI; `--quiet` to suppress
+  per-step banners.
+- [`tools/check_workspace.py`](../tools/check_workspace.py) — 8
+  invariants including the schema-version drift check, manifest
+  format, and the **egress baseline** (any new outbound-network
+  call site fails until `tools/baselines/egress.json` is
+  deliberately bumped + this doc updated). Runs offline.
+- [`tools/inventory_egress.py`](../tools/inventory_egress.py) —
+  static-analysis dump of every outbound-network call site,
+  grouped by category (urllib / anthropic_sdk / julia_HTTP / …).
+  No network.
+- `python -m crucible doctor --offline` and the Julia
+  `crucible doctor --offline` — runtime air-gap audits: error on
+  `ANTHROPIC_API_KEY` / `CRUCIBLE_HEKATE_PUBLISH_EVENTS=1`; warn
+  on `CRUCIBLE_OPENALEX_EMAIL` / non-private-net
+  `CRUCIBLE_LOCAL_ENDPOINT`.
 - [`tools/check_doc_links.py`](../tools/check_doc_links.py) — pure
   filesystem; no network.
 - [`tools/migration_smoke.jl`](../tools/migration_smoke.jl) — walks
@@ -264,9 +281,10 @@ Crucible ships these to support air-gapped audits:
   — confirms Python emit → Julia parse → Python emit yields
   byte-identical output. No network.
 
-A useful pattern: run all of these on your air-gapped CI as a
-single `make check` target. Add the network-policy preflight as a
-separate audit step.
+A useful pattern: run `tools/audit_offline.sh` on your air-gapped
+CI as the single composite gate. Add the network-policy preflight
+(`tcpdump`-based, see above) as a separate audit step that
+exercises the runtime under load.
 
 ## When this isn't enough
 

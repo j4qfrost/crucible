@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### v1.85 — `tools/audit_offline.sh` (composite air-gap gate) (2026-04-29)
+
+A single one-shot gate that composes v1.81 (egress inventory),
+v1.82 (Python doctor), v1.83 (egress baseline check), and v1.84
+(Julia doctor) into one command. Designed for operator
+pre-deployment, CI nightlies, and compliance reviews.
+
+- **Steps** (sequential, all run; failures tallied):
+  1. `tools/check_workspace.py` (8 invariants incl. egress baseline)
+  2. `tools/inventory_egress.py` (full categorized dump)
+  3. `python -m crucible doctor --offline`
+  4. `crucible doctor --offline` (Julia; auto-skipped if absent)
+- Flags: `--skip-julia` (Python-only CI), `--quiet` (failures only).
+- Auto-detects `python/.venv/bin/python` to use the real install,
+  falls back to system python.
+- Exit code = number of failed steps.
+- Verified end-to-end: clean shell exits 0; setting
+  `ANTHROPIC_API_KEY=sk-test` produces a step-3 failure with
+  exit 1.
+- `docs/AIR_GAPPED.md` "Verification scripts" section refactored
+  to point to `audit_offline.sh` as the recommended composite gate.
+
 ### v1.84 — Julia `crucible doctor --offline` (2026-04-29)
 
 Adds the `--offline` flag to the existing Julia-side `crucible
