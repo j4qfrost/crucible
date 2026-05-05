@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### v1.55 — `publish --brief` + `--to-docs` (2026-05-04)
+
+Two UX improvements on the v1.50 publish flow.
+
+- **`benchmark publish --brief`** — propagates the v1.52 brief
+  flag through the run + report pipeline; the canonical landing
+  page can now be regenerated as either the verbose detail page
+  (default) or the one-table summary (campaign-asset-friendly).
+- **`benchmark publish --to-docs`** — convenience: writes to
+  `<repo_root>/docs/HALLUCINATION_BENCHMARK.md` regardless of
+  CWD. Resolves the path relative to the package, so
+  `cd /tmp && python -m crucible benchmark publish --mock --to-docs`
+  hits the right file.
+- 1 new test (publish --brief uses summary table). **149/149
+  pytest** (was 148).
+
 ### v1.54 — BENCHMARK_AXES.md reference + `spec-describe` CLI (2026-05-04)
 
 Two reference-layer additions: a canonical doc for the 10 benchmark

@@ -565,12 +565,23 @@ def cmd_publish(args: argparse.Namespace) -> int:
         runs_path.unlink(missing_ok=True)
         return rc
 
+    out_path = args.out
+    if getattr(args, "to_docs", False):
+        # Resolve the canonical landing page relative to the package
+        # root (../../docs/HALLUCINATION_BENCHMARK.md) rather than CWD,
+        # so the convenience works regardless of where it's invoked.
+        out_path = str(
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "docs" / "HALLUCINATION_BENCHMARK.md"
+        )
+
     report_args = argparse.Namespace(
         db=None,
         runs=str(runs_path),
-        out=args.out,
+        out=out_path,
         intro=args.intro,
         trends_db=args.runs_db or args.corpus_db,
+        brief=getattr(args, "brief", False),
     )
     rc = cmd_report(report_args)
     runs_path.unlink(missing_ok=True)
@@ -676,6 +687,10 @@ def build_parser() -> argparse.ArgumentParser:
     pb.add_argument("--intro", default=None)
     pb.add_argument("--out", default=None,
                     help="markdown destination (default: stdout)")
+    pb.add_argument("--to-docs", action="store_true",
+                    help="shortcut for --out docs/HALLUCINATION_BENCHMARK.md")
+    pb.add_argument("--brief", action="store_true",
+                    help="emit the brief per-paper-summary table")
     pb.set_defaults(func=cmd_publish)
 
     pv = sub.add_parser("verify",

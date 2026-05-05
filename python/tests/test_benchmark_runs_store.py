@@ -277,6 +277,19 @@ def test_benchmark_cli_publish_writes_markdown(tmp_path):
     assert "Longitudinal trends" in text
 
 
+def test_benchmark_cli_publish_brief_uses_summary_table(tmp_path):
+    from crucible.benchmark.cli import main
+    out = tmp_path / "report.md"
+    rc = main(["publish", "--mock", "--allow-unverified",
+               "--corpus-db", str(tmp_path / "shared.duckdb"),
+               "--llm-model", "vanilla-mock",
+               "--out", str(out), "--brief"])
+    assert rc == 0
+    text = out.read_text()
+    assert "Per-paper summary" in text
+    assert "Per-paper detail" not in text
+
+
 def test_benchmark_cli_run_writes_runs_db_when_corpus_db_passed(tmp_path):
     """End-to-end: `benchmark run --mock --corpus-db <path>` writes a row
     per outcome into the corpus DB's benchmark_runs table without an
