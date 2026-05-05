@@ -45,7 +45,7 @@ def _minimal_spec() -> MDSpec:
 
 
 def test_schema_version_constant():
-    assert SCHEMA_VERSION == "0.3.0"
+    assert SCHEMA_VERSION == "0.4.0"
 
 
 def test_round_trip_minimal():

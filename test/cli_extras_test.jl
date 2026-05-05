@@ -21,7 +21,7 @@ isdefined(Main, :CLI) || include(joinpath(@__DIR__, "..", "src", "cli", "CLI.jl"
     # Pretty output has newlines + indentation that the compact form lacks
     @test count('\n', out) > 5
     parsed = Crucible.spec_from_json(out)
-    @test parsed.schema_version == "0.3.0"
+    @test parsed.schema_version == "0.4.0"
 end
 
 @testset "cmd_fmt --in-place writes back" begin
@@ -163,7 +163,7 @@ end
             entry = Dict("id" => "template:$(name)",
                          "paper_text" => spec.notes,
                          "spec_json"  => Crucible.spec_to_json(spec),
-                         "schema_version" => "0.3.0",
+                         "schema_version" => "0.4.0",
                          "method_kind" => String(name),
                          "split"      => "synthetic_seed",
                          "provider"   => "import")
@@ -570,7 +570,7 @@ end
     @test rc == 0
     out = read(rd, String)
     @test occursin("MDSpec", out)
-    @test occursin("0.3.0", out)
+    @test occursin("0.4.0", out)
 end
 
 @testset "cmd_explain produces a paragraph for every template" begin

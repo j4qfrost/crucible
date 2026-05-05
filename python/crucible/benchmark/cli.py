@@ -94,6 +94,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
         ("pressure_bar", "barostat pressure (NPT only)", "float", float),
         ("fep_lambda_count", "number of FEP λ-windows (FEP only)",
          "int", int),
+        ("solvent_padding_nm", "solute-to-box-edge buffer in nm (e.g. 1.0)",
+         "float", float),
     ]
 
     new_values: dict[str, object] = {}

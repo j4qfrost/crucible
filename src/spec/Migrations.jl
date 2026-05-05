@@ -28,7 +28,7 @@ Walk the registered migrations from the input's `schema_version` to
 `target`. Returns the migrated JSON. Errors if no path exists.
 """
 function migrate_spec_json(json::AbstractString;
-                           target::AbstractString = "0.3.0")::String
+                           target::AbstractString = "0.4.0")::String
     obj = JSON3.read(json, Dict)
     src_version = String(get(obj, "schema_version", "unknown"))
     if src_version == target
@@ -103,3 +103,18 @@ register_migration!("0.1.0", "0.2.0", _migrate_v0_1_to_v0_2)
 # values are still semantically valid; the migration is identity except
 # for the `schema_version` bump (the framework handles the bump).
 register_migration!("0.2.0", "0.3.0", obj -> obj)
+
+# 0.3.0 → 0.4.0: adds `system.solvent.padding_nm` (nullable). Old specs
+# pre-date this field; backfill it as null so they round-trip cleanly
+# through the v0.4.0 schema validator.
+function _migrate_v0_3_to_v0_4(obj::Dict{String,Any})::Dict{String,Any}
+    if haskey(obj, "system")
+        sys = obj["system"]
+        if haskey(sys, "solvent") && !haskey(sys["solvent"], "padding_nm")
+            sys["solvent"]["padding_nm"] = nothing
+        end
+    end
+    obj
+end
+
+register_migration!("0.3.0", "0.4.0", _migrate_v0_3_to_v0_4)

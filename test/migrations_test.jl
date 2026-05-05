@@ -5,7 +5,7 @@ import JSON3
 @testset "migrate_spec_json identity for current version" begin
     fixture = joinpath(@__DIR__, "fixtures", "recorded_anthropic_spec.json")
     json = read(fixture, String)
-    out = migrate_spec_json(json; target="0.3.0")
+    out = migrate_spec_json(json; target="0.4.0")
     @test out == json
 end
 
@@ -42,10 +42,10 @@ end
 end
 
 @testset "synthetic migration registration round-trips for unrelated versions" begin
-    # Synthetic 0.3.0 → 9.9.0 transform — proves the registry mechanism
-    # without colliding with the real 0.1.0 → 0.2.0 → 0.3.0 migration
-    # path that ships in src/spec/Migrations.jl.
-    register_migration!("0.3.0", "9.9.0", function(d)
+    # Synthetic 0.4.0 → 9.9.0 transform — proves the registry mechanism
+    # without colliding with the real 0.1.0 → 0.2.0 → 0.3.0 → 0.4.0
+    # migration path that ships in src/spec/Migrations.jl.
+    register_migration!("0.4.0", "9.9.0", function(d)
         d["test_marker"] = "migrated"
         d
     end)
@@ -57,7 +57,7 @@ end
         @test obj["schema_version"] == "9.9.0"
         @test obj["test_marker"] == "migrated"
     finally
-        delete!(Crucible._MIGRATIONS, ("0.3.0", "9.9.0"))
+        delete!(Crucible._MIGRATIONS, ("0.4.0", "9.9.0"))
     end
 end
 

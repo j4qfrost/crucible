@@ -53,10 +53,11 @@ struct SolventSpec
     model::Symbol             # :TIP3P | :TIP4P_EW | :SPC_E | :implicit_GBSA | :vacuum
     ions_NaCl_mM::Float64     # 0.0 = none
     membrane::Union{Nothing,LipidBilayer}    # nothing for non-membrane systems
+    padding_nm::Union{Nothing,Float64}       # solute-to-box-edge buffer; nothing = unspecified
 end
 
-SolventSpec(; model=:TIP3P, ions_NaCl_mM=0.0, membrane=nothing) =
-    SolventSpec(model, ions_NaCl_mM, membrane)
+SolventSpec(; model=:TIP3P, ions_NaCl_mM=0.0, membrane=nothing, padding_nm=nothing) =
+    SolventSpec(model, ions_NaCl_mM, membrane, padding_nm)
 
 """
     ProtonationSpec
@@ -347,7 +348,7 @@ struct MDSpec <: SimSpec
 end
 
 MDSpec(;
-    schema_version="0.3.0",
+    schema_version="0.4.0",
     system,
     force_field,
     protocol,
@@ -434,6 +435,7 @@ function spec_to_json(spec::MDSpec)::String
             "solvent" => Dict(
                 "model"        => String(spec.system.solvent.model),
                 "ions_NaCl_mM" => spec.system.solvent.ions_NaCl_mM,
+                "padding_nm"   => spec.system.solvent.padding_nm,
                 "membrane"     => spec.system.solvent.membrane === nothing ?
                                   nothing :
                                   Dict(
@@ -569,6 +571,9 @@ function spec_from_json(json_str::AbstractString)::MDSpec
         SolventSpec(
             model        = Symbol(obj.system.solvent.model),
             ions_NaCl_mM = obj.system.solvent.ions_NaCl_mM,
+            padding_nm   = let p = get(obj.system.solvent, :padding_nm, nothing)
+                p === nothing ? nothing : Float64(p)
+            end,
             membrane     = let m = get(obj.system.solvent, :membrane, nothing)
                 m === nothing ? nothing : LipidBilayer(
                     composition       = Symbol(m.composition),

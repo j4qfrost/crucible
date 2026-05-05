@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### v1.44 — schema 0.4.0: solvent_padding_nm + 9th benchmark axis (2026-05-04)
+
+First real schema bump in this session. Adds
+`system.solvent.padding_nm` (the solute-to-box-edge buffer in nm —
+typically 1.0–1.5, commonly stated in Methods sections, previously
+invisible to the benchmark scorer). Backward-compatible: optional
+field defaulting to `null`.
+
+- **`src/spec/MDSpec.jl` + `src/spec/schema.json`** — `padding_nm`
+  added to `SolventSpec` (Julia struct) and the JSON Schema under
+  `system.solvent` (`{"type": ["number", "null"], "minimum": 0,
+  "maximum": 10}`). `$id` and `schema_version` const bumped to
+  `0.4.0`.
+- **`python/crucible/spec.py`** — pydantic model gets the same
+  field with `Field(default=None, ge=0.0, le=10.0)`. `SCHEMA_VERSION`
+  bumped to `0.4.0`.
+- **`src/spec/Migrations.jl` + `python/crucible/migrate.py`** —
+  registered `0.3.0 → 0.4.0` migration that backfills
+  `padding_nm: None` on old specs. Maintains the load-bearing
+  invariant: every historical transcript still loads cleanly into
+  the current schema (option-3 fine-tune flywheel survives).
+- **`python/crucible/benchmark/scorer.py` + `papers.py`** — adds
+  `SOLVENT_PADDING_NM` to `ScoreAxis` (now 9 axes) and
+  `solvent_padding_nm` to `ExpectedProtocol`. The scorer reads
+  `spec.system.solvent.padding_nm`; old verified entries with
+  `solvent_padding_nm=None` simply drop the axis from numerator +
+  denominator (no false negatives).
+- **`python/crucible/benchmark/cli.py`** — interactive `verify`
+  prompt now includes the 9th axis.
+- **Test fixtures** — `test/fixtures/recorded_anthropic_spec.json` +
+  `test/fixtures/known_good_spec.json` bumped to 0.4.0 with
+  `padding_nm: null`. Per-test-file `"0.3.0"` strings updated.
+- **Migration smoke** — `tools/migration_smoke.jl`'s
+  `REGISTERED_VERSIONS` extended with `"0.4.0"`. The smoke walks
+  every fixture through every registered target.
+- Tests: 928/928 Julia + 113/113 Python (Python +1 for the new
+  `0.3.0 → 0.4.0` migration test). Cross-language round-trip
+  unchanged at 8/8 — Python emit / Julia parse symmetry holds across
+  the schema bump.
+
 ### v1.43 — interactive `benchmark verify` CLI (2026-05-04)
 
 Lowest-friction path to flipping a `needs_verification` entry to

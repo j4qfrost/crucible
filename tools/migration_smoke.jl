@@ -18,7 +18,7 @@ using Crucible
 import JSON3
 
 const FIXTURES_DIR = joinpath(@__DIR__, "..", "test", "fixtures")
-const REGISTERED_VERSIONS = ["0.1.0", "0.2.0", "0.3.0"]
+const REGISTERED_VERSIONS = ["0.1.0", "0.2.0", "0.3.0", "0.4.0"]
 
 # Load each fixture, then for each registered TARGET version, attempt to
 # migrate. Skip TARGET == fixture's version (identity).

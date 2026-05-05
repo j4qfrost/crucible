@@ -78,5 +78,17 @@ def _identity(obj: dict) -> dict:
     return obj
 
 
+def _migrate_v0_3_to_v0_4(obj: dict) -> dict:
+    """0.3.0 → 0.4.0 — adds `system.solvent.padding_nm` (nullable)."""
+    obj = copy.deepcopy(obj)
+    sys = obj.get("system")
+    if isinstance(sys, dict):
+        sol = sys.get("solvent")
+        if isinstance(sol, dict) and "padding_nm" not in sol:
+            sol["padding_nm"] = None
+    return obj
+
+
 register_migration("0.1.0", "0.2.0", _migrate_v0_1_to_v0_2)
 register_migration("0.2.0", "0.3.0", _identity)
+register_migration("0.3.0", "0.4.0", _migrate_v0_3_to_v0_4)

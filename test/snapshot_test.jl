@@ -22,7 +22,7 @@ using Crucible
             @test isfile(joinpath(dest, "spec.json"))
             @test isfile(joinpath(dest, "run_openmm.py"))
             @test isfile(joinpath(dest, "stdout.log"))
-            @test manifest.schema_version == "0.3.0"
+            @test manifest.schema_version == "0.4.0"
             @test length(manifest.files) >= 3
             @test all(!isempty(f.sha256) for f in manifest.files)
         finally

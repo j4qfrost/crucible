@@ -17,7 +17,7 @@ from typing import Annotated, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-SCHEMA_VERSION = "0.3.0"
+SCHEMA_VERSION = "0.4.0"
 
 # Allowlists — never let the LLM invent FF names.
 PROTEIN_FF = (
@@ -65,6 +65,7 @@ class LipidBilayer(_Frozen):
 class SolventSpec(_Frozen):
     model: Literal["TIP3P", "TIP4P_EW", "SPC_E", "implicit_GBSA", "vacuum"] = "TIP3P"
     ions_NaCl_mM: float = Field(default=0.0, ge=0.0)
+    padding_nm: Optional[float] = Field(default=None, ge=0.0, le=10.0)
     membrane: Optional[LipidBilayer] = None
 
 

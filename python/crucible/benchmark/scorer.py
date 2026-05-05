@@ -42,6 +42,7 @@ class ScoreAxis(str, Enum):
     DURATION_NS = "duration_ns"
     PRESSURE_BAR = "pressure_bar"
     FEP_LAMBDA_COUNT = "fep_lambda_count"
+    SOLVENT_PADDING_NM = "solvent_padding_nm"
 
 
 @dataclass
@@ -116,6 +117,11 @@ def score(
     per_axis[ScoreAxis.FEP_LAMBDA_COUNT] = _score_num(
         expected.fep_lambda_count,
         len(fep.lambda_windows) if fep else None,
+    )
+    # Solvent padding lives on `system.solvent.padding_nm` (added v0.4.0).
+    per_axis[ScoreAxis.SOLVENT_PADDING_NM] = _score_num(
+        expected.solvent_padding_nm,
+        spec.system.solvent.padding_nm,
     )
 
     total = sum(1 for v in per_axis.values() if v is True)
