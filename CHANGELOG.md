@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### v1.72 — `tools/install_precommit.sh` (opt-in pre-commit hook) (2026-05-04)
+
+Wires the v1.56+v1.68+v1.70 workspace checks into git's pre-commit
+hook so they fire automatically on every `git commit` rather than
+only when invoked manually.
+
+- **`tools/install_precommit.sh`** — idempotent installer. Drops
+  a sentinel-marked hook (`# crucible-precommit-v1`) at
+  `.git/hooks/pre-commit` that invokes
+  `tools/check_workspace.py`. Re-running refreshes in place.
+  Refuses to overwrite a non-Crucible hook without `--force` so
+  it doesn't silently clobber a user's existing setup.
+- Three flags: bare invocation installs; `--force` overwrites
+  foreign hooks; `--dry-run` prints the hook content without
+  writing.
+- The hook prefers `python/.venv/bin/python` when present
+  (matches v1.49's argparse-passthrough subprocess pattern), so
+  the check runs against the same crucible.spec the test suite
+  uses.
+- **Opt-in:** the installer doesn't run automatically. Drivers
+  (CI, contributors, the maintainer) invoke it explicitly.
+  `git commit --no-verify` remains the escape hatch.
+
 ### v1.71 — `tools/release_summary.py` (one-line CHANGELOG view) (2026-05-04)
 
 The CHANGELOG has grown to 70+ versions / ~3000 lines; scanning
