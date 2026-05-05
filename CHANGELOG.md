@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### v1.66 — benchmark seed-set structural invariants (2026-05-04)
+
+Catches the regression class that bit v1.37/v1.38: a fabricated
+DOI, a duplicate paper_id, a `verified` entry without a
+`verified_by` stamp. CI-enforced from this commit forward.
+
+- **`python/tests/test_seed_set_invariants.py`** — 12 structural
+  checks on `python/crucible/benchmark/papers.py`:
+  - `paper_id` unique
+  - `paper_id` matches `^[a-z0-9_]+$` (slug convention)
+  - DOI matches Crossref pattern (`^10\.\d{4,9}/\S+$`) — catches
+    fabrications like the v1.38-corrected `10.1021/jp067192x`
+  - DOI unique across the seed set
+  - `status="verified"` requires non-empty `verified_by`
+  - title non-empty
+  - title under 300 chars (readability cap)
+  - `status` value in known set (defense-in-depth on the Literal)
+  - `ExpectedProtocol` axes within schema's allowed numeric ranges
+    (catches typos like `dt_fs=200` vs `dt_fs=2.0`)
+  - verified entries have non-empty `notes` (the audit trail)
+  - seed-set size ≥ 5 (statistical floor)
+  - seed-set size ≤ 50 (runaway-growth guard)
+- The invariants intentionally don't validate scientific content —
+  that's the human-verification work in
+  `docs/HOW_TO_VERIFY_A_PAPER.md`. These check the *shape*, not
+  the values.
+- 12 new tests; **176/176 pytest** (was 164).
+
 ### v1.65 — `corpus fetch-batch` + Tier-1 personas names file (2026-05-04)
 
 Bulk-ingestion path for the corpus tier. Lets a maintainer fetch
