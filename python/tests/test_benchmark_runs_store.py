@@ -282,6 +282,55 @@ def test_export_jsonl_include_paper_text_joins_corpus(tmp_path, capsys):
     assert by_paper[other_id]["paper_text"] is None
 
 
+def test_rows_since_filters_strictly_newer(tmp_path):
+    """v1.74 `rows_since` filters strictly > since_run_at."""
+    from datetime import datetime, timedelta, timezone
+    from crucible.benchmark.runs_store import rows_since
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    rid = new_run_id()
+    insert_outcome(conn, run_id=rid, outcome=_outcome("a"),
+                   llm_provider="x", llm_model="x", schema_version="0.4.0")
+    future = datetime.now(timezone.utc) + timedelta(seconds=60)
+    assert list(rows_since(conn, since_run_at=future)) == []
+    past = datetime.now(timezone.utc) - timedelta(seconds=60)
+    rows = list(rows_since(conn, since_run_at=past))
+    assert len(rows) == 1
+    assert rows[0]["paper_id"] == "a"
+    conn.close()
+
+
+def test_benchmark_cli_watch_polls_and_exits(tmp_path, capsys):
+    """`watch --max-iterations 1` polls once and exits cleanly."""
+    from crucible.benchmark.cli import main
+    db = tmp_path / "runs.duckdb"
+    conn = open_runs_store(db)
+    rid = new_run_id()
+    insert_outcome(conn, run_id=rid, outcome=_outcome("seed_a"),
+                   llm_provider="x", llm_model="x", schema_version="0.4.0")
+    conn.close()
+    rc = main(["watch", str(db),
+               "--interval", "0.01",
+               "--max-iterations", "1",
+               "--since", "2020-01-01"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    import json as _json
+    rows = [_json.loads(line) for line in out.splitlines() if line.strip()]
+    assert len(rows) == 1
+    assert rows[0]["paper_id"] == "seed_a"
+
+
+def test_benchmark_cli_watch_rejects_bad_since(tmp_path, capsys):
+    from crucible.benchmark.cli import main
+    db = tmp_path / "runs.duckdb"
+    open_runs_store(db).close()
+    rc = main(["watch", str(db), "--since", "not-a-date",
+               "--max-iterations", "1"])
+    assert rc == 2
+    assert "ISO format" in capsys.readouterr().err
+
+
 def test_export_jsonl_filters_by_since(tmp_path):
     """The export_jsonl `since=` filter is exposed via CLI in v1.64."""
     from datetime import datetime, timedelta, timezone

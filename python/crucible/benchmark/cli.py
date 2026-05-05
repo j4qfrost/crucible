@@ -571,6 +571,64 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_watch(args: argparse.Namespace) -> int:
+    """Tail the runs DB; print new rows as they arrive.
+
+    Polls the DB every `--interval` seconds; emits any row newer than
+    the last seen `run_at`. Bounded by `--max-iterations` so tests
+    can drive deterministically; default unbounded for production
+    use. Exit on Ctrl-C or `--max-iterations` reached.
+
+    Useful for live monitoring during a long benchmark run + as the
+    progress display for piloting `benchmark publish` from another
+    terminal.
+    """
+    import time
+    from datetime import datetime, timedelta, timezone
+    from .runs_store import open_runs_store, rows_since
+
+    conn = open_runs_store(args.runs_db)
+    # Default: start from "5 minutes ago" so a freshly-launched watch
+    # picks up the run that's already in progress.
+    last_seen = datetime.now(timezone.utc) - timedelta(minutes=5)
+    if args.since:
+        try:
+            last_seen = datetime.fromisoformat(args.since)
+        except ValueError:
+            print(f"--since must be ISO format; got {args.since!r}",
+                  file=sys.stderr)
+            conn.close()
+            return 2
+
+    iterations = 0
+    n_emitted = 0
+    try:
+        while True:
+            iterations += 1
+            new_rows = list(rows_since(conn, since_run_at=last_seen))
+            for row in new_rows:
+                print(json.dumps(row, default=str))
+                n_emitted += 1
+                # Track the latest run_at seen so the next poll only
+                # fetches strictly-newer rows. Convert from ISO string
+                # back to datetime for the next comparison.
+                run_at_str = row.get("run_at")
+                if run_at_str:
+                    try:
+                        last_seen = datetime.fromisoformat(run_at_str)
+                    except ValueError:
+                        pass
+            if args.max_iterations and iterations >= args.max_iterations:
+                break
+            time.sleep(args.interval)
+    except KeyboardInterrupt:
+        print(f"\nwatch stopped after {iterations} poll(s); "
+              f"{n_emitted} row(s) emitted.", file=sys.stderr)
+    finally:
+        conn.close()
+    return 0
+
+
 def cmd_compare(args: argparse.Namespace) -> int:
     """Diff two runs DB snapshots — show per-paper accuracy delta.
 
@@ -762,6 +820,17 @@ def build_parser() -> argparse.ArgumentParser:
     pcm.add_argument("left", help="path to left runs DB (the 'before')")
     pcm.add_argument("right", help="path to right runs DB (the 'after')")
     pcm.set_defaults(func=cmd_compare)
+
+    pw = sub.add_parser("watch",
+                        help="tail a runs DB — emit new rows as they arrive")
+    pw.add_argument("runs_db", help="path to the DuckDB to watch")
+    pw.add_argument("--interval", type=float, default=5.0,
+                    help="poll interval in seconds (default 5)")
+    pw.add_argument("--since", default=None,
+                    help="starting timestamp (ISO; default: 5 minutes ago)")
+    pw.add_argument("--max-iterations", type=int, default=None,
+                    help="stop after N polls (default: run forever; set in tests)")
+    pw.set_defaults(func=cmd_watch)
 
     pb = sub.add_parser("publish",
                         help="one-shot: run + report (writes to --out path)")

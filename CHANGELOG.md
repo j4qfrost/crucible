@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### v1.74 — `crucible benchmark watch` (live tail of runs DB) (2026-05-05)
+
+A second mode for the runs DB beyond the v1.45 batch-query model: a
+poll-and-print tail for live monitoring of an in-progress run.
+
+- **`python -m crucible benchmark watch <runs-db> [--interval N]`**
+  — polls `benchmark_runs` every N seconds (default 5); emits each
+  new row as JSONL on stdout. Bounded by `--max-iterations` so
+  tests run deterministically; default unbounded for production.
+  Default `--since` is "5 minutes ago" — a freshly-launched watch
+  picks up an in-progress run.
+- **`runs_store.rows_since(conn, since_run_at=, since_run_id=)`**
+  — extracted helper that the watch loop uses. Available as a
+  Python API for anyone writing custom monitoring.
+- Use case: `crucible benchmark publish` in one terminal,
+  `crucible benchmark watch ~/.local/share/crucible/corpus.duckdb`
+  in another. The watch terminal shows progress as each paper
+  scores; useful for the long real-LLM runs (≥ minutes-per-paper).
+- 3 new tests (rows_since strictly-newer filter, watch with
+  `--max-iterations 1`, watch with bad `--since` exits 2).
+  **193/193 pytest** (was 190).
+
 ### v1.73 — README "Tools" section for script discoverability (2026-05-04)
 
 The v1.41–v1.72 run added 7 CI-grade scripts under `tools/`. None

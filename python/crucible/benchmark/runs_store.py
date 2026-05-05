@@ -290,6 +290,39 @@ def schema_version_distribution(conn: Any) -> dict[str, int]:
     return {row[0]: int(row[1]) for row in cur.fetchall()}
 
 
+def rows_since(conn: Any, *, since_run_at: Optional[datetime] = None,
+               since_run_id: Optional[str] = None) -> Iterator[dict]:
+    """Yield benchmark_runs rows newer than the given timestamp / run_id.
+
+    Either filter is optional; both can be combined. `run_at` is the
+    primary filter for `watch`-style polling; `run_id` exists as a
+    secondary filter for resuming an interrupted tail (e.g. after a
+    machine reboot).
+    """
+    sql = """
+        SELECT run_id, paper_id, run_at, llm_provider, llm_model, ok,
+               elapsed_s, total, max_score, error
+        FROM benchmark_runs
+        WHERE 1=1
+    """
+    params: list = []
+    if since_run_at is not None:
+        sql += " AND run_at > ?"
+        params.append(since_run_at)
+    if since_run_id is not None:
+        sql += " AND run_id != ?"
+        params.append(since_run_id)
+    sql += " ORDER BY run_at"
+    cur = conn.execute(sql, params)
+    cols = [d[0] for d in cur.description]
+    for row in cur.fetchall():
+        rec = dict(zip(cols, row))
+        run_at = rec.get("run_at")
+        if run_at is not None and hasattr(run_at, "isoformat"):
+            rec["run_at"] = run_at.isoformat()
+        yield rec
+
+
 def export_jsonl(conn: Any, *,
                  since: Optional[datetime] = None,
                  paper_id: Optional[str] = None,
