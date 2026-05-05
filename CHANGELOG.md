@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### v1.83 — egress baseline gate (8th workspace check) (2026-04-29)
+
+Wires `tools/inventory_egress.py` (v1.81) into
+`tools/check_workspace.py` so the air-gap commitment becomes a
+hard gate at pre-commit/CI time rather than an audit run by hand.
+
+- **`tools/baselines/egress.json`** — per-category counts of every
+  outbound-network call site currently in the codebase: 7 stdlib
+  urllib, 2 anthropic_sdk, 10 julia_HTTP. Schema-versioned for
+  future extension.
+- **`_check_egress_baseline()` in `check_workspace.py`** — runs
+  `inventory_egress.py --format json`, tallies by category, and
+  fails if any category has *more* sites than the baseline.
+  Decreases pass silently (improvements). Adding a new egress site
+  forces a deliberate baseline bump + an `AIR_GAPPED.md` update —
+  the audit can no longer drift unobserved.
+- Verified end-to-end: simulating "urllib +1" produces
+  `✗ egress_baseline: urllib: 7 > baseline 0` and exit 1.
+- All 8 workspace checks pass; **220/220 pytest** unchanged.
+
 ### v1.82 — `crucible-py doctor` (Python install + air-gap audit) (2026-05-05)
 
 Python equivalent of the Julia `crucible doctor`, plus an
