@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### v1.63 — end-to-end benchmark integration tests (2026-05-04)
+
+Per-module unit tests cover the building blocks; this file covers
+the full v1.41–v1.55 chain (run → trends → stats → export → publish)
+in 10 e2e tests. Catches regressions where individual unit tests
+pass but the wired-together pipeline breaks (interface drift,
+config-name mismatch, etc.).
+
+- **`python/tests/test_benchmark_e2e.py`** — 10 tests covering:
+  - All 6 CLI subcommands exit 0 in the full pipeline
+  - Every artifact (DB, runs JSONL, report MD, export JSONL) is
+    written and non-empty
+  - Two distinct run_ids land in the runs DB after `run` + `publish`
+  - Per-paper accuracy is upserted into the corpus's
+    `benchmark_scores` table (v1.48 wiring)
+  - Report includes the trends section when corpus DB doubles as
+    runs DB
+  - `publish --brief` produces the summary table; trends section
+    survives orthogonally
+  - Export JSONL has 10 outcome rows × 10 axes per row, all
+    rehydrated from JSON
+  - `schema_version` recorded in each row matches the live
+    `SCHEMA_VERSION` constant
+  - `python -m crucible benchmark` passthrough dispatches via
+    `sys.executable` (catches the v1.49 argparse REMAINDER fix)
+- All run on the v1.53 `MockTranspileProvider` — no network, no
+  live LLM, no GPU.
+- 10 new tests; **159/159 pytest** (was 149).
+
 ### v1.62 — adoption FAQ (cross-profile common questions) (2026-05-04)
 
 Closes the v1.57–v1.61 adoption-strategy doc set with an FAQ
