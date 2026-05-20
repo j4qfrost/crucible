@@ -2,7 +2,7 @@
 
 Auto-generated from `src/spec/schema.json` by `tools/regenerate_docs.jl`. Do not edit by hand.
 
-**Schema version:** `0.3.0`
+**Schema version:** `0.4.0`
 
 ## Top-level fields
 
@@ -14,7 +14,7 @@ Auto-generated from `src/spec/schema.json` by `tools/regenerate_docs.jl`. Do not
 | `notes` | `string` | ✓ |  |
 | `warnings` | `array` | ✓ |  |
 | `observables` | `array` | ✓ |  |
-| `schema_version` | ``"0.3.0"`` | ✓ |  |
+| `schema_version` | ``"0.4.0"`` | ✓ |  |
 | `system` | `object` | ✓ |  |
 
 ## `system`
@@ -36,6 +36,7 @@ Auto-generated from `src/spec/schema.json` by `tools/regenerate_docs.jl`. Do not
 | `membrane` | oneOf | — |  |
 | `model` | enum: `TIP3P`, `TIP4P_EW`, `SPC_E`, `implicit_GBSA`, `vacuum` | ✓ |  |
 | `ions_NaCl_mM` | `number` | ✓ | min=0; max=5000 |
+| `padding_nm` | number or null | — | min=0; max=10 |
 
 ### system.source fields
 
