@@ -230,6 +230,83 @@ Week 13  → status report against gate criteria
 >
 > — <signature>
 
+## Email-sequencing framework
+
+The templates above are *first-touch* copy. A single cold email
+rarely converts; a disciplined short sequence does. This framework
+defines the follow-up cadence — and, just as importantly, where it
+*stops*.
+
+The hard ceiling from "Honest constraints" below is unchanged:
+**cold emails cap at 35 across the 13 weeks.** The sequence is a
+*per-recipient* policy that fits inside that total — it does not add
+volume, it allocates the existing 35 touches across fewer recipients
+more deliberately. A "touch" here is one email to one person; the
+35-touch budget counts every send, first or follow-up.
+
+### The three-touch sequence (per recipient)
+
+| Touch | Timing | What it is | What changes from the prior touch |
+|---|---|---|---|
+| **1 — first email** | Day 0 | The Tier-1 or Tier-2 template above, hand-personalized. | — |
+| **2 — follow-up** | Day 5–7, only if no reply | A 3-sentence nudge on the *same thread* (reply, don't restart). | Lead with a *new* concrete artifact, not a restatement: a fresh benchmark number, the published benchmark page going live, or the on-prem doc shipping. If nothing new exists yet, delay the follow-up until it does — never send "just bumping this." |
+| **3 — re-engage** | After 8–12 weeks, at most once | A short new-thread note tied to a campaign milestone. | Tied to a *milestone event*: the arXiv preprint, the ACS COMP talk acceptance, the Practical Cheminformatics guest post. No milestone → no re-engage. |
+
+Three touches per recipient is the **cap**. After touch 3 with no
+reply, the recipient is closed-lost for the quarter — do not email
+them a fourth time.
+
+### Cadence rules
+
+- **Reply ends the sequence.** Any human reply — even "not now" —
+  moves the recipient out of the cold sequence and into the
+  `outreach.csv` warm/lukewarm pipeline. Follow-ups are for
+  *silence only*.
+- **One thread per touch-1/touch-2 pair.** Touch 2 replies to
+  touch 1 so the recipient has context. Touch 3 starts a new thread
+  because the milestone is genuinely new news.
+- **Follow-up needs new substance.** The Day 5–7 nudge must carry
+  an artifact that did not exist at Day 0. This is what keeps a
+  follow-up from reading as spam — and it aligns the sequence with
+  the campaign's week-by-week asset ships (benchmark in Week 4,
+  on-prem doc in Week 6, preprint in Week 11).
+- **Respect the channel-strategy windows.** Sequencing operates
+  *inside* the round-1 / round-2 outreach windows already in
+  "Channel strategy"; it does not open new send windows.
+
+### Touch-budget math (stays within the 35 cap)
+
+The "Honest constraints" cap and the commercial plan's two outreach
+rounds (15 + 10 + 10 = 35 first-touches *if every email is a fresh
+recipient*) interact with sequencing. The sequence trades breadth
+for depth:
+
+| Approach | Recipients | Touches | Within 35? |
+|---|---|---|---|
+| No sequencing (status quo) | 35 | 35 (all touch-1) | yes |
+| Light sequencing | ~25 recipients, ~10 get a touch-2 | 35 | yes |
+| Full three-touch on a focused set | ~15 recipients × ~2.3 touches avg | 35 | yes |
+
+Recommended: **light-to-full sequencing on the highest-fit
+recipients.** The AI-receptivity sub-ranking below identifies who
+those are — spend the follow-up budget on Tier-1/Tier-2 personas
+whose public work is the closest match, not on broadening the
+first-touch list. A reply rate of ≥15% (the KPI threshold) is more
+achievable from 15 well-sequenced recipients than 35 one-shot sends.
+
+### When to stop
+
+- **Stop the sequence for a recipient** after touch 3, or on any
+  reply, or if they ask to be removed (remove immediately, no touch 3).
+- **Stop the campaign's cold outreach entirely** once the 35-touch
+  budget is spent — even mid-sequence. Budget exhaustion outranks
+  sequence completion. If the budget runs out before a focused
+  recipient gets their touch 3, that is acceptable; the cap is the
+  cap.
+- **Never** convert the re-engage touch into a recurring newsletter.
+  Touch 3 is one-shot. Ongoing contact with people who never
+  replied is the spam the "Honest constraints" section forbids.
+
 ## AI-receptivity sub-ranking (highest-priority early targets)
 
 A separate cut at the persona list: of the named figures, which are
