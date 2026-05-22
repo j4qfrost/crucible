@@ -82,6 +82,38 @@ Per panel recommendation, with explicit gates:
 relationship leverage, not lead-gen tables. The financial_analyst's
 ranking specifically downgrades booth spend.
 
+### Warm-lead qualification rubric
+
+Tranche 2 releases on "≥3 warm leads," and the Phase A success
+metrics and kill criteria all key off warm-lead count. "Warm" must
+therefore be a defined, observable state — not a gut call. A lead is
+scored on the **observable actions it has taken**, not on how
+promising the conversation felt.
+
+| Tier | Definition | Observable criteria (the lead has done these) | Counts as |
+|---|---|---|---|
+| **Cold** | Identified target, no contact or no response. | On the outreach list; ≤1 outreach touch; no reply. | not a lead |
+| **Lukewarm** | Two-way contact, but no commitment of their time or budget. | Replied to outreach (even a "not now"); *or* opened/completed the Loom; *or* asked a clarifying question. | pipeline only |
+| **Warm** | Has invested their own time or named a concrete path forward. **Two or more** of the criteria at right. | Held a 15-min+ call; *and/or* requested a follow-up or a deeper demo; *and/or* named a budget number or a timeline; *and/or* introduced you onward to a colleague or decision-maker; *and/or* asked for the POC scope doc. | toward the ≥3 trigger |
+| **Hot** | Warm, plus a near-close signal. | Verbally agreed to a pilot, asked for an LOI/POC draft, or looped in procurement. | toward Phase B "near close" |
+
+Rules for applying the rubric:
+
+- **Warm = two or more warm-tier criteria.** A single 15-minute
+  call with no follow-up request is *lukewarm* — a polite meeting is
+  not commitment. Two independent signals (call + budget mention,
+  or demo request + onward intro) clear the bar.
+- **Score the action, not the affect.** "They sounded really
+  interested" is not a criterion. "They asked for the POC scope
+  doc" is.
+- **Record the tier in `outreach.csv`** with the date it changed
+  and which criterion moved it. The warm-lead *count* the spend
+  tranches and kill criteria cite is a `COUNT` over this column —
+  it must be reconstructable from the sheet, not from memory.
+- **Decay.** A warm lead with no two-way contact for 6 weeks
+  reverts to lukewarm until re-engaged. Stale leads don't keep
+  Tranche 2 unlocked.
+
 ## Phase A — 90-day commercial validation sprint (weeks 1–13)
 
 The next 13 weeks are concrete, weekly-cadenced, and prioritize
