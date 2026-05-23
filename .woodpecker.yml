@@ -13,6 +13,8 @@ clone:
     image: woodpeckerci/plugin-git
     settings:
       remote: http://forgejo:3000/j4qfrost/crucible.git
+    environment:
+      CI_NETRC_MACHINE: forgejo
 
 # Julia drug-discovery sim. The OpenMM backend (PythonCall + CondaPkg) is
 # intentionally optional and isn't installed here — keeps CI lean and matches
