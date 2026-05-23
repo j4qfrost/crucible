@@ -11,15 +11,15 @@ when:
 clone:
   git:
     image: alpine/git
+    environment:
+      FORGEJO_USER:
+        from_secret: forgejo_user
+      FORGEJO_TOKEN:
+        from_secret: forgejo_token
     commands:
-      - echo "--- CI_* env (redacted passwords) ---"
-      - env | grep -E '^(CI_|WOODPECKER)' | sed -E 's/(PASSWORD|TOKEN|SECRET)=.*/\1=<REDACTED>/' | sort
-      - echo "--- attempting clone ---"
-      - 'echo "machine forgejo login x-access-token password $${CI_NETRC_PASSWORD}" > /root/.netrc'
-      - chmod 600 /root/.netrc
       - git init -b "${CI_COMMIT_BRANCH:-main}"
-      - 'git remote add origin "http://forgejo:3000/${CI_REPO}.git"'
-      - 'git fetch --depth=1 origin "$${CI_COMMIT_SHA}"'
+      - 'git remote add origin "http://$$FORGEJO_USER:$$FORGEJO_TOKEN@forgejo:3000/${CI_REPO}.git"'
+      - 'git fetch --depth=1 origin "$$CI_COMMIT_SHA"'
       - git checkout FETCH_HEAD
 
 # Julia drug-discovery sim. The OpenMM backend (PythonCall + CondaPkg) is
