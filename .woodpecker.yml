@@ -10,11 +10,17 @@ when:
 # the docker bridge that step containers run on. See ~/infra/ci/README.md.
 clone:
   git:
-    image: woodpeckerci/plugin-git
-    settings:
-      remote: http://forgejo:3000/j4qfrost/crucible.git
-    environment:
-      CI_NETRC_MACHINE: forgejo
+    image: alpine/git
+    commands:
+      - echo "--- CI_* env (redacted passwords) ---"
+      - env | grep -E '^(CI_|WOODPECKER)' | sed -E 's/(PASSWORD|TOKEN|SECRET)=.*/\1=<REDACTED>/' | sort
+      - echo "--- attempting clone ---"
+      - 'echo "machine forgejo login x-access-token password $${CI_NETRC_PASSWORD}" > /root/.netrc'
+      - chmod 600 /root/.netrc
+      - git init -b "${CI_COMMIT_BRANCH:-main}"
+      - 'git remote add origin "http://forgejo:3000/${CI_REPO}.git"'
+      - 'git fetch --depth=1 origin "$${CI_COMMIT_SHA}"'
+      - git checkout FETCH_HEAD
 
 # Julia drug-discovery sim. The OpenMM backend (PythonCall + CondaPkg) is
 # intentionally optional and isn't installed here — keeps CI lean and matches
