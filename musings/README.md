@@ -92,6 +92,12 @@ fit `docs/` (spec/contributor reference) or `examples/` (runnable demos).
   to drive the conversation toward whether Crucible is even relevant
   to their pipeline.
 
+- [`handout_chemistry_friend.md`](handout_chemistry_friend.md) —
+  single-page leave-behind companion to `pitch_to_chemistry_friend.md`.
+  Distilled to what the friend should remember after the meeting:
+  the wedge sentence, the two materials templates, the honest
+  disqualifier list, and a two-question relevance check.
+
 ## When to add a musing
 
 Add one when you've made an architectural decision that:
