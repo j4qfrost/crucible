@@ -115,6 +115,10 @@ function _emit_system_load(spec::MDSpec)
     src = spec.system.source
     io = IOBuffer()
     print(io, "# --- system load ---\n")
+    # True once a ForceField has been built WITH a ligand template generator already
+    # registered (the protein_ligand path); the force-field section must then NOT rebuild
+    # it from scratch, or the ligand template is lost and createSystem fails.
+    print(io, "_ff_ready = False\n")
     if src.type == :user_supplied
         if src.coordinates === nothing
             error("OpenMM renderer: user_supplied source requires coordinates path")
@@ -204,6 +208,8 @@ function _emit_system_load(spec::MDSpec)
         print(io, "forcefield = ForceField(*", files_repr, ")\n")
         print(io, "_smirnoff = SMIRNOFFTemplateGenerator(molecules=[_lig], forcefield=", repr(ligand_ff_str), ")\n")
         print(io, "forcefield.registerTemplateGenerator(_smirnoff.generator)\n")
+        # This ForceField now carries the ligand template — do not rebuild it later.
+        print(io, "_ff_ready = True\n")
         print(io, "# 3. merge protein + ligand topologies\n")
         print(io, "_protein = Modeller(_fixer.topology, _fixer.positions)\n")
         print(io, "_lig_topology = _lig.to_topology().to_openmm()\n")
@@ -213,7 +219,8 @@ function _emit_system_load(spec::MDSpec)
             water_model = spec.system.solvent.model == :TIP3P    ? "tip3p" :
                           spec.system.solvent.model == :TIP4P_EW ? "tip4pew" : "spce"
             ionic_M = spec.system.solvent.ions_NaCl_mM / 1000.0
-            print(io, "_protein.addSolvent(forcefield, padding=1.0*nanometer, ionicStrength=",
+            pad_nm = spec.system.solvent.padding_nm === nothing ? 1.0 : spec.system.solvent.padding_nm
+            print(io, "_protein.addSolvent(forcefield, padding=", pad_nm, "*nanometer, ionicStrength=",
                       ionic_M, "*molar, model=", repr(water_model), ")\n")
         end
         print(io, "_prepared_path = os.path.join(OUTPUT_DIR, ", repr("$(src.pdb_id)_complex.pdb"), ")\n")
@@ -251,7 +258,8 @@ function _emit_system_load(spec::MDSpec)
             water_model = spec.system.solvent.model == :TIP3P    ? "tip3p" :
                           spec.system.solvent.model == :TIP4P_EW ? "tip4pew" : "spce"
             ionic_M = spec.system.solvent.ions_NaCl_mM / 1000.0
-            print(io, "_fixer.addSolvent(padding=1.0*nanometer, ionicStrength=",
+            pad_nm = spec.system.solvent.padding_nm === nothing ? 1.0 : spec.system.solvent.padding_nm
+            print(io, "_fixer.addSolvent(padding=", pad_nm, "*nanometer, ionicStrength=",
                       ionic_M, "*molar, waterModel=", repr(water_model), ")\n")
         end
         print(io, "_prepared_path = os.path.join(OUTPUT_DIR, ", repr("$(src.pdb_id)_prepared.pdb"), ")\n")
@@ -322,7 +330,9 @@ function _emit_forcefield(spec::MDSpec)
         end
     end
     files_repr = "[" * join((repr(f) for f in ff_files), ", ") * "]"
-    print(io, "if not _use_amber:\n")
+    # Skip the rebuild when the system-load step already built a ForceField with a ligand
+    # template generator registered (protein_ligand) — rebuilding would drop that template.
+    print(io, "if not _use_amber and not _ff_ready:\n")
     print(io, "    forcefield = ForceField(*", files_repr, ")\n")
     print(io, "\n")
     String(take!(io))
