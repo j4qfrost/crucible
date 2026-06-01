@@ -50,11 +50,13 @@ using Crucible
         @test occursin("if not _use_amber and not _ff_ready:", script)
         # Bug 2: solvent.padding_nm must reach addSolvent (not a hardcoded 1.0 nm).
         @test occursin("padding=0.7*nanometer", script)
-        # Bug 3: the ligand must be placed at its CRYSTAL pose (from_pdb_and_smiles),
-        # not a bare generated conformer, and heterogens removed only AFTER pose capture.
-        @test occursin("from_pdb_and_smiles", script)
+        # Bug 3: the ligand must be placed at its CRYSTAL pose (bond orders assigned from
+        # the SMILES template onto the extracted crystal heavy atoms), not a bare generated
+        # conformer, and heterogens removed only AFTER pose capture.
+        @test occursin("AssignBondOrdersFromTemplate", script)
+        @test occursin("Molecule.from_rdkit", script)
         @test !occursin("generate_conformers", script)
-        @test findfirst("from_pdb_and_smiles", script).start <
+        @test findfirst("AssignBondOrdersFromTemplate", script).start <
               findfirst("removeHeterogens", script).start
     end
 end
