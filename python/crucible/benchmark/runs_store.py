@@ -12,7 +12,7 @@ Schema:
         paper_id      TEXT,
         run_at        TIMESTAMP,
         llm_provider  TEXT,        -- "anthropic" | "local" | "mock" | "claude_cli"
-        llm_model     TEXT,        -- e.g. "claude-opus-4-7" or "qwen2.5-coder-7b"
+        llm_model     TEXT,        -- e.g. "claude-opus-4-7" or "qwen3:14b"
         ok            BOOLEAN,
         elapsed_s     DOUBLE,
         total         INTEGER,     -- score numerator (0-9)

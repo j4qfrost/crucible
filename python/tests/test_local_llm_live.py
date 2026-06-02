@@ -12,7 +12,7 @@ Why we want this:
   right; they prove nothing about whether the actual Ollama
   `response_format=json_schema` contract works on the model
   someone actually deployed.
-- snowman has Ollama + GPU + the qwen2.5-coder family already
+- snowman has Ollama + GPU + the qwen3 family already
   cached. That makes this test cheap to run there, and the
   natural place to wire it into Woodpecker as a gated step.
 - The fail-soft contract means a "model declined / produced
@@ -24,7 +24,7 @@ drives both surfaces):
 
     CRUCIBLE_LIVE_LOCAL_LLM=1                # opt-in
     CRUCIBLE_LOCAL_ENDPOINT=http://localhost:11434/v1
-    CRUCIBLE_LOCAL_MODEL=qwen2.5-coder:3b    # default if unset
+    CRUCIBLE_LOCAL_MODEL=qwen3:4b    # default if unset
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ from crucible.llm.local import LocalOpenAIProvider
 
 _LIVE = os.environ.get("CRUCIBLE_LIVE_LOCAL_LLM") == "1"
 _ENDPOINT = os.environ.get("CRUCIBLE_LOCAL_ENDPOINT", "http://localhost:11434/v1")
-_MODEL = os.environ.get("CRUCIBLE_LOCAL_MODEL", "qwen2.5-coder:3b")
+_MODEL = os.environ.get("CRUCIBLE_LOCAL_MODEL", "qwen3:4b")
 _TIMEOUT_S = int(os.environ.get("CRUCIBLE_LIVE_LLM_TIMEOUT_S", "120"))
 
 pytestmark = pytest.mark.skipif(

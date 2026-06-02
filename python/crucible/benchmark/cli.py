@@ -818,7 +818,7 @@ def build_parser() -> argparse.ArgumentParser:
                          "(default: reuses --corpus-db if set)")
     pr.add_argument("--llm-model", default=None,
                     help="model name to record alongside the run "
-                         "(e.g. claude-opus-4-7, qwen2.5-coder-7b)")
+                         "(e.g. claude-opus-4-7, qwen3:14b)")
     pr.add_argument("--out", default=None, help="output JSONL path")
     pr.add_argument("--verified-only", action="store_true")
     pr.add_argument("--allow-unverified", action="store_true",
