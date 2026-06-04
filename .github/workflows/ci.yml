@@ -58,6 +58,25 @@ jobs:
             exit 1
           }
 
+  # Reproducible-toolchain gate via Nix. Builds the pinned dev shell from
+  # flake.nix (pinned-tarball nixpkgs → julia + duckdb + poppler) and drives
+  # Pkg.instantiate + Pkg.status through `nix develop`. Proves the flake
+  # resolves and runs the project independent of julia-actions setup. See the
+  # IMPURITY NOTE in flake.nix for why there's a dev shell but no pure package.
+  nix-julia:
+    name: Nix dev shell (flake) + Pkg.instantiate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - name: julia --version via nix develop
+        run: nix develop -c julia --version
+
+      - name: Pkg.instantiate via nix develop
+        run: nix develop -c julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.status()'
+
   # Air-gap audit: workspace consistency + egress-baseline gate +
   # `crucible-py doctor --offline`. Pure-Python; finishes in seconds.
   # Failing this means a new outbound-network call site landed without

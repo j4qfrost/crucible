@@ -45,6 +45,27 @@ steps:
       - pdftotext -v 2>&1 | head -1 || echo "pdftotext not found — PDF tests will skip"
       - julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 
+  # Reproducible-toolchain gate: build the pinned dev shell from flake.nix and
+  # drive the same Pkg.instantiate + Pkg.test through `nix develop`. This proves
+  # the flake's pinned julia + duckdb + poppler toolchain actually resolves and
+  # runs the project, independent of the `julia:${JULIA_VERSION}` base images.
+  # The nix image needs flakes enabled (NIX_CONFIG); `nix develop` pulls julia
+  # from cache.nixos.org, then Pkg.instantiate hits the Julia General registry
+  # (network-impure by design — see the IMPURITY NOTE in flake.nix).
+  nix-julia:
+    image: nixos/nix:2.24.9
+    environment:
+      NIX_CONFIG: "experimental-features = nix-command flakes"
+      JULIA_DEPOT_PATH: /woodpecker/depot
+      JULIA_NUM_THREADS: "2"
+    commands:
+      - nix --version
+      - nix develop -c julia --version
+      - nix develop -c julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.status()'
+    when:
+      matrix:
+        JULIA_VERSION: "1.10"
+
   # Hygiene: every-fixture × every-migration round-trip + Gate 1 check.
   migration-smoke:
     image: julia:${JULIA_VERSION}
