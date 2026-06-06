@@ -6,7 +6,7 @@
 # structured-output contract as AnthropicProvider.
 #
 # Configure via constructor or env:
-#   LocalProvider(; endpoint="http://localhost:8000/v1", model="qwen2.5-coder:7b")
+#   LocalProvider(; endpoint="http://localhost:8000/v1", model="qwen3:14b")
 #   ENV: CRUCIBLE_LOCAL_ENDPOINT, CRUCIBLE_LOCAL_MODEL, CRUCIBLE_LOCAL_API_KEY
 #
 # When the endpoint is unreachable or returns malformed JSON, returns a
@@ -22,7 +22,7 @@ end
 
 LocalProvider(;
     endpoint::AbstractString = get(ENV, "CRUCIBLE_LOCAL_ENDPOINT", "http://localhost:8000/v1"),
-    model::AbstractString    = get(ENV, "CRUCIBLE_LOCAL_MODEL", "qwen2.5-coder-7b"),
+    model::AbstractString    = get(ENV, "CRUCIBLE_LOCAL_MODEL", "qwen3:14b"),
     api_key::AbstractString  = get(ENV, "CRUCIBLE_LOCAL_API_KEY", "EMPTY"),
     timeout_s::Int           = 120,
 ) = LocalProvider(String(endpoint), String(model), String(api_key), timeout_s)

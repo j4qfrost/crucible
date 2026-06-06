@@ -16,12 +16,12 @@ raising.
 Configure via constructor or env:
 
     LocalOpenAIProvider(endpoint="http://localhost:11434/v1",
-                       model="qwen2.5-coder:7b")
+                       model="qwen3:14b")
 
     # or via env (these match the Julia-side env-var names so the
     # same configuration drives both):
     CRUCIBLE_LOCAL_ENDPOINT=http://localhost:11434/v1
-    CRUCIBLE_LOCAL_MODEL=qwen2.5-coder:7b
+    CRUCIBLE_LOCAL_MODEL=qwen3:14b
     CRUCIBLE_LOCAL_API_KEY=ollama
 """
 
@@ -44,7 +44,7 @@ from ..spec import MDSpec
 
 
 _DEFAULT_ENDPOINT = "http://localhost:8000/v1"
-_DEFAULT_MODEL = "qwen2.5-coder-7b"
+_DEFAULT_MODEL = "qwen3:14b"
 _DEFAULT_TIMEOUT_S = 120
 
 

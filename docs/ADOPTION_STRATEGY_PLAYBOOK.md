@@ -254,6 +254,10 @@ is the real check.
 - [`docs/CAMPAIGN_2026Q2.md`](CAMPAIGN_2026Q2.md) — the
   operational campaign that targets some of the same audiences
   through outreach rather than docs.
+- [`docs/FEEDBACK_LOOP.md`](FEEDBACK_LOOP.md) — the maintenance
+  contract for the plan + campaign docs: how real adopter signal
+  flows back in and revises them. The "Maintenance" section above
+  is the profile-doc slice of that loop.
 - [`docs/POWER_USERS.md`](POWER_USERS.md) — the contributor
   onboarding doc (third orthogonal axis, alongside profile and
   reading guides).

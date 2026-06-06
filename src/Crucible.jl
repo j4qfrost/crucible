@@ -51,6 +51,7 @@ include("renderers/MarkdownRenderer.jl")
 include("renderers/WebRenderer.jl")
 
 include("cloud/Advisor.jl")
+include("spec/RepurposeScore.jl")
 
 include("atproto/ATProto.jl")
 
@@ -78,6 +79,7 @@ export MDSpec, SystemSpec, SystemSource, SolventSpec, LipidBilayer,
        Renderer, PlutoRenderer, NotebookRenderer, MarkdownRenderer, WebRenderer, render,
        serve_http,
        advise,
+       repurpose_score,
        run_validation,
        ATProto
 

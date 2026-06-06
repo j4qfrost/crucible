@@ -326,3 +326,7 @@ isn't sacred. The discipline is.
   contributor needs to know. Phase 2b assumes this is current.
 - [`CHANGELOG.md`](../CHANGELOG.md) — version cadence. Phase 0's
   "tag v1.0.0" requires a clean changelog.
+- [`docs/FEEDBACK_LOOP.md`](FEEDBACK_LOOP.md) — how the decision
+  gates above get revised in response to real adopter signal. The
+  quarterly strategy review there is pinned to this plan's
+  end-of-phase gates.
