@@ -46,6 +46,14 @@ neutralize it for an air-gapped deployment.
 absent by design (verified by `tools/check_workspace.py` checks +
 the v1.16 SECURITY.md commitment).
 
+The `tools/baselines/egress.json` urllib count also includes
+test-suite call sites, which do not reach the public internet:
+`test_local_llm_live.py`'s opt-in live smoke probes
+`CRUCIBLE_LOCAL_ENDPOINT` (the sanctioned in-network LLM, and is
+skipped unless live tests are explicitly enabled), and
+`test_corpus_openalex.py` patches `urllib.request.urlopen` to
+assert the offline path.
+
 ## Install procedure (air-gapped from day 1)
 
 ### Step 1: Mirror Python deps

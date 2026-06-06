@@ -84,6 +84,20 @@ fit `docs/` (spec/contributor reference) or `examples/` (runnable demos).
   toward Python**. Subprocess is the seam. The v1.24 bindings and
   v1.29 corpus GUI are the empirical evidence.
 
+- [`pitch_to_chemistry_friend.md`](pitch_to_chemistry_friend.md) —
+  meeting prep for explaining Crucible to a chemistry PhD on the
+  manufacturing + procurement side of a chemistry startup
+  (non-coder audience). Leans on the materials templates rather than
+  the drug-discovery wedge; honest disqualifier list; question bank
+  to drive the conversation toward whether Crucible is even relevant
+  to their pipeline.
+
+- [`handout_chemistry_friend.md`](handout_chemistry_friend.md) —
+  single-page leave-behind companion to `pitch_to_chemistry_friend.md`.
+  Distilled to what the friend should remember after the meeting:
+  the wedge sentence, the two materials templates, the honest
+  disqualifier list, and a two-question relevance check.
+
 ## When to add a musing
 
 Add one when you've made an architectural decision that:
