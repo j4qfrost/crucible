@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### v1.91 — strategy feedback loop + sequencing/qualification rubrics (2026-05-22)
+
+Closes three gaps surfaced in a strategy-doc audit. Docs-only; no
+code, schema, or test changes.
+
+- **`docs/FEEDBACK_LOOP.md`** (new) — the maintenance contract for
+  the plan + campaign docs. Documents the monthly signal sweep +
+  quarterly strategy review (pinned to the Week-13 / Week-26 gate
+  dates the plans already ship with), which signals get collected
+  (all already named in the existing docs), how each plan doc's
+  revision surface differs (ADOPTION_PLAN decision gates,
+  COMMERCIAL_VALIDATION_PLAN kill criteria + spend tranches,
+  CAMPAIGN KPI thresholds, USER_PROFILE failure modes), and the
+  branch → commit → CHANGELOG → checks recording ritual. Why: the
+  plans were written once with no documented path for adopter
+  evidence to revise them — the Frozen Plan failure mode.
+  Cross-linked from `docs/ADOPTION_STRATEGY_PLAYBOOK.md` and
+  `docs/ADOPTION_PLAN.md`.
+- **`docs/COMMERCIAL_VALIDATION_PLAN.md`** — added a warm-lead
+  qualification rubric next to the spend-tranche table. The "≥3
+  warm leads" Tranche-2 trigger and the Phase A / kill-criteria
+  counts all key off "warm" but the term was undefined. Rubric
+  scores cold / lukewarm / warm / hot on observable actions
+  (replied / held a call / requested follow-up / named budget or
+  timeline / introduced onward), with warm = two-or-more criteria
+  and a 6-week decay rule.
+- **`docs/CAMPAIGN_2026Q2.md`** — added an email-sequencing
+  framework after the cold-email templates. Defines a three-touch
+  per-recipient sequence (first email → Day 5–7 follow-up →
+  8–12-week milestone re-engage), cadence rules, and a touch-budget
+  table proving the sequence stays inside the existing 35-email /
+  13-week cap (it trades breadth for depth, never adds volume).
+
 ### v1.88 — live local-LLM smoke (closes #3) (2026-05-05)
 
 Opt-in test module that exercises `LocalOpenAIProvider` against a
