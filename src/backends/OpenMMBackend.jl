@@ -115,6 +115,10 @@ function _emit_system_load(spec::MDSpec)
     src = spec.system.source
     io = IOBuffer()
     print(io, "# --- system load ---\n")
+    # True once a ForceField has been built WITH a ligand template generator already
+    # registered (the protein_ligand path); the force-field section must then NOT rebuild
+    # it from scratch, or the ligand template is lost and createSystem fails.
+    print(io, "_ff_ready = False\n")
     if src.type == :user_supplied
         if src.coordinates === nothing
             error("OpenMM renderer: user_supplied source requires coordinates path")
@@ -168,20 +172,57 @@ function _emit_system_load(spec::MDSpec)
         print(io, "from openmm.unit import nanometer, molar\n")
         print(io, "from openff.toolkit import Molecule\n")
         print(io, "from openmmforcefields.generators import SMIRNOFFTemplateGenerator\n")
-        print(io, "# 1. fetch + repair protein\n")
+        print(io, "# 1. load structure — keep heterogens for now so we can capture the\n")
+        print(io, "#    CRYSTAL ligand pose (re-adding from a bare SMILES conformer would drop\n")
+        print(io, "#    the molecule somewhere unrelated to the binding site and blow up).\n")
         print(io, "_fixer = PDBFixer(pdbid=", repr(src.pdb_id), ")\n")
         print(io, "_fixer.findMissingResidues()\n")
         print(io, "_fixer.findNonstandardResidues()\n")
         print(io, "_fixer.replaceNonstandardResidues()\n")
+        print(io, "# 2. capture the co-crystal ligand: pick the heterogen whose heavy-atom\n")
+        print(io, "#    count best matches the target SMILES, write it out, and rebuild it with\n")
+        print(io, "#    crystal coordinates + SMILES chemistry via from_pdb_and_smiles.\n")
+        print(io, "_SMILES = ", repr(src.ligand_smiles), "\n")
+        print(io, "_lig_ref = Molecule.from_smiles(_SMILES, allow_undefined_stereo=True)\n")
+        print(io, "_target_heavy = sum(1 for _a in _lig_ref.atoms if _a.atomic_number > 1)\n")
+        print(io, "_NON_LIGAND = {'ALA','ARG','ASN','ASP','CYS','GLN','GLU','GLY','HIS','ILE',\n")
+        print(io, "    'LEU','LYS','MET','PHE','PRO','SER','THR','TRP','TYR','VAL','HID','HIE',\n")
+        print(io, "    'HIP','CYX','HOH','WAT','NA','CL','K','MG','ZN','CA','MN','FE','SO4',\n")
+        print(io, "    'PO4','GOL','EDO','ACE','NME','DMS','PEG'}\n")
+        print(io, "_lig_res = None; _lig_diff = None\n")
+        print(io, "for _res in _fixer.topology.residues():\n")
+        print(io, "    if _res.name in _NON_LIGAND: continue\n")
+        print(io, "    _heavy = sum(1 for _a in _res.atoms() if _a.element is not None and _a.element.atomic_number > 1)\n")
+        print(io, "    if _heavy == 0: continue\n")
+        print(io, "    _d = abs(_heavy - _target_heavy)\n")
+        print(io, "    if _lig_diff is None or _d < _lig_diff:\n")
+        print(io, "        _lig_diff = _d; _lig_res = _res\n")
+        print(io, "if _lig_res is None:\n")
+        print(io, "    raise RuntimeError('crucible: no co-crystal ligand found in ",
+                  src.pdb_id, " to seed the binding pose')\n")
+        print(io, "_lig_idx = _lig_res.index\n")
+        print(io, "_m = Modeller(_fixer.topology, _fixer.positions)\n")
+        print(io, "_m.delete([_r for _r in _m.topology.residues() if _r.index != _lig_idx])\n")
+        print(io, "_lig_xtal = os.path.join(OUTPUT_DIR, 'ligand_xtal.pdb')\n")
+        print(io, "with open(_lig_xtal, 'w') as _ofh:\n")
+        print(io, "    PDBFile.writeFile(_m.topology, _m.positions, _ofh)\n")
+        print(io, "#    (assign bond orders from the SMILES template onto the crystal\n")
+        print(io, "#    heavy-atom graph — robust to PDB distance-based bond perception —\n")
+        print(io, "#    then add hydrogens with coordinates. This is the production recipe.)\n")
+        print(io, "from rdkit import Chem as _Chem\n")
+        print(io, "from rdkit.Chem import AllChem as _AllChem\n")
+        print(io, "_pdb_mol = _Chem.MolFromPDBFile(_lig_xtal, removeHs=False, sanitize=False)\n")
+        print(io, "_tmpl = _Chem.MolFromSmiles(_SMILES)\n")
+        print(io, "_lig_rd = _AllChem.AssignBondOrdersFromTemplate(_tmpl, _pdb_mol)\n")
+        print(io, "_lig_rd = _Chem.AddHs(_lig_rd, addCoords=True)\n")
+        print(io, "_lig = Molecule.from_rdkit(_lig_rd, allow_undefined_stereo=True)\n")
+        print(io, "_lig.name = ", repr(ligand_name), "\n")
+        print(io, "_lig.assign_partial_charges('am1bcc')\n")
+        print(io, "# 3. now repair the protein — safe to drop heterogens, the pose is captured\n")
         print(io, "_fixer.removeHeterogens(keepWater=False)\n")
         print(io, "_fixer.findMissingAtoms()\n")
         print(io, "_fixer.addMissingAtoms()\n")
         print(io, "_fixer.addMissingHydrogens(7.0)\n")
-        print(io, "# 2. parameterize ligand from SMILES\n")
-        print(io, "_lig = Molecule.from_smiles(", repr(src.ligand_smiles), ", allow_undefined_stereo=True)\n")
-        print(io, "_lig.name = ", repr(ligand_name), "\n")
-        print(io, "_lig.generate_conformers(n_conformers=1)\n")
-        print(io, "_lig.assign_partial_charges('am1bcc')\n")
         # Force-field XMLs
         ff_files = String[]
         if spec.force_field.protein == :amber14sb
@@ -204,7 +245,9 @@ function _emit_system_load(spec::MDSpec)
         print(io, "forcefield = ForceField(*", files_repr, ")\n")
         print(io, "_smirnoff = SMIRNOFFTemplateGenerator(molecules=[_lig], forcefield=", repr(ligand_ff_str), ")\n")
         print(io, "forcefield.registerTemplateGenerator(_smirnoff.generator)\n")
-        print(io, "# 3. merge protein + ligand topologies\n")
+        # This ForceField now carries the ligand template — do not rebuild it later.
+        print(io, "_ff_ready = True\n")
+        print(io, "# 4. merge protein + crystal-posed ligand (conformer = crystal coords)\n")
         print(io, "_protein = Modeller(_fixer.topology, _fixer.positions)\n")
         print(io, "_lig_topology = _lig.to_topology().to_openmm()\n")
         print(io, "_lig_positions = _lig.conformers[0].to_openmm()\n")
@@ -213,7 +256,8 @@ function _emit_system_load(spec::MDSpec)
             water_model = spec.system.solvent.model == :TIP3P    ? "tip3p" :
                           spec.system.solvent.model == :TIP4P_EW ? "tip4pew" : "spce"
             ionic_M = spec.system.solvent.ions_NaCl_mM / 1000.0
-            print(io, "_protein.addSolvent(forcefield, padding=1.0*nanometer, ionicStrength=",
+            pad_nm = spec.system.solvent.padding_nm === nothing ? 1.0 : spec.system.solvent.padding_nm
+            print(io, "_protein.addSolvent(forcefield, padding=", pad_nm, "*nanometer, ionicStrength=",
                       ionic_M, "*molar, model=", repr(water_model), ")\n")
         end
         print(io, "_prepared_path = os.path.join(OUTPUT_DIR, ", repr("$(src.pdb_id)_complex.pdb"), ")\n")
@@ -251,7 +295,8 @@ function _emit_system_load(spec::MDSpec)
             water_model = spec.system.solvent.model == :TIP3P    ? "tip3p" :
                           spec.system.solvent.model == :TIP4P_EW ? "tip4pew" : "spce"
             ionic_M = spec.system.solvent.ions_NaCl_mM / 1000.0
-            print(io, "_fixer.addSolvent(padding=1.0*nanometer, ionicStrength=",
+            pad_nm = spec.system.solvent.padding_nm === nothing ? 1.0 : spec.system.solvent.padding_nm
+            print(io, "_fixer.addSolvent(padding=", pad_nm, "*nanometer, ionicStrength=",
                       ionic_M, "*molar, waterModel=", repr(water_model), ")\n")
         end
         print(io, "_prepared_path = os.path.join(OUTPUT_DIR, ", repr("$(src.pdb_id)_prepared.pdb"), ")\n")
@@ -322,7 +367,9 @@ function _emit_forcefield(spec::MDSpec)
         end
     end
     files_repr = "[" * join((repr(f) for f in ff_files), ", ") * "]"
-    print(io, "if not _use_amber:\n")
+    # Skip the rebuild when the system-load step already built a ForceField with a ligand
+    # template generator registered (protein_ligand) — rebuilding would drop that template.
+    print(io, "if not _use_amber and not _ff_ready:\n")
     print(io, "    forcefield = ForceField(*", files_repr, ")\n")
     print(io, "\n")
     String(take!(io))

@@ -241,6 +241,34 @@ function cmd_advise(args::Vector{String})
     rec.requires_confirmation ? 3 : 0
 end
 
+function cmd_repurpose_score(args::Vector{String})
+    _, kw = _parse_kw_args(args)
+    pdb = get(kw, "pdb", "")
+    smiles = get(kw, "smiles", "")
+    (isempty(pdb) || isempty(smiles)) &&
+        error("usage: repurpose-score --pdb <id> --smiles <s> [--run] [--budget-hours N] [--format json]")
+    budget = parse(Float64, get(kw, "budget-hours", "24"))
+    run = get(kw, "run", "false") == "true"
+    out = Crucible.repurpose_score(pdb, smiles; budget_hours=budget, run=run)
+    fmt = get(kw, "format", "text")
+    if fmt == "json"
+        println(JSON3.write(out))
+    else
+        v = out["validation"]
+        println("method:     $(out["method"])")
+        println("validation: $(v["ok"] ? "ok" : "FAILED")")
+        for e in v["errors"];   println("  error: ", e); end
+        for w in v["warnings"]; println("  warn:  ", w); end
+        if out["advise"] !== nothing
+            a = out["advise"]
+            println("advise:     $(a["gpu"]), $(round(a["runtime_hours"]; digits=2)) h, " *
+                    "\$$(round(a["on_demand_usd"]; digits=2))")
+        end
+        haskey(out, "run_command") && println("run:        ", out["run_command"])
+    end
+    out["validation"]["ok"] ? 0 : 1
+end
+
 function _cmd_info_json()
     backends = Dict{String,Any}()
     for (name, b) in (("MollyBackend", MollyBackend()),
@@ -1902,6 +1930,7 @@ function main(args::Vector{String}=ARGS)::Int
         elseif cmd == "validate";    return cmd_validate(rest)
         elseif cmd == "render";      return cmd_render(rest)
         elseif cmd == "advise";      return cmd_advise(rest)
+        elseif cmd == "repurpose-score"; return cmd_repurpose_score(rest)
         elseif cmd == "summarize";   return cmd_summarize(rest)
         elseif cmd == "diff";        return cmd_diff(rest)
         elseif cmd == "info";        return cmd_info(rest)

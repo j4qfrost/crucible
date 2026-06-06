@@ -405,6 +405,28 @@ function _handle_advise(req::HTTP.Request)
     end
 end
 
+function _handle_repurpose_score(req::HTTP.Request)
+    try
+        body = _read_json(req)
+        pdb = String(get(body, "pdb_id", ""))
+        smiles = String(get(body, "smiles", ""))
+        isempty(pdb) && return _bad("pdb_id is required")
+        isempty(smiles) && return _bad("smiles is required")
+        budget = Float64(get(body, "budget_hours", 24.0))
+        run = get(body, "run", false) === true
+        _json_response(repurpose_score(pdb, smiles; budget_hours=budget, run=run))
+    catch err
+        _bad("repurpose-score failed: $(err)"; status=500)
+    end
+end
+
+function _handle_info(_req::HTTP.Request)
+    _json_response(Dict(
+        "templates" => String.(string.(list_templates())),
+        "backends"  => Dict("openmm" => true, "molly" => true, "gromacs" => true),
+    ))
+end
+
 function _handle_lint(req::HTTP.Request)
     try
         body = _read_json(req)
@@ -515,6 +537,10 @@ function _router(req::HTTP.Request)
         return _handle_render(req)
     elseif method == "POST" && target == "/api/advise"
         return _handle_advise(req)
+    elseif method == "GET" && target == "/api/info"
+        return _handle_info(req)
+    elseif method == "POST" && target == "/api/repurpose-score"
+        return _handle_repurpose_score(req)
     elseif method == "POST" && target == "/api/parameterize"
         return _handle_parameterize(req)
     elseif method == "POST" && target == "/api/lint"
