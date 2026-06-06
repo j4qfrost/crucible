@@ -688,8 +688,8 @@ end
 
 function cmd_serve(args::Vector{String})
     _, kw = _parse_kw_args(args)
-    host = get(kw, "host", "0.0.0.0")
-    port = parse(Int, get(kw, "port", "8080"))
+    host = get(kw, "host", get(ENV, "CRUCIBLE_HTTP_HOST", "0.0.0.0"))
+    port = parse(Int, get(kw, "port", get(ENV, "CRUCIBLE_HTTP_PORT", "8080")))
     Crucible.serve_http(; host=host, port=port)
     0
 end
@@ -1130,7 +1130,7 @@ function cmd_bench(args::Vector{String})
     threshold_pct = parse(Float64, get(kw, "threshold", "20"))
     backend = OpenMMBackend()
     results = NamedTuple[]
-    workdir = "/tmp/crucible-bench"
+    workdir = get(ENV, "CRUCIBLE_BENCH_WORKDIR", "/tmp/crucible-bench")
     for name in list_templates()
         spec = get_template(name)
         json = spec_to_json(spec)
