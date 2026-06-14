@@ -138,6 +138,11 @@ headroom is checked against the spec's `n_atoms_estimate` (≈150 bytes/atom +
 
 ## Quick start
 
+> 🌱 **New to programming?** Never opened a terminal or installed Julia? Start with
+> the step-by-step [**Getting Started for beginners**](docs/GETTING_STARTED.md)
+> guide — it assumes zero experience and gets you to a working browser demo. The
+> commands below assume you're comfortable with a command line.
+
 ```bash
 julia --project -e 'using Pkg; Pkg.instantiate()'
 
