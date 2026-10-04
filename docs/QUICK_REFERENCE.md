@@ -134,6 +134,9 @@ The most-load-bearing knobs:
 | `CRUCIBLE_RESUME_FROM` | Path to a checkpoint to resume from |
 | `CRUCIBLE_PREVIEW_STEPS` | Override the preview-run step count |
 | `CRUCIBLE_HEKATE_PUBLISH_EVENTS` | Set to `1` to actually publish AT Protocol events (default: dry-run) |
+| `CRUCIBLE_HTTP_HOST` | Bind address for `crucible serve` (default: `0.0.0.0`; `--host` overrides) |
+| `CRUCIBLE_HTTP_PORT` | Listen port for `crucible serve` (default: `8080`; `--port` overrides) |
+| `CRUCIBLE_BENCH_WORKDIR` | Scratch dir for `crucible bench` render/validate runs (default: `/tmp/crucible-bench`) |
 | `XDG_DATA_HOME` | Override the default DuckDB store location |
 | `XDG_CACHE_HOME` | Override the PDF-text cache location |
 | `CRUCIBLE_BIN` | Override the path to the Julia CLI binary (Python `cli_bridge`) |
