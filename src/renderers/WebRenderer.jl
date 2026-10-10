@@ -558,8 +558,12 @@ end
     serve_http(; host="0.0.0.0", port=8080)
 
 Start the Crucible HTTP frontend. Blocks until interrupted.
+
+Defaults are read from `CRUCIBLE_HTTP_HOST` (default `"0.0.0.0"`) and
+`CRUCIBLE_HTTP_PORT` (default `8080`) when not passed explicitly.
 """
-function serve_http(; host::AbstractString="0.0.0.0", port::Int=8080)
+function serve_http(; host::AbstractString=get(ENV, "CRUCIBLE_HTTP_HOST", "0.0.0.0"),
+                      port::Int=parse(Int, get(ENV, "CRUCIBLE_HTTP_PORT", "8080")))
     println("crucible: serving on http://$(host):$(port) — Ctrl+C to stop")
     HTTP.serve(_router, host, port)
 end
