@@ -129,7 +129,17 @@ end
     spec = _protein_ligand_spec()
     script = Crucible.render_script(backend, spec; output_dir="/tmp/pl-test")
     @test occursin("PDBFixer(pdbid=\"1ubq\")", script)
-    @test occursin("Molecule.from_smiles(\"Cc1ccccc1\"", script)
+    # The spec's SMILES is bound once to `_SMILES` (crystal-pose ligand load,
+    # b03e44c/748aeb4) and every downstream use reads that binding: the
+    # heavy-atom reference molecule and the RDKit bond-order template.
+    smiles_bind = findfirst("_SMILES = \"Cc1ccccc1\"\n", script)
+    @test smiles_bind !== nothing
+    ref_use = findfirst("Molecule.from_smiles(_SMILES,", script)
+    tmpl_use = findfirst("_Chem.MolFromSmiles(_SMILES)", script)
+    @test ref_use !== nothing
+    @test tmpl_use !== nothing
+    @test smiles_bind !== nothing && ref_use !== nothing && tmpl_use !== nothing &&
+          first(smiles_bind) < first(ref_use) < first(tmpl_use)
     @test occursin("SMIRNOFFTemplateGenerator", script)
     @test occursin("registerTemplateGenerator", script)
     @test occursin("am1bcc", script)
