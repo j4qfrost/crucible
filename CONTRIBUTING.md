@@ -164,8 +164,9 @@ and copy.
 
 - **GitHub Actions** (`.github/workflows/ci.yml`): Julia 1.10 + 1.11
   matrix on `ubuntu-latest`. The public-facing pipeline.
-- **Woodpecker** (`.woodpecker.yml`): same matrix on snowman. Runs
-  even if GitHub Actions billing clamps.
+- **Forgejo Actions** (`.forgejo/workflows/ci.yml`): Julia 1.10 / 1.11 / 1.12
+  matrix on the self-hosted Forgejo (snowman runner). Runs even if GitHub Actions
+  billing clamps.
 - **GPU smoke** (`.github/workflows/gpu-smoke.yml`): self-hosted
   runner on snowman, gated on the `gpu-smoke` PR label. Live OpenMM
   on the actual GPU.

@@ -216,19 +216,21 @@ This is the "Phase 0 of integration" path: spec validation only,
 no Julia, no GPU. The Python bindings exist for exactly this
 scenario.
 
-### Woodpecker (the snowman setup)
+### Forgejo Actions (the self-hosted setup)
 
-The repo's own `.woodpecker.yml` runs the full Julia test suite
-including cross-language consistency. Reuse those steps for any
+The repo's own `.forgejo/workflows/ci.yml` runs the full Julia test
+suite including cross-language consistency. The core of it, for any
 fork:
 
 ```yaml
-steps:
-  - name: validate
-    image: julia:1.10
-    commands:
-      - julia --project -e 'using Pkg; Pkg.instantiate()'
-      - julia --project -e 'using Pkg; Pkg.test()'
+jobs:
+  test:
+    runs-on: docker
+    container:
+      image: julia:1.10
+    steps:
+      - uses: actions/checkout@v4
+      - run: julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 ```
 
 ### Pre-commit hook

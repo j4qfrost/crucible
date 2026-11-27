@@ -48,7 +48,7 @@ regressions before users do.
 |---|---|---|---|---|
 | 0.1 | Tag `v1.0.0` with a short release-notes summary linking the use-case docs | maintainer | nothing | 1 day |
 | 0.2 | Publish to JuliaRegistry | maintainer | 0.1 | 2 days |
-| 0.3 | Ensure both CI pipelines (GH Actions + Woodpecker) are green at the tagged commit; no skipped tests | maintainer | nothing | already done |
+| 0.3 | Ensure both CI pipelines (GH Actions + Forgejo Actions) are green at the tagged commit; no skipped tests | maintainer | nothing | already done |
 | 0.4 | First-touch onboarding QA: have one person who's never seen the project run `examples/starter_session.sh` and report what broke | external collaborator | finding the person | 1 week wall-clock |
 | 0.5 | Update `README.md` so the first 30 seconds of reading commits to one of three messages: "this is what it does, here's the elevator-pitch use case, here's how to start" | maintainer | nothing | 2 days |
 | 0.6 | Set up a project Discord/Matrix/Slack channel for early adopters | maintainer | external account | 2 days |
