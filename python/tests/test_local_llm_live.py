@@ -14,7 +14,8 @@ Why we want this:
   someone actually deployed.
 - snowman has Ollama + GPU + the qwen3 family already
   cached. That makes this test cheap to run there, and the
-  natural place to wire it into Woodpecker as a gated step.
+  natural place to wire it into Forgejo Actions as a gated
+  `runs-on: snowman` job.
 - The fail-soft contract means a "model declined / produced
   garbage" response should still surface as `out.spec is None`
   with a meaningful `raw_response`, never as a raised exception.

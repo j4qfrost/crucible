@@ -149,14 +149,14 @@ Two parallel pipelines run on every push to `main`:
   with `CRUCIBLE_RUN_OPENMM=1`. Caches the Julia depot via
   `julia-actions/cache@v2`. This is the public-facing pipeline that
   surfaces a status badge.
-- **Woodpecker on snowman** (`.woodpecker.yml`) — same matrix +
-  same OpenMM smoke step, runs on the user's home server. Stays
+- **Forgejo Actions** (`.forgejo/workflows/ci.yml`) — Julia 1.10 / 1.11 / 1.12
+  matrix + the same OpenMM smoke step, on the self-hosted Forgejo's snowman runner. Stays
   green even if the GitHub-side billing limit clamps Actions.
   This is the load-bearing pipeline for solo development.
 
 Keep both in sync when you change the build commands. Don't add
 steps that reference secrets (`${{ secrets.X }}` on GitHub or
-`from_secret: x` on Woodpecker) unless the secret has been
+`${{ secrets.X }}` on Forgejo) unless the secret has been
 configured on the matching CI host — both fail at parse time
 when a referenced secret is missing.
 

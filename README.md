@@ -1,7 +1,6 @@
 # crucible
 
 [![CI (GitHub Actions)](https://github.com/j4qfrost/crucible/actions/workflows/ci.yml/badge.svg)](https://github.com/j4qfrost/crucible/actions/workflows/ci.yml)
-[![CI (Woodpecker)](https://snowman.tailddc637.ts.net/api/badges/j4qfrost/crucible/status.svg)](https://snowman.tailddc637.ts.net/repos/j4qfrost/crucible)
 ![Julia 1.10+ / 1.11](https://img.shields.io/badge/julia-1.10%20%7C%201.11-9558B2)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
@@ -60,7 +59,7 @@ v1.5 (active development). See `docs/PLAN.md` for the full design and roadmap.
 - Real observable output: `DCDReporter` for trajectories, `mdtraj` post-run
   analysis writes RMSD / RMSF / Rg CSVs
 - Pluto notebook UI with the 5-gate pipeline rendered as numbered sections
-- CI on GitHub Actions + Woodpecker (Julia 1.10 + 1.11 matrix); live OpenMM smoke in a
+- CI on GitHub Actions + self-hosted Forgejo Actions (Julia 1.10+ matrix); live OpenMM smoke in a
   separate pipeline step on Julia 1.10
 - `examples/walkthrough.jl` for a no-API-key end-to-end demo
 

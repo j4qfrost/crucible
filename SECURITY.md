@@ -35,7 +35,7 @@ mutually agreed timeline is preferred.
 
 The project's standing policy:
 
-- **Never embed an API key** (`ANTHROPIC_API_KEY`, Forgejo / Woodpecker
+- **Never embed an API key** (`ANTHROPIC_API_KEY`, Forgejo
   / GitHub Actions tokens, etc.) in code, configuration files, fixtures,
   or the transcript store.
 - API keys are read from the environment at use-time and are never
